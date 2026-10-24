@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "play_id": "cfdf3bbf-219b-4164-aea4-19b8125bb4eb",
+  "suggestions": [
+    {
+      "id": "s1",
+      "entity": "home_LW",
+      "t_ms": 1500,
+      "branch_from_ms": 0,
+      "target": [
+        -21.0,
+        12.5
+      ],
+      "zone_radius_m": 1.5,
+      "principle": "breakout winger: stop low on the wall",
+      "reason": "Be stopped at the hash marks, back to the boards, when your D moves it. The pass under forecheck pressure gets shorter and their RW has 7 m to close instead of 4.5.",
+      "detail": "Example suggestion that shows the review format; not real coaching.",
+      "confidence": 0.6
+    },
+    {
+      "id": "s2",
+      "entity": "home_C",
+      "t_ms": 3000,
+      "branch_from_ms": 1500,
+      "target": [
+        -13.0,
+        8.0
+      ],
+      "zone_radius_m": 2.0,
+      "principle": "center: give the winger a short support option",
+      "reason": "With their RW and pinching D closing on the wall, be 4-5 m inside him for a bump pass instead of drifting through the middle.",
+      "detail": "Example suggestion that shows the review format; not real coaching.",
+      "confidence": 0.5
+    }
+  ]
+}

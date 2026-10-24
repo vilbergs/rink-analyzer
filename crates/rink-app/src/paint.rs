@@ -4,8 +4,8 @@
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
-use gpui::{point, px, rgb, App, Hsla, PathBuilder, Pixels, Point, Rgba, SharedString, TextRun, Window};
-use rink_core::{EntityId, EntityKind, Play, RinkSpec, Snapshot, Vec2};
+use gpui::{point, px, rgb, rgba, App, Hsla, PathBuilder, Pixels, Point, Rgba, SharedString, TextRun, Window};
+use rink_core::{EntityId, EntityKind, Play, RinkSpec, Snapshot, Suggestion, Vec2};
 
 use crate::transform::RinkTransform;
 
@@ -17,6 +17,11 @@ const CREASE: u32 = 0x9fd3f5;
 const ME_RING: u32 = 0xffb300;
 const SELECTED_RING: u32 = 0x111111;
 const PUCK: u32 = 0x000000;
+/// Position feedback: zone fill (RGBA), ghost outline and arrow, label text.
+const ZONE_FILL: u32 = 0x22b35a40;
+const GHOST: u32 = 0x1a9a4c;
+const GHOST_FILL: u32 = 0xd8f5e3c0;
+const GHOST_LABEL: u32 = 0x146b37;
 
 pub const SKATER_RADIUS_M: f32 = 0.9;
 pub const GOALIE_RADIUS_M: f32 = 1.1;
@@ -52,6 +57,38 @@ fn stroke(window: &mut Window, t: &RinkTransform, pts: &[Vec2], closed: bool, wi
     if let Ok(path) = b.build() {
         window.paint_path(path, color(hex));
     }
+}
+
+fn fill_translucent(window: &mut Window, t: &RinkTransform, pts: &[Vec2], hex_rgba: u32) {
+    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let mut b = PathBuilder::fill();
+    b.add_polygon(&screen, true);
+    if let Ok(path) = b.build() {
+        window.paint_path(path, rgba(hex_rgba));
+    }
+}
+
+fn stroke_dashed(window: &mut Window, t: &RinkTransform, pts: &[Vec2], width_px: f32, hex: u32) {
+    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let mut b = PathBuilder::stroke(px(width_px)).dash_array(&[px(5.), px(4.)]);
+    b.add_polygon(&screen, true);
+    if let Ok(path) = b.build() {
+        window.paint_path(path, color(hex));
+    }
+}
+
+/// A line from `from` to `to` with an arrowhead, both in rink meters.
+fn arrow(window: &mut Window, t: &RinkTransform, from: Vec2, to: Vec2, width_px: f32, hex: u32) {
+    let d = to - from;
+    if d.length() < 0.1 {
+        return;
+    }
+    let dir = d.normalize();
+    let head = 0.9;
+    let left = to - dir.rotate(Vec2::from_angle(0.45)) * head;
+    let right = to - dir.rotate(Vec2::from_angle(-0.45)) * head;
+    stroke(window, t, &[from, to], false, width_px, hex);
+    fill(window, t, &[to, left, right], hex);
 }
 
 fn circle(c: Vec2, r: f32) -> Vec<Vec2> {
@@ -190,6 +227,55 @@ pub fn paint_entities(window: &mut Window, cx: &mut App, t: &RinkTransform, p: E
     fill(window, t, &circle(p.snapshot.puck.pos, puck_r), PUCK);
     if p.selected.is_some_and(|id| p.play.entity(id).is_some_and(|e| e.is_puck())) {
         stroke(window, t, &circle(p.snapshot.puck.pos, puck_r + 0.4), true, 2.0, SELECTED_RING);
+    }
+}
+
+/// Under the players: the acceptable zone around each active suggestion's
+/// target, labelled with its id and how far off the real position was.
+pub fn paint_suggestion_zones(
+    window: &mut Window,
+    cx: &mut App,
+    t: &RinkTransform,
+    play: &Play,
+    active: &[(Suggestion, Vec2)],
+) {
+    for (s, _) in active {
+        fill_translucent(window, t, &circle(s.target, s.zone_radius_m), ZONE_FILL);
+        let label = match s.miss_distance(play) {
+            Some(m) => format!("{} · {:.1} m", s.id, m),
+            None => s.id.clone(),
+        };
+        let below = s.target - Vec2::new(0.0, s.zone_radius_m + 0.8);
+        paint_text(window, cx, t.to_screen(below), &label, px(12.0), GHOST_LABEL);
+    }
+}
+
+/// Over the players: the ghost skating the suggested route, see-through so the
+/// real player stays visible, with an arrow from the real position to it.
+pub fn paint_ghosts(
+    window: &mut Window,
+    cx: &mut App,
+    t: &RinkTransform,
+    play: &Play,
+    snapshot: &Snapshot,
+    active: &[(Suggestion, Vec2)],
+) {
+    for (s, ghost) in active {
+        let Some(entity) = play.entity(&s.entity) else { continue };
+        let r = entity_radius(entity.kind);
+        if let Some(actual) = snapshot.entity(&s.entity).map(|e| e.pos) {
+            let gap = ghost.distance(actual);
+            if gap > r * 1.2 {
+                let dir = (*ghost - actual).normalize();
+                arrow(window, t, actual + dir * r, *ghost - dir * (r * 0.6), 2.5, GHOST);
+            }
+        }
+        fill_translucent(window, t, &circle(*ghost, r), GHOST_FILL);
+        stroke_dashed(window, t, &circle(*ghost, r), 2.0, GHOST);
+        if let Some(n) = entity.number {
+            let font = px((r * 1.1 * t.scale()).clamp(8.0, 28.0));
+            paint_text(window, cx, t.to_screen(*ghost), &n.to_string(), font, GHOST_LABEL);
+        }
     }
 }
 

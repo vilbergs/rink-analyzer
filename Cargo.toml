@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/rink-core", "crates/rink-app"]
+members = ["crates/rink-core", "crates/rink-app", "crates/rink-cli"]
 
 [workspace.package]
 version = "0.1.0"

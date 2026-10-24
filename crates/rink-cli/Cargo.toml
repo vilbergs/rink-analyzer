@@ -1,0 +1,16 @@
+[package]
+name = "rink-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line access to Rink Replay plays: facts, timelines and position reviews. Built for AI agents."
+
+[[bin]]
+name = "rink"
+path = "src/main.rs"
+
+[dependencies]
+rink-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

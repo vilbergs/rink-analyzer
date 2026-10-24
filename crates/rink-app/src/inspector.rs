@@ -10,6 +10,7 @@ const TEXT: u32 = 0xd5dae1;
 const MUTED: u32 = 0x8a93a0;
 const WARN: u32 = 0xffb300;
 const PASSED: u32 = 0x5fb3ff;
+const FEEDBACK: u32 = 0x3ccf7a;
 
 pub struct InspectorView {
     state: Entity<PlayState>,
@@ -30,7 +31,7 @@ fn line(text: impl Into<SharedString>) -> gpui::Div {
     div().child(text.into())
 }
 
-const SHORTCUTS: [(&str, &str); 10] = [
+const SHORTCUTS: [(&str, &str); 12] = [
     ("Drag", "move (auto-keyframe)"),
     ("Shift-drag", "turn facing"),
     ("Alt-click", "toggle puck"),
@@ -40,6 +41,8 @@ const SHORTCUTS: [(&str, &str); 10] = [
     ("Delete", "remove keyframe here"),
     ("]", "playback speed"),
     ("F", "flip ends"),
+    ("N / Shift-N", "next / previous feedback"),
+    ("G", "show / hide ghosts"),
     ("Ctrl-S", "save"),
 ];
 
@@ -54,6 +57,8 @@ impl Render for InspectorView {
             None => "not saved yet".into(),
         };
         let mut panel = div()
+            .id("inspector")
+            .overflow_y_scroll()
             .flex()
             .flex_col()
             .w(px(300.))
@@ -63,7 +68,6 @@ impl Render for InspectorView {
             .bg(rgb(BG))
             .text_color(rgb(TEXT))
             .text_sm()
-            .overflow_hidden()
             .child(div().text_base().child(SharedString::from(format!(
                 "{}{}",
                 play.title,
@@ -124,6 +128,32 @@ impl Render for InspectorView {
             }
             let color = if ev.t_ms <= s.playhead_ms { PASSED } else { TEXT };
             panel = panel.child(div().text_xs().text_color(rgb(color)).child(SharedString::from(text)));
+        }
+
+        let suggestions = s.suggestions();
+        if !suggestions.is_empty() {
+            let hidden = if s.show_ghosts { "" } else { " · ghosts hidden" };
+            panel = panel.child(heading(format!("POSITION FEEDBACK ({}){hidden}", suggestions.len())));
+            let active: Vec<&str> = s.active_suggestions().map(|(sug, _)| sug.id.as_str()).collect();
+            for sug in suggestions {
+                let on = active.contains(&sug.id.as_str()) || s.focused_suggestion.as_deref() == Some(sug.id.as_str());
+                let miss = sug.miss_distance(play).map(|m| format!(" · {m:.1} m off")).unwrap_or_default();
+                let head = format!("{} · {:.1}s · {}{miss}", sug.id, sug.t_ms as f32 / 1000.0, sug.entity);
+                let mut item = div()
+                    .pt_1()
+                    .text_xs()
+                    .text_color(rgb(if on { FEEDBACK } else { MUTED }))
+                    .child(SharedString::from(head))
+                    .child(
+                        div()
+                            .text_color(rgb(if on { TEXT } else { MUTED }))
+                            .child(SharedString::from(sug.principle.clone())),
+                    );
+                if on {
+                    item = item.child(div().text_color(rgb(TEXT)).child(SharedString::from(sug.reason.clone())));
+                }
+                panel = panel.child(item);
+            }
         }
 
         if !s.issues.is_empty() {

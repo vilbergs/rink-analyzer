@@ -9,7 +9,7 @@ use gpui::{
 };
 use rink_core::{EntityId, Vec2};
 
-use crate::paint::{paint_entities, paint_rink, EntityPaint};
+use crate::paint::{paint_entities, paint_ghosts, paint_rink, paint_suggestion_zones, EntityPaint};
 use crate::state::PlayState;
 use crate::transform::RinkTransform;
 
@@ -93,6 +93,11 @@ impl Render for RinkCanvas {
         let play = state.play.clone();
         let snapshot = state.snapshot();
         let selected = state.selected.clone();
+        let active: Vec<_> = if state.show_ghosts {
+            state.active_suggestions().map(|(s, g)| (s.clone(), g)).collect()
+        } else {
+            Vec::new()
+        };
         let flipped = state.flipped;
         let cell = self.transform.clone();
 
@@ -111,12 +116,14 @@ impl Render for RinkCanvas {
                     },
                     move |_, t, window, cx| {
                         paint_rink(window, &t, &play.rink);
+                        paint_suggestion_zones(window, cx, &t, &play, &active);
                         paint_entities(
                             window,
                             cx,
                             &t,
                             EntityPaint { play: &play, snapshot: &snapshot, selected: selected.as_ref() },
                         );
+                        paint_ghosts(window, cx, &t, &play, &snapshot, &active);
                     },
                 )
                 .size_full(),

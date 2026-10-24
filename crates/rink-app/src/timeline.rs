@@ -24,6 +24,7 @@ const KEYFRAME_PUCK: u32 = 0x111111;
 const PLAYHEAD: u32 = 0xff4d4d;
 const DECISION: u32 = 0xffb300;
 const EVENT: u32 = 0x5fb3ff;
+const FEEDBACK: u32 = 0x3ccf7a;
 
 pub struct TimelineView {
     state: Entity<PlayState>,
@@ -132,6 +133,16 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
         s += 1;
     }
 
+    // Feedback: a bar from where the better route splits off to the moment
+    // it's about, with a dot on that moment.
+    let feedback_y = top + 27.0;
+    for s in &state.suggestions {
+        let x0 = axis.x(s.branch_from_ms);
+        let x1 = axis.x(s.t_ms);
+        fill_rect(window, point(x0, px(feedback_y - 1.5)), f32::from(x1 - x0), 3.0, FEEDBACK);
+        diamond(window, point(x1, px(feedback_y)), 5.0, FEEDBACK);
+    }
+
     for ev in &play.events {
         let c = point(axis.x(ev.t_ms), px(events_y));
         let color = if ev.kind == EventKind::DecisionPoint { DECISION } else { EVENT };
@@ -155,6 +166,7 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
 struct StripState {
     playhead_ms: u32,
     selected: Option<rink_core::EntityId>,
+    suggestions: Vec<rink_core::Suggestion>,
 }
 
 fn fmt_s(ms: u32) -> String {
@@ -165,7 +177,11 @@ impl Render for TimelineView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let s = self.state.read(cx);
         let play = s.play.clone();
-        let strip = StripState { playhead_ms: s.playhead_ms, selected: s.selected.clone() };
+        let strip = StripState {
+            playhead_ms: s.playhead_ms,
+            selected: s.selected.clone(),
+            suggestions: s.suggestions().to_vec(),
+        };
         let header = format!(
             "{}  {} / {} s   {}×   {}",
             if s.playing { "▶" } else { "❚❚" },

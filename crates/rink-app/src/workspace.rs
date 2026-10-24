@@ -12,11 +12,27 @@ use crate::timeline::TimelineView;
 
 actions!(
     rink_replay,
-    [TogglePlay, StepForward, StepBack, NextKeyframe, PrevKeyframe, CycleSpeed, FlipEnds, Save, DeleteKeyframe, Quit]
+    [
+        TogglePlay,
+        StepForward,
+        StepBack,
+        NextKeyframe,
+        PrevKeyframe,
+        CycleSpeed,
+        FlipEnds,
+        Save,
+        DeleteKeyframe,
+        NextFeedback,
+        PrevFeedback,
+        ToggleGhosts,
+        Quit
+    ]
 );
 
 const CONTEXT: &str = "Workspace";
 const FRAME: Duration = Duration::from_millis(16);
+/// How often to look for a new or updated review file.
+const REVIEW_POLL: Duration = Duration::from_millis(750);
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
@@ -27,6 +43,9 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("shift-left", PrevKeyframe, Some(CONTEXT)),
         KeyBinding::new("]", CycleSpeed, Some(CONTEXT)),
         KeyBinding::new("f", FlipEnds, Some(CONTEXT)),
+        KeyBinding::new("n", NextFeedback, Some(CONTEXT)),
+        KeyBinding::new("shift-n", PrevFeedback, Some(CONTEXT)),
+        KeyBinding::new("g", ToggleGhosts, Some(CONTEXT)),
         KeyBinding::new("ctrl-s", Save, Some(CONTEXT)),
         KeyBinding::new("cmd-s", Save, Some(CONTEXT)),
         KeyBinding::new("delete", DeleteKeyframe, Some(CONTEXT)),
@@ -44,11 +63,28 @@ pub struct Workspace {
     inspector: Entity<InspectorView>,
     focus_handle: FocusHandle,
     playback: Option<Task<()>>,
+    _review_watch: Task<()>,
 }
 
 impl Workspace {
     pub fn new(state: PlayState, cx: &mut Context<Self>) -> Self {
         let state = cx.new(|_| state);
+
+        // A Claude Code agent writes reviews with the `rink` CLI while the app
+        // is open; poll the review file so feedback shows up as it lands.
+        let watched = state.clone();
+        let review_watch = cx.spawn(async move |_, cx| loop {
+            let alive = watched.update(cx, |s, cx| {
+                if s.reload_review_if_changed() {
+                    cx.notify();
+                }
+            });
+            if alive.is_err() {
+                break;
+            }
+            cx.background_executor().timer(REVIEW_POLL).await;
+        });
+
         Workspace {
             canvas: cx.new(|cx| RinkCanvas::new(state.clone(), cx)),
             timeline: cx.new(|cx| TimelineView::new(state.clone(), cx)),
@@ -56,6 +92,7 @@ impl Workspace {
             state,
             focus_handle: cx.focus_handle(),
             playback: None,
+            _review_watch: review_watch,
         }
     }
 
@@ -154,6 +191,24 @@ impl Workspace {
         });
     }
 
+    fn next_feedback(&mut self, _: &NextFeedback, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.jump_suggestion(1);
+        });
+    }
+
+    fn prev_feedback(&mut self, _: &PrevFeedback, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.jump_suggestion(-1);
+        });
+    }
+
+    fn toggle_ghosts(&mut self, _: &ToggleGhosts, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| s.show_ghosts = !s.show_ghosts);
+    }
+
     fn save(&mut self, _: &Save, _: &mut Window, cx: &mut Context<Self>) {
         self.edit(cx, |s| {
             s.status = match s.save() {
@@ -184,6 +239,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::flip_ends))
             .on_action(cx.listener(Self::delete_keyframe))
             .on_action(cx.listener(Self::save))
+            .on_action(cx.listener(Self::next_feedback))
+            .on_action(cx.listener(Self::prev_feedback))
+            .on_action(cx.listener(Self::toggle_ghosts))
             .flex()
             .flex_col()
             .size_full()

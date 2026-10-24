@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "id": "cfdf3bbf-219b-4164-aea4-19b8125bb4eb",
+  "title": "Breakout",
+  "rink": {
+    "name": "IIHF 60x30",
+    "length_m": 60.0,
+    "width_m": 30.0,
+    "corner_radius_m": 8.5,
+    "goal_line_from_end_m": 4.0,
+    "blue_line_from_end_m": 22.86,
+    "line_width_m": 0.05,
+    "blue_line_width_m": 0.3,
+    "red_line_width_m": 0.3,
+    "center_circle_radius_m": 4.5,
+    "faceoff_circle_radius_m": 4.5,
+    "end_dot_from_goal_line_m": 6.0,
+    "end_dot_lateral_m": 7.0,
+    "neutral_dot_from_blue_line_m": 1.5,
+    "neutral_dot_lateral_m": 7.0,
+    "crease_radius_m": 1.8,
+    "goal_width_m": 1.83,
+    "goal_depth_m": 1.12
+  },
+  "duration_ms": 6000,
+  "teams": [
+    {
+      "side": "home",
+      "name": "Home",
+      "color": "#1f5fbf",
+      "attacks_positive_x": true
+    },
+    {
+      "side": "away",
+      "name": "Away",
+      "color": "#c8322d",
+      "attacks_positive_x": false
+    }
+  ],
+  "entities": [
+    {
+      "id": "home_LW",
+      "kind": "skater",
+      "team": "home",
+      "number": 17,
+      "role": "LW",
+      "label": "",
+      "is_me": true
+    },
+    {
+      "id": "home_C",
+      "kind": "skater",
+      "team": "home",
+      "number": 19,
+      "role": "C",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_RW",
+      "kind": "skater",
+      "team": "home",
+      "number": 27,
+      "role": "RW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_LD",
+      "kind": "skater",
+      "team": "home",
+      "number": 4,
+      "role": "LD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_RD",
+      "kind": "skater",
+      "team": "home",
+      "number": 44,
+      "role": "RD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_G",
+      "kind": "goalie",
+      "team": "home",
+      "number": 30,
+      "role": "G",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_LW",
+      "kind": "skater",
+      "team": "away",
+      "number": 18,
+      "role": "LW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_C",
+      "kind": "skater",
+      "team": "away",
+      "number": 20,
+      "role": "C",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_RW",
+      "kind": "skater",
+      "team": "away",
+      "number": 28,
+      "role": "RW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_LD",
+      "kind": "skater",
+      "team": "away",
+      "number": 5,
+      "role": "LD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_RD",
+      "kind": "skater",
+      "team": "away",
+      "number": 45,
+      "role": "RD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_G",
+      "kind": "goalie",
+      "team": "away",
+      "number": 31,
+      "role": "G",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "puck",
+      "kind": "puck",
+      "label": "",
+      "is_me": false
+    }
+  ],
+  "tracks": {
+    "away_C": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -20.0,
+          2.0
+        ]
+      },
+      {
+        "t_ms": 1500,
+        "pos": [
+          -25.0,
+          5.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -21.0,
+          9.0
+        ]
+      },
+      {
+        "t_ms": 4500,
+        "pos": [
+          -15.0,
+          9.0
+        ]
+      }
+    ],
+    "away_G": [
+      {
+        "t_ms": 0,
+        "pos": [
+          25.0,
+          0.0
+        ],
+        "facing": 3.1415927
+      }
+    ],
+    "away_LD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -6.0,
+          7.0
+        ]
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -8.0,
+          9.0
+        ]
+      },
+      {
+        "t_ms": 5500,
+        "pos": [
+          -4.0,
+          8.0
+        ]
+      }
+    ],
+    "away_LW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -15.0,
+          -6.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -17.0,
+          -3.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -14.0,
+          -2.0
+        ]
+      }
+    ],
+    "away_RD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -6.0,
+          -5.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -5.0,
+          -4.0
+        ]
+      }
+    ],
+    "away_RW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -14.0,
+          8.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -15.0,
+          11.0
+        ]
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -11.0,
+          10.5
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -7.0,
+          9.5
+        ]
+      }
+    ],
+    "home_C": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -22.0,
+          0.0
+        ]
+      },
+      {
+        "t_ms": 2500,
+        "pos": [
+          -16.0,
+          3.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -6.0,
+          4.0
+        ]
+      },
+      {
+        "t_ms": 6000,
+        "pos": [
+          -2.0,
+          3.0
+        ]
+      }
+    ],
+    "home_G": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -25.0,
+          0.0
+        ],
+        "facing": 0.0
+      }
+    ],
+    "home_LD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -27.5,
+          3.0
+        ],
+        "has_puck": true
+      },
+      {
+        "t_ms": 1500,
+        "pos": [
+          -27.0,
+          6.0
+        ]
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -24.0,
+          5.0
+        ]
+      }
+    ],
+    "home_LW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -18.0,
+          11.0
+        ]
+      },
+      {
+        "t_ms": 2000,
+        "pos": [
+          -19.0,
+          12.0
+        ],
+        "has_puck": true
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -12.0,
+          11.5
+        ],
+        "has_puck": true
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -5.0,
+          10.0
+        ],
+        "has_puck": true
+      },
+      {
+        "t_ms": 6000,
+        "pos": [
+          -1.0,
+          9.0
+        ],
+        "has_puck": true
+      }
+    ],
+    "home_RD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -24.0,
+          -6.0
+        ]
+      },
+      {
+        "t_ms": 2500,
+        "pos": [
+          -20.0,
+          -4.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -12.0,
+          -3.0
+        ]
+      }
+    ],
+    "home_RW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -18.0,
+          -10.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -12.0,
+          -9.5
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -6.0,
+          -9.0
+        ]
+      },
+      {
+        "t_ms": 6000,
+        "pos": [
+          -2.0,
+          -8.0
+        ]
+      }
+    ]
+  },
+  "events": [
+    {
+      "t_ms": 0,
+      "kind": "puck_recovery",
+      "actors": [
+        "home_LD"
+      ],
+      "note": ""
+    },
+    {
+      "t_ms": 1500,
+      "kind": "pass",
+      "actors": [
+        "home_LD",
+        "home_LW"
+      ],
+      "note": ""
+    },
+    {
+      "t_ms": 3000,
+      "kind": "decision_point",
+      "actors": [
+        "home_LW"
+      ],
+      "note": "Chip it past the pinching D or carry it out?"
+    },
+    {
+      "t_ms": 4600,
+      "kind": "zone_exit",
+      "actors": [
+        "home_LW"
+      ],
+      "note": ""
+    }
+  ],
+  "notes": "Example: LD recovers behind the net and rims it to me on the strong-side wall."
+}

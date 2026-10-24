@@ -3,8 +3,10 @@
 //! tested without a window.
 
 use std::path::PathBuf;
+use std::time::SystemTime;
 
-use rink_core::{io, sample, validate, EntityId, Issue, Keyframe, Play, RinkSpec, Snapshot, Vec2};
+use rink_core::review::{load_review, review_path};
+use rink_core::{io, sample, validate, EntityId, Issue, Keyframe, Play, Review, RinkSpec, Snapshot, Suggestion, Vec2};
 
 use crate::paint::entity_radius;
 
@@ -28,6 +30,12 @@ pub struct PlayState {
     pub dirty: bool,
     pub status: String,
     pub issues: Vec<Issue>,
+    /// Position feedback from `<play>.review.json`, reloaded when it changes.
+    pub review: Option<Review>,
+    review_mtime: Option<SystemTime>,
+    pub show_ghosts: bool,
+    /// The suggestion last jumped to; highlighted in the inspector.
+    pub focused_suggestion: Option<String>,
 }
 
 pub fn snap(t_ms: u32) -> u32 {
@@ -66,6 +74,59 @@ impl PlayState {
             dirty: false,
             status: String::new(),
             issues,
+            review: None,
+            review_mtime: None,
+            show_ghosts: true,
+            focused_suggestion: None,
+        }
+    }
+
+    /// Load the review file if it appeared or changed since the last check.
+    /// Returns true when the review was (re)loaded or removed.
+    pub fn reload_review_if_changed(&mut self) -> bool {
+        let Some(path) = &self.path else { return false };
+        let mtime = std::fs::metadata(review_path(path)).and_then(|m| m.modified()).ok();
+        if mtime == self.review_mtime {
+            return false;
+        }
+        self.review_mtime = mtime;
+        match load_review(path) {
+            Ok(review) => {
+                let count = review.as_ref().map_or(0, |r| r.suggestions.len());
+                if review.is_some() {
+                    self.status = format!("Review loaded: {count} suggestion(s)");
+                }
+                self.review = review;
+            }
+            Err(e) => self.status = format!("Couldn't read review: {e}"),
+        }
+        true
+    }
+
+    pub fn suggestions(&self) -> &[Suggestion] {
+        self.review.as_ref().map_or(&[], |r| r.suggestions.as_slice())
+    }
+
+    /// Suggestions whose ghost is on the ice at the playhead.
+    pub fn active_suggestions(&self) -> impl Iterator<Item = (&Suggestion, Vec2)> {
+        let t = self.playhead_ms;
+        self.suggestions().iter().filter_map(move |s| s.ghost_pos(&self.play, t).map(|g| (s, g)))
+    }
+
+    /// Jump the playhead to the next (dir > 0) or previous suggestion's moment
+    /// and select the player it is about.
+    pub fn jump_suggestion(&mut self, dir: i32) {
+        let t = self.playhead_ms;
+        let list = self.suggestions();
+        let found = if dir > 0 {
+            list.iter().find(|s| s.t_ms > t).or_else(|| list.first())
+        } else {
+            list.iter().rev().find(|s| s.t_ms < t).or_else(|| list.last())
+        };
+        if let Some(s) = found.cloned() {
+            self.playhead_ms = s.t_ms;
+            self.selected = Some(s.entity.clone());
+            self.focused_suggestion = Some(s.id);
         }
     }
 
@@ -201,6 +262,7 @@ impl PlayState {
         io::save(&self.play, &path)?;
         self.path = Some(path.clone());
         self.dirty = false;
+        self.reload_review_if_changed();
         Ok(path)
     }
 }
@@ -260,6 +322,55 @@ mod tests {
         s.move_entity(&me, Vec2::new(-16.0, 12.0));
         assert!(s.play.track(&me).iter().find(|k| k.t_ms == 2700).unwrap().has_puck);
         assert_eq!(s.snapshot().puck.carrier, Some(me));
+    }
+
+    #[test]
+    fn loads_review_and_jumps_between_suggestions() {
+        use rink_core::review::{save_review, DEFAULT_ZONE_RADIUS_M};
+
+        let dir = std::env::temp_dir().join(format!("rink-state-test-{}", uuid_like()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let play = build(Template::Breakout, RinkSpec::iihf());
+        let path = dir.join("p.rink.json");
+        io::save(&play, &path).unwrap();
+        let mut s = PlayState::new(play.clone(), Some(path.clone()));
+        assert!(!s.reload_review_if_changed());
+        assert!(s.review.is_none());
+
+        let me = play.me().unwrap().id.clone();
+        let mut review = Review::new(&play);
+        for (t, x) in [(1500, -21.0), (4000, -9.0)] {
+            let sug = Suggestion {
+                id: String::new(),
+                entity: me.clone(),
+                t_ms: t,
+                branch_from_ms: t - 1000,
+                target: Vec2::new(x, 12.0),
+                zone_radius_m: DEFAULT_ZONE_RADIUS_M,
+                principle: "p".into(),
+                reason: "r".into(),
+                detail: String::new(),
+                confidence: None,
+            };
+            review.add(&play, sug).unwrap();
+        }
+        save_review(&path, &review).unwrap();
+        assert!(s.reload_review_if_changed());
+        assert_eq!(s.suggestions().len(), 2);
+
+        s.selected = None;
+        s.jump_suggestion(1);
+        assert_eq!((s.playhead_ms, s.selected.clone()), (1500, Some(me.clone())));
+        assert_eq!(s.active_suggestions().count(), 1);
+        s.jump_suggestion(1);
+        assert_eq!(s.playhead_ms, 4000);
+        s.jump_suggestion(-1);
+        assert_eq!(s.playhead_ms, 1500);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn uuid_like() -> u128 {
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
     }
 
     #[test]
