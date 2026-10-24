@@ -1,6 +1,7 @@
 //! Starting points for new plays, so the user only edits what differs.
 //!
-//! Positions assume home attacks +x (left wing on +y for home, -y for away).
+//! Positions assume home attacks +x. Roles are from each team's own view:
+//! home's left (LW, LD) is +y, and away, attacking -x, has its left on -y.
 
 use std::f32::consts::PI;
 
@@ -121,15 +122,15 @@ fn dzone_set(play: &mut Play) {
         place(play, Home, role, Keyframe::at(0, x, y).facing(f));
     }
     let away = [
-        (RW, -26.0, -10.0, 0.5),
+        (LW, -26.0, -10.0, 0.5),
         (C, -22.0, -6.0, PI),
-        (LW, -24.0, 3.0, PI),
-        (LD, -9.0, 8.0, PI),
-        (RD, -9.0, -7.0, PI),
+        (RW, -24.0, 3.0, PI),
+        (LD, -9.0, -7.0, PI),
+        (RD, -9.0, 8.0, PI),
     ];
     for (role, x, y, f) in away {
         let kf = Keyframe::at(0, x, y).facing(f);
-        place(play, Away, role, if role == RW { kf.with_puck() } else { kf });
+        place(play, Away, role, if role == LW { kf.with_puck() } else { kf });
     }
 }
 
@@ -156,8 +157,8 @@ fn breakout(play: &mut Play) {
         (Away, C, &[(0, -20.0, 2.0), (1500, -25.0, 5.0), (3000, -21.0, 9.0), (4500, -15.0, 9.0)]),
         (Away, LW, &[(0, -15.0, -6.0), (3000, -17.0, -3.0), (5000, -14.0, -2.0)]),
         (Away, RW, &[(0, -14.0, 8.0), (3000, -15.0, 11.0), (4000, -11.0, 10.5), (5000, -7.0, 9.5)]),
-        (Away, LD, &[(0, -6.0, 7.0), (3500, -8.0, 9.0), (5500, -4.0, 8.0)]),
-        (Away, RD, &[(0, -6.0, -5.0), (5000, -5.0, -4.0)]),
+        (Away, RD, &[(0, -6.0, 7.0), (3500, -8.0, 9.0), (5500, -4.0, 8.0)]),
+        (Away, LD, &[(0, -6.0, -5.0), (5000, -5.0, -4.0)]),
     ];
     for (side, role, points) in tracks {
         for &(t, x, y) in points {
@@ -200,6 +201,19 @@ mod tests {
         assert_eq!(count(EntityKind::Goalie), 2);
         assert_eq!(count(EntityKind::Puck), 1);
         assert_eq!(play.me().unwrap().id, entity_id(TeamSide::Home, Role::LW));
+    }
+
+    #[test]
+    fn roles_sit_on_their_own_teams_side() {
+        // At t = 0 every left-side role is on its team's left: +y for home, -y for away.
+        for t in Template::ALL {
+            let play = build(t, RinkSpec::iihf());
+            for e in play.entities.iter().filter(|e| matches!(e.role, Some(Role::LW | Role::LD))) {
+                let y = play.track(&e.id)[0].pos.y;
+                let left = if e.team == Some(TeamSide::Home) { y > 0.0 } else { y < 0.0 };
+                assert!(left, "{t:?}: {} at y = {y}", e.id);
+            }
+        }
     }
 
     #[test]

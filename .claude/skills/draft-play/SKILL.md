@@ -43,13 +43,22 @@ command prints JSON.
    Keyframe only the players who matter, at each beat (every 1–2 s). Everyone else gets one
    keyframe at a sensible spot so the shape is right.
 4. **Validate and sanity-check.**
-   - Run `rink check <play>` and fix every issue it reports.
-   - Run `rink timeline <play> --compact --interval 1000`. Confirm the puck carrier is right at
-     each beat and nobody crosses the ice impossibly fast; under 8 m/s between keyframes is a
-     safe ceiling.
-5. **Reply to the user.** Give the path, a one-line summary of each beat, and your assumptions.
-   Tell them to open it with `cargo run -q -p rink-app -- <play>`, fix positions by dragging, and
-   ask for a positioning review when they're happy with it.
+   - Run `rink check <play>` and fix every issue it reports. It also flags any skater moving
+     faster than 8 m/s between keyframes.
+   - Run `rink timeline <play> --compact --interval 1000`. It also samples at every event and
+     puck pickup.
+   - Then check that the story is right, not just the structure:
+     - the puck carrier at each beat;
+     - `me`'s distance and side relative to the key opponent at the moment in question.
+
+     If the user says "I was too slow to close", `me` must actually be late there.
+5. **Reply to the user.**
+   - Give the path, a one-line summary of each beat, and your assumptions.
+   - Tell them to open it with `cargo run -q -p rink-app -- <play>` and fix positions by
+     dragging, especially `me` and the key opponent around the decision point.
+   - If they also asked a positioning question ("where should I have been?"), offer to run the
+     `review-positioning` skill now. If they want the answer straight away, run it, and say that
+     the answer rests on the drafted positions.
 
 ## Coordinates
 
@@ -58,6 +67,14 @@ command prints JSON.
 - **The user's team is home**, so their defensive zone is x < 0.
   - In their D-zone, their left wing's wall is around y = +12 to +14.
   - The left boards are y = +15, the right boards y = −15.
+- **Left and right are from each team's own view.** Home's left (LW, LD) is +y. Away attacks −x,
+  so away's left is −y.
+  - So in home's D-zone, the opponent on home's left point (+y) is away's **RD**, and the
+    opponent in home's right corner (−y) is usually away's **LW**.
+  - When the user says "their LD", check that this matches the side they describe. If it
+    doesn't, keep the side they describe, use the role that fits that side, and mention it.
+- Directions the user gives ("right point", "left corner") are from their team's view unless
+  they say otherwise.
 - Landmarks, as (x, y) in meters:
 
   | Landmark | Position |
@@ -70,12 +87,17 @@ command prints JSON.
   | Home net | x = −26 to −27.1 |
   | Home goalie | about (−25, 0) |
   | Slot | about (−19, 0) for home's D-zone |
-  | Points | about (−9, ±11) in home's D-zone |
+  | Points | about (−9, ±12) in home's D-zone |
+  | Hash marks on the end-zone circles | y = ±11.5, at x = ±20 |
+  | Corner arc centers | (±21.5, ±6.5), radius 8.5 m |
   | Behind the home net | about (−28, ±2) |
 
 - The corners are rounded with an 8.5 m radius, so (±29, ±14) is off the ice. `rink check`
   catches this.
-- Facing is in radians, with 0 = +x and π/2 = +y. Leave it out to face the direction of travel.
+- In the file, facing is in **radians**, with 0 = +x and π/2 = +y. Leave it out to face the
+  direction of travel. (The CLI's `--facing` takes degrees.)
+- `rink` facts round positions to 0.5 m, so a spot you entered as (−9.3, −10.2) reads as
+  (−9.5, −10.0).
 
 ## File format (`schema_version` 1)
 
@@ -111,6 +133,10 @@ went.
 
 Possession follows these rules; get them right or the puck will wander:
 
+- Only `pass`, `shot` and `turnover` change possession. All other events, including
+  `puck_recovery`, are labels on the timeline for the reviewer. A recovery is really a `has_puck`
+  keyframe, plus a `puck_recovery` event for the label.
+
 - A keyframe with `"has_puck": true` means the player has the puck at that moment.
 - Possession lasts until one of these happens:
   - the same player has a keyframe without `has_puck`;
@@ -121,3 +147,18 @@ Possession follows these rules; get them right or the puck will wander:
   release time; the receiver's first keyframe at or after the catch has `has_puck`. The puck
   travels between them on its own.
 - Never give two players `has_puck` at the same `t_ms`.
+
+**A loose puck** (a rebound, a dump-in, a puck along the boards) gets keyframes on the `"puck"`
+entity itself.
+
+- When nobody has the puck, it moves in a straight line through these points, in this order:
+  - the release point (the last carrier's stick);
+  - any puck keyframes;
+  - the next pickup.
+- **A rebound, for example:**
+  - a `shot` at 500 ms;
+  - puck keyframes at the goalie's pad (800 ms) and in the corner (1900 ms);
+  - a `has_puck` keyframe on whoever wins the race (2300 ms).
+- **`"to"` on a shot or pass** is used only when nothing follows: no puck keyframes and no
+  pickup. The puck then travels there at 25 m/s and stays. Puck keyframes and pickups take
+  priority over `"to"`.

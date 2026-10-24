@@ -7,6 +7,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{EntityId, EntityKind, Play};
+use crate::review::MAX_SKATE_SPEED_MPS;
 use crate::sample::possessions;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -19,6 +20,7 @@ pub enum Issue {
     KeyframeAfterEnd { entity: EntityId, t_ms: u32 },
     EventAfterEnd { t_ms: u32 },
     OffIce { entity: EntityId, t_ms: u32, x: f32, y: f32 },
+    TooFast { entity: EntityId, from_ms: u32, to_ms: u32, mps: f32 },
     PuckHasPossession { t_ms: u32 },
     MultipleCarriers { t_ms: u32, entities: Vec<EntityId> },
     MultipleMe { entities: Vec<EntityId> },
@@ -37,6 +39,10 @@ impl fmt::Display for Issue {
             }
             Issue::EventAfterEnd { t_ms } => write!(f, "event at {t_ms} ms is after the play ends"),
             Issue::OffIce { entity, t_ms, x, y } => write!(f, "{entity} is off the ice at {t_ms} ms ({x:.1}, {y:.1})"),
+            Issue::TooFast { entity, from_ms, to_ms, mps } => write!(
+                f,
+                "{entity} skates {mps:.1} m/s between {from_ms} and {to_ms} ms (max {MAX_SKATE_SPEED_MPS} m/s)"
+            ),
             Issue::PuckHasPossession { t_ms } => write!(f, "the puck's own keyframe at {t_ms} ms has has_puck set"),
             Issue::MultipleCarriers { t_ms, entities } => {
                 let names: Vec<&str> = entities.iter().map(EntityId::as_str).collect();
@@ -77,6 +83,14 @@ pub fn validate(play: &Play) -> Vec<Issue> {
         };
         if track.windows(2).any(|w| w[0].t_ms >= w[1].t_ms) {
             issues.push(Issue::KeyframesNotSorted { entity: id.clone() });
+        } else if !entity.is_puck() {
+            // Straight-line speed between keyframes; the real path is a bit longer.
+            for w in track.windows(2) {
+                let mps = w[0].pos.distance(w[1].pos) / ((w[1].t_ms - w[0].t_ms) as f32 / 1000.0);
+                if mps > MAX_SKATE_SPEED_MPS {
+                    issues.push(Issue::TooFast { entity: id.clone(), from_ms: w[0].t_ms, to_ms: w[1].t_ms, mps });
+                }
+            }
         }
         for k in track {
             if k.t_ms > play.duration_ms {
@@ -140,6 +154,7 @@ mod tests {
         play.set_keyframe(&ids[2], Keyframe::at(1000, 0.0, 1.0).with_puck());
         let issues = validate(&play);
         assert!(issues.iter().any(|i| matches!(i, Issue::OffIce { .. })));
+        assert!(issues.iter().any(|i| matches!(i, Issue::TooFast { .. })));
         assert!(issues.iter().any(|i| matches!(i, Issue::MultipleCarriers { t_ms: 1000, .. })));
     }
 }

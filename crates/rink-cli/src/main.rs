@@ -23,6 +23,7 @@ USAGE:
   rink check <play>                          validation issues
   rink summary <play>                        roster, events, decision points, notes
   rink timeline <play> [--interval MS] [--from MS] [--to MS] [--compact]
+                                             samples every MS, plus each event and puck pickup
   rink snapshot <play> <t_ms> [--entity ID]  facts at one moment (all players, or one)
   rink compare <play> --t MS --x X --y Y [--entity ID] [--facing DEG] [--from MS]
                                              dry run: actual vs. hypothetical spot, nothing saved
@@ -33,7 +34,8 @@ USAGE:
 
 <play> is a path to a .rink.json file. The library folder is $RINK_REPLAY_LIBRARY
 or the platform data dir. Coordinates are meters from center ice; +x is the home
-team's attacking direction and +y is home's left.";
+team's attacking direction and +y is home's left. Positions in facts are rounded
+to 0.5 m. --facing takes degrees; play files store facing in radians.";
 
 fn main() {
     match run(std::env::args().skip(1).collect()) {
@@ -53,6 +55,10 @@ enum Format {
 
 fn run(raw: Vec<String>) -> Result<(Value, Format)> {
     let mut args = Args::parse(raw)?;
+    if args.switch("help") {
+        println!("{USAGE}");
+        std::process::exit(0);
+    }
     let Some(command) = args.positional(0) else {
         println!("{USAGE}");
         std::process::exit(0);
@@ -223,9 +229,10 @@ fn timeline(play: &Play, args: &mut Args) -> Result<Value> {
         bail!("--interval must be positive");
     }
 
-    // Regular samples plus every event's exact time.
+    // Regular samples plus every event and every puck pickup at its exact time.
     let mut times: Vec<u32> = (from..=to).step_by(interval as usize).collect();
     times.extend(play.events.iter().map(|e| e.t_ms).filter(|t| (from..=to).contains(t)));
+    times.extend(rink_core::sample::possessions(play).iter().map(|p| p.start_ms).filter(|t| (from..=to).contains(t)));
     times.sort_unstable();
     times.dedup();
 

@@ -267,12 +267,14 @@ fn free_puck_pos(play: &Play, possessions: &[Possession], t_ms: u32) -> Vec2 {
     }
     match next {
         Some(p) => anchors.push((p.start_ms, stick_pos(play, &p.entity, p.start_ms))),
-        None => {
+        // A release's `to` only applies when nothing else says where the puck went.
+        None if anchors.len() == 1 => {
             if let (Some(to), Some(&(t, from))) = (release_to, anchors.first()) {
                 let flight_ms = (from.distance(to) / FREE_PUCK_SPEED_MPS * 1000.0) as u32;
                 anchors.push((t.saturating_add(flight_ms.max(1)), to));
             }
         }
+        None => {}
     }
     anchors.sort_by_key(|a| a.0);
     anchors.dedup_by_key(|a| a.0);
@@ -408,6 +410,25 @@ mod tests {
         let end = sample(&play, 5000);
         assert_eq!(end.puck.carrier, None);
         assert!(end.puck.pos.distance(Vec2::new(26.0, 0.0)) < 1e-3);
+    }
+
+    #[test]
+    fn puck_keyframes_win_over_shot_target() {
+        let mut play = two_skater_play();
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 20.0, 0.0).facing(0.0).with_puck());
+        play.events.push(Event {
+            t_ms: 1000,
+            kind: EventKind::Shot,
+            actors: vec!["a".into()],
+            from: None,
+            to: Some(Vec2::new(26.0, 0.0)),
+            note: String::new(),
+        });
+        // Rebound off the pad into the corner.
+        play.set_keyframe(&"puck".into(), Keyframe::at(1300, 25.0, 0.5));
+        play.set_keyframe(&"puck".into(), Keyframe::at(2300, 26.0, 10.0));
+        assert!(sample(&play, 1300).puck.pos.distance(Vec2::new(25.0, 0.5)) < 1e-3);
+        assert!(sample(&play, 4000).puck.pos.distance(Vec2::new(26.0, 10.0)) < 1e-3);
     }
 
     #[test]
