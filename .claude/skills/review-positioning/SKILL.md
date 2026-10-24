@@ -100,6 +100,12 @@ command prints JSON. `rink help` lists them all.
 - Don't edit the `.rink.json` play file. Feedback goes only through `rink suggest`.
 - If a review already exists (`rink review <play>`), build on it: remove suggestions you disagree
   with (`rink unsuggest <play> <id>`) rather than stacking near-duplicates. Ids are never reused.
+- A suggestion with `"stale": true` was written before the play's motion was edited. Re-check
+  each one at its moment. Remove it and write a fresh one if the spot or the reason no longer
+  fits.
+- If a decision point or pass looks wrong (the wrong carrier, a pass from someone without the
+  puck), run `rink check <play>`. Possession comes from events, so a missing `puck_recovery` is a
+  common cause. Tell the user rather than reviewing around it.
 - The puck usually has no keyframes of its own; its position comes from the carrier and the
   events. That's normal. Don't invent positions for players who have no keyframes; if a key
   player is missing, say so.

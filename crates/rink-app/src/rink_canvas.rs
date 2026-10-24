@@ -50,7 +50,7 @@ impl RinkCanvas {
             s.selected = hit.clone();
             if let Some(id) = hit {
                 if ev.modifiers.alt {
-                    s.toggle_puck(&id);
+                    s.give_puck(&id);
                 } else {
                     let snap = s.snapshot();
                     let center = if s.play.entity(&id).is_some_and(|e| e.is_puck()) {

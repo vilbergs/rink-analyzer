@@ -39,11 +39,20 @@ was.
   left. Time is in milliseconds.
 - Skater paths use centripetal Catmull-Rom splines through the keyframes. Facing turns along the shortest arc
   between keyframes that set it; otherwise a skater faces their direction of travel.
-- Possession: a keyframe with `has_puck` starts possession. It lasts until that entity has a keyframe without
-  `has_puck`, makes a pass, shot or turnover, or someone else picks the puck up. A loose puck moves in a straight
-  line from its release point to the next pickup, passing through any puck keyframes on the way.
-- Each play is saved as one `.rink.json` file with a `schema_version`. Snapshots are always derived and never
-  saved.
+- Possession comes only from events, the way you remember a play:
+  - a `puck_recovery` gives the puck to a player;
+  - a `pass` releases it and the receiver gets it on arrival, unless someone intercepts it first;
+  - a `shot` or `whistle` makes it loose;
+  - a `turnover` takes it away and can give it to an opponent.
+
+  A loose puck moves in a straight line from its release point to the next pickup, through any puck keyframes on
+  the way. In the app, Alt-click a player to give them the puck: it adds a pass from a teammate, a turnover from
+  an opponent, or a recovery of a loose puck.
+- Each play is saved as one `.rink.json` file with a `schema_version`. Older files are upgraded when loaded, and
+  `rink upgrade <play>` rewrites one in the current format. Snapshots are always derived and never saved.
+- Each suggestion records a fingerprint of the play's motion. If you edit the play afterwards, the app greys out
+  that ghost and marks it "play edited since", and `rink review` reports `"stale": true`. Then ask for a fresh
+  review.
 
 ## Position feedback
 
@@ -102,7 +111,7 @@ because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` rele
 | --- | --- |
 | Drag | Move; creates a keyframe at the playhead, snapped to 100 ms |
 | Shift-drag | Turn facing |
-| Alt-click | Toggle puck possession |
+| Alt-click | Give the puck to a player: a pass from a teammate, a turnover from an opponent, or a recovery. Alt-click again to undo |
 | Space | Play / pause |
 | ← → | Step 100 ms |
 | Shift ← → | Jump to the previous or next keyframe of the selected entity |

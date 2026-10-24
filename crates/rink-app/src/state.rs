@@ -6,7 +6,11 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use rink_core::review::{load_review, review_path};
-use rink_core::{io, sample, validate, EntityId, Issue, Keyframe, Play, Review, RinkSpec, Snapshot, Suggestion, Vec2};
+use rink_core::sample::pass_arrival_ms;
+use rink_core::{
+    io, sample, validate, EntityId, Event, EventKind, Issue, Keyframe, Play, Review, RinkSpec, Snapshot, Suggestion,
+    Vec2,
+};
 
 use crate::paint::entity_radius;
 
@@ -182,8 +186,7 @@ impl PlayState {
     }
 
     /// The keyframe at the snapped playhead, or a new one at the entity's
-    /// current sampled state (including whether it holds the puck, so a drag
-    /// never silently drops it).
+    /// current sampled position.
     fn keyframe_at_playhead(&mut self, id: &EntityId) -> Keyframe {
         let t = snap(self.playhead_ms);
         self.playhead_ms = t;
@@ -196,8 +199,7 @@ impl PlayState {
         } else {
             snapshot.entity(id).map(|s| s.pos).unwrap_or(Vec2::ZERO)
         };
-        let has_puck = snapshot.puck.carrier.as_ref() == Some(id);
-        Keyframe { t_ms: t, pos, facing: None, has_puck }
+        Keyframe { t_ms: t, pos, facing: None }
     }
 
     /// Drag: move `id` to `to` at the playhead, auto-creating a keyframe.
@@ -223,14 +225,53 @@ impl PlayState {
         self.edited();
     }
 
-    /// Alt-click: toggle whether `id` has the puck from the playhead on.
-    pub fn toggle_puck(&mut self, id: &EntityId) {
-        if self.play.entity(id).is_none_or(|e| e.is_puck()) {
+    /// Alt-click: `id` gets the puck at the playhead. Possession comes from
+    /// events, so this adds the event that fits: a pass from a teammate who
+    /// has it, a turnover from an opponent who has it, or a recovery of a loose
+    /// puck. Alt-clicking the player who just got it here undoes that.
+    pub fn give_puck(&mut self, id: &EntityId) {
+        let Some(entity) = self.play.entity(id).cloned() else { return };
+        if entity.is_puck() {
             return;
         }
-        let mut kf = self.keyframe_at_playhead(id);
-        kf.has_puck = !kf.has_puck;
-        self.play.set_keyframe(id, kf);
+        let t = snap(self.playhead_ms);
+        self.playhead_ms = t;
+        let carrier = self.snapshot().puck.carrier;
+
+        if carrier.as_ref() == Some(id) {
+            let before = self.play.events.len();
+            let arrivals: Vec<Option<u32>> =
+                self.play.events.iter().map(|ev| pass_arrival_ms(&self.play, ev)).collect();
+            let mut i = 0;
+            self.play.events.retain(|ev| {
+                let arrival = arrivals[i];
+                i += 1;
+                let gave_here = match ev.kind {
+                    EventKind::PuckRecovery | EventKind::Faceoff => ev.t_ms == t && ev.actors.first() == Some(id),
+                    EventKind::Turnover => ev.t_ms == t && ev.actors.get(1) == Some(id),
+                    EventKind::Pass => arrival == Some(t) && ev.actors.get(1) == Some(id),
+                    _ => false,
+                };
+                !gave_here
+            });
+            if self.play.events.len() == before {
+                self.play.events.push(Event::new(t, EventKind::Turnover, &[id]));
+                self.status = format!("{id} loses the puck at {:.1} s", t as f32 / 1000.0);
+            } else {
+                self.status = format!("Removed how {id} got the puck at {:.1} s", t as f32 / 1000.0);
+            }
+        } else {
+            let event = match carrier {
+                Some(c) if self.play.entity(&c).and_then(|e| e.team) == entity.team => {
+                    Event::new(t, EventKind::Pass, &[&c, id])
+                }
+                Some(c) => Event::new(t, EventKind::Turnover, &[&c, id]),
+                None => Event::new(t, EventKind::PuckRecovery, &[id]),
+            };
+            self.status = format!("{} at {:.1} s", event.kind.label(), t as f32 / 1000.0);
+            self.play.events.push(event);
+        }
+        self.play.normalize();
         self.edited();
     }
 
@@ -320,7 +361,42 @@ mod tests {
         let me = s.play.me().unwrap().id.clone();
         s.set_playhead(2700);
         s.move_entity(&me, Vec2::new(-16.0, 12.0));
-        assert!(s.play.track(&me).iter().find(|k| k.t_ms == 2700).unwrap().has_puck);
+        assert_eq!(s.snapshot().puck.carrier, Some(me));
+    }
+
+    #[test]
+    fn give_puck_picks_the_right_event() {
+        use rink_core::templates::entity_id;
+        use rink_core::{Role, TeamSide};
+
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let me = s.play.me().unwrap().id.clone();
+        let c = entity_id(TeamSide::Home, Role::C);
+        let away_rw = entity_id(TeamSide::Away, Role::RW);
+
+        // Teammate: a pass from me to C.
+        s.set_playhead(3000);
+        s.give_puck(&c);
+        let pass = s.play.events.iter().find(|e| e.kind == EventKind::Pass && e.t_ms == 3000).unwrap();
+        assert_eq!(pass.actors, vec![me.clone(), c.clone()]);
+
+        // Opponent: a turnover to their RW, who has it at once.
+        s.set_playhead(2500);
+        s.give_puck(&away_rw);
+        assert_eq!(s.snapshot().puck.carrier, Some(away_rw.clone()));
+
+        // Alt-click the same player again: undone.
+        s.give_puck(&away_rw);
+        assert_eq!(s.snapshot().puck.carrier, Some(me.clone()));
+    }
+
+    #[test]
+    fn give_loose_puck_is_a_recovery() {
+        let mut s = state();
+        let me = s.play.me().unwrap().id.clone();
+        s.set_playhead(1000);
+        s.give_puck(&me);
+        assert!(s.play.events.iter().any(|e| e.kind == EventKind::PuckRecovery && e.t_ms == 1000));
         assert_eq!(s.snapshot().puck.carrier, Some(me));
     }
 
@@ -352,6 +428,7 @@ mod tests {
                 reason: "r".into(),
                 detail: String::new(),
                 confidence: None,
+                play_hash: String::new(),
             };
             review.add(&play, sug).unwrap();
         }
@@ -385,11 +462,9 @@ mod tests {
     }
 
     #[test]
-    fn toggle_puck_and_rotate() {
+    fn rotate_sets_facing() {
         let mut s = state();
         let me = s.play.me().unwrap().id.clone();
-        s.toggle_puck(&me);
-        assert_eq!(s.snapshot().puck.carrier, Some(me.clone()));
         let pos = s.play.track(&me)[0].pos;
         s.rotate_entity(&me, pos + Vec2::new(0.0, 3.0));
         let f = s.play.track(&me)[0].facing.unwrap();

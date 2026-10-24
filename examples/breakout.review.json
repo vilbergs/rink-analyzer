@@ -16,7 +16,8 @@
       "principle": "breakout winger: stopped on the wall at the hash",
       "reason": "Be stopped at the hash marks with your back to the boards when your D moves it. Their RW is then 7 m away instead of 4.5 when the puck arrives.",
       "detail": "Example suggestion that shows the review format; not real coaching.",
-      "confidence": 0.6
+      "confidence": 0.6,
+      "play_hash": "0a40c620d2ee2a35"
     },
     {
       "id": "s2",
@@ -31,7 +32,8 @@
       "principle": "center: short support for the winger",
       "reason": "With their RW and pinching D closing on the wall, be 4–5 m inside your winger for a bump pass instead of drifting through the middle.",
       "detail": "Example suggestion that shows the review format; not real coaching.",
-      "confidence": 0.5
+      "confidence": 0.5,
+      "play_hash": "0a40c620d2ee2a35"
     }
   ],
   "next_id": 3

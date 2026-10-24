@@ -48,7 +48,7 @@ command prints JSON.
    - Run `rink timeline <play> --compact --interval 1000`. It also samples at every event and
      puck pickup.
    - Then check that the story is right, not just the structure:
-     - the puck carrier at each beat;
+     - the puck carrier at each beat (possession comes only from events);
      - `me`'s distance and side relative to the key opponent at the moment in question.
 
      If the user says "I was too slow to close", `me` must actually be late there.
@@ -103,7 +103,7 @@ command prints JSON.
 
 ```jsonc
 {
-  "schema_version": 1, "id": "<keep from template>", "title": "...", "rink": { /* keep */ },
+  "schema_version": 2, "id": "<keep from template>", "title": "...", "rink": { /* keep */ },
   "duration_ms": 6000,
   "teams": [ { "side": "home", "name": "Home", "color": "#1f5fbf", "attacks_positive_x": true },
              { "side": "away", "name": "Away", "color": "#c8322d", "attacks_positive_x": false } ],
@@ -111,13 +111,14 @@ command prints JSON.
                   "label": "", "is_me": true },           // kind: skater | goalie | puck
                 /* ... home_C, home_RW, home_LD, home_RD, home_G, away_*, and "puck" */ ],
   "tracks": {   // entity id -> keyframes sorted by t_ms; a player with no keyframes isn't on the ice
-    "home_LD": [ { "t_ms": 0, "pos": [-27.5, 3.0], "has_puck": true },
-                 { "t_ms": 1500, "pos": [-27.0, 6.0], "has_puck": true } ],
+    "home_LD": [ { "t_ms": 0, "pos": [-27.5, 3.0] },
+                 { "t_ms": 1500, "pos": [-27.0, 6.0] } ],
     "home_LW": [ { "t_ms": 0, "pos": [-18.0, 11.0] },
-                 { "t_ms": 2000, "pos": [-19.0, 12.0], "facing": 3.14, "has_puck": true } ]
+                 { "t_ms": 2000, "pos": [-19.0, 12.0], "facing": 3.14 } ]
   },
   "events": [   // sorted by t_ms; actors[0] is the one acting (passer, shooter)
-    { "t_ms": 1500, "kind": "pass", "actors": ["home_LD", "home_LW"], "note": "" },
+    { "t_ms": 0, "kind": "puck_recovery", "actors": ["home_LD"], "note": "" },
+    { "t_ms": 1500, "kind": "pass", "actors": ["home_LD", "home_LW"], "arrive_ms": 2000, "note": "" },
     { "t_ms": 3000, "kind": "decision_point", "actors": ["home_LW"],
       "note": "Chip it past the pinching D or carry it out?" }
   ],
@@ -125,28 +126,33 @@ command prints JSON.
 }
 ```
 
-Event kinds: `pass`, `shot`, `puck_recovery`, `turnover`, `zone_entry`, `zone_exit`, `hit`,
+Event kinds: `pass`, `shot`, `save`, `puck_recovery`, `turnover`, `zone_entry`, `zone_exit`, `hit`,
 `faceoff`, `whistle`, `decision_point`. A shot or pass can carry `"to": [x, y]` for where the puck
 went.
 
 ## Puck possession
 
-Possession follows these rules; get them right or the puck will wander:
+Possession comes **only from events**. Keyframes say where players are, never who has the puck.
 
-- Only `pass`, `shot` and `turnover` change possession. All other events, including
-  `puck_recovery`, are labels on the timeline for the reviewer. A recovery is really a `has_puck`
-  keyframe, plus a `puck_recovery` event for the label.
+| Event | What happens to the puck |
+| --- | --- |
+| `puck_recovery` | `actors[0]` gets it: a loose-puck win, a battle won, the start of a play |
+| `pass` | `actors[0]` releases it at `t_ms`; `actors[1]` gets it on arrival |
+| `shot`, `whistle` | whoever has it loses it, and it's loose |
+| `turnover` | whoever has it loses it; `actors[1]`, if given, gets it at once (a steal or interception) |
+| `faceoff` | `actors[0]`, if given, comes out with it |
+| `save` | nothing: the goalie stops it without holding it, and it stays loose |
+| everything else | nothing; these are labels for the reviewer |
 
-- A keyframe with `"has_puck": true` means the player has the puck at that moment.
-- Possession lasts until one of these happens:
-  - the same player has a keyframe without `has_puck`;
-  - that player is `actors[0]` of a `pass`, `shot` or `turnover`;
-  - someone else has a `has_puck` keyframe.
-- So **every keyframe of the carrier while they hold the puck needs `"has_puck": true`**.
-- For a pass: the passer's last keyframe before the pass has the puck; the `pass` event is at the
-  release time; the receiver's first keyframe at or after the catch has `has_puck`. The puck
-  travels between them on its own.
-- Never give two players `has_puck` at the same `t_ms`.
+- **Every play where someone has the puck needs a starting event**, usually a `puck_recovery` at
+  the first moment they have it. Without one, nobody has the puck.
+- **A pass arrives** at `arrive_ms` if you set it. Otherwise the time is worked out from the
+  distance at 15 m/s. Set `arrive_ms` when the timing matters, such as a pass the receiver had to
+  wait for.
+- **An interception:** if anyone gains the puck (a `puck_recovery` or a `turnover` to them) while
+  a pass is travelling, the pass never arrives.
+- `rink check` reports a pass or shot by someone who doesn't have the puck at that moment, and
+  says who does.
 
 **A loose puck** (a rebound, a dump-in, a puck along the boards) gets keyframes on the `"puck"`
 entity itself.
@@ -157,8 +163,9 @@ entity itself.
   - the next pickup.
 - **A rebound, for example:**
   - a `shot` at 500 ms;
+  - a `save` by the goalie at 800 ms (not a `puck_recovery`, which would hand him the puck);
   - puck keyframes at the goalie's pad (800 ms) and in the corner (1900 ms);
-  - a `has_puck` keyframe on whoever wins the race (2300 ms).
+  - a `puck_recovery` by whoever wins the race (2300 ms).
 - **`"to"` on a shot or pass** is used only when nothing follows: no puck keyframes and no
   pickup. The puck then travels there at 25 m/s and stays. Puck keyframes and pickups take
   priority over `"to"`.

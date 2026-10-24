@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::rink::RinkSpec;
 
-pub const SCHEMA_VERSION: u32 = 1;
+/// v2: possession comes from events; keyframes no longer carry `has_puck`.
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// Human-readable entity id such as `home_LW` or `puck`. Readable ids keep the
 /// files diffable and the MCP output easy for a model to follow.
@@ -149,22 +150,15 @@ pub struct Keyframe {
     /// Radians, 0 = +x. None means "face the direction of travel".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub facing: Option<f32>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub has_puck: bool,
 }
 
 impl Keyframe {
     pub fn at(t_ms: u32, x: f32, y: f32) -> Self {
-        Keyframe { t_ms, pos: Vec2::new(x, y), facing: None, has_puck: false }
+        Keyframe { t_ms, pos: Vec2::new(x, y), facing: None }
     }
 
     pub fn facing(mut self, radians: f32) -> Self {
         self.facing = Some(radians);
-        self
-    }
-
-    pub fn with_puck(mut self) -> Self {
-        self.has_puck = true;
         self
     }
 }
@@ -174,6 +168,8 @@ impl Keyframe {
 pub enum EventKind {
     Pass,
     Shot,
+    /// The goalie stops a shot without holding it; the puck stays loose.
+    Save,
     PuckRecovery,
     Turnover,
     ZoneEntry,
@@ -186,9 +182,10 @@ pub enum EventKind {
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 10] = [
+    pub const ALL: [EventKind; 11] = [
         EventKind::Pass,
         EventKind::Shot,
+        EventKind::Save,
         EventKind::PuckRecovery,
         EventKind::Turnover,
         EventKind::ZoneEntry,
@@ -203,6 +200,7 @@ impl EventKind {
         match self {
             EventKind::Pass => "Pass",
             EventKind::Shot => "Shot",
+            EventKind::Save => "Save",
             EventKind::PuckRecovery => "Puck recovery",
             EventKind::Turnover => "Turnover",
             EventKind::ZoneEntry => "Zone entry",
@@ -215,6 +213,16 @@ impl EventKind {
     }
 }
 
+/// Something that happens at a moment. Possession comes only from events:
+///
+/// | kind | possession |
+/// | --- | --- |
+/// | `puck_recovery` | `actors[0]` gets the puck |
+/// | `pass` | `actors[0]` releases it; `actors[1]` (if any) gets it on arrival |
+/// | `shot`, `whistle` | whoever has it loses it; the puck is loose |
+/// | `turnover` | whoever has it loses it; `actors[1]` (if any) gets it |
+/// | `faceoff` | `actors[0]` (if any) comes out with it |
+/// | others, including `save` | no change; labels for the reviewer |
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Event {
     pub t_ms: u32,
@@ -225,8 +233,26 @@ pub struct Event {
     pub from: Option<Vec2>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to: Option<Vec2>,
+    /// For a pass: when the receiver gets it. Without it, arrival is worked
+    /// out from the distance at a typical pass speed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arrive_ms: Option<u32>,
     #[serde(default)]
     pub note: String,
+}
+
+impl Event {
+    pub fn new(t_ms: u32, kind: EventKind, actors: &[&EntityId]) -> Self {
+        Event {
+            t_ms,
+            kind,
+            actors: actors.iter().map(|&a| a.clone()).collect(),
+            from: None,
+            to: None,
+            arrive_ms: None,
+            note: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

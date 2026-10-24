@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::migrate::migrate;
 use crate::model::{Play, SCHEMA_VERSION};
 
 pub const PLAY_EXTENSION: &str = ".rink.json";
@@ -45,15 +46,6 @@ pub fn from_json(text: &str) -> Result<Play, serde_json::Error> {
 
 pub fn to_json(play: &Play) -> String {
     serde_json::to_string_pretty(play).expect("a Play always serializes")
-}
-
-/// Bring a raw play document up to [`SCHEMA_VERSION`]. Each future version
-/// adds one step here; v1 is the first, so there is nothing to do yet.
-fn migrate(value: &mut Value) {
-    let version = value.get("schema_version").and_then(Value::as_u64).unwrap_or(1);
-    if version < 1 {
-        unreachable!("schema versions start at 1");
-    }
 }
 
 pub fn load(path: &Path) -> Result<Play, IoError> {

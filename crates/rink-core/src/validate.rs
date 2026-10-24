@@ -1,30 +1,78 @@
 //! Checks a play before it is saved: the editor shows these as warnings, and
-//! `create_play` returns them so an AI-drafted play gets fixed, not trusted.
+//! `rink check` reports them so an AI-drafted play gets fixed, not trusted.
 
 use std::collections::HashSet;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{EntityId, EntityKind, Play};
+use crate::model::{EntityId, EntityKind, EventKind, Play};
 use crate::review::MAX_SKATE_SPEED_MPS;
 use crate::sample::possessions;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Issue {
-    DuplicateEntityId { entity: EntityId },
-    UnknownEntityInTrack { entity: EntityId },
-    UnknownEventActor { t_ms: u32, actor: EntityId },
-    KeyframesNotSorted { entity: EntityId },
-    KeyframeAfterEnd { entity: EntityId, t_ms: u32 },
-    EventAfterEnd { t_ms: u32 },
-    OffIce { entity: EntityId, t_ms: u32, x: f32, y: f32 },
-    TooFast { entity: EntityId, from_ms: u32, to_ms: u32, mps: f32 },
-    PuckHasPossession { t_ms: u32 },
-    MultipleCarriers { t_ms: u32, entities: Vec<EntityId> },
-    MultipleMe { entities: Vec<EntityId> },
-    SkaterWithoutTeam { entity: EntityId },
+    DuplicateEntityId {
+        entity: EntityId,
+    },
+    UnknownEntityInTrack {
+        entity: EntityId,
+    },
+    UnknownEventActor {
+        t_ms: u32,
+        actor: EntityId,
+    },
+    KeyframesNotSorted {
+        entity: EntityId,
+    },
+    KeyframeAfterEnd {
+        entity: EntityId,
+        t_ms: u32,
+    },
+    EventAfterEnd {
+        t_ms: u32,
+    },
+    OffIce {
+        entity: EntityId,
+        t_ms: u32,
+        x: f32,
+        y: f32,
+    },
+    TooFast {
+        entity: EntityId,
+        from_ms: u32,
+        to_ms: u32,
+        mps: f32,
+    },
+    MissingActor {
+        t_ms: u32,
+        event: EventKind,
+    },
+    PuckAsActor {
+        t_ms: u32,
+    },
+    /// A pass or shot by someone who doesn't have the puck at that moment.
+    ReleaseWithoutPuck {
+        t_ms: u32,
+        actor: EntityId,
+        carrier: Option<EntityId>,
+    },
+    ArrivalBeforeRelease {
+        t_ms: u32,
+        arrive_ms: u32,
+    },
+    /// A puck keyframe while someone holds the puck; the puck follows the carrier instead.
+    PuckKeyframeIgnored {
+        t_ms: u32,
+        carrier: EntityId,
+    },
+    MultipleMe {
+        entities: Vec<EntityId>,
+    },
+    SkaterWithoutTeam {
+        entity: EntityId,
+    },
 }
 
 impl fmt::Display for Issue {
@@ -43,10 +91,24 @@ impl fmt::Display for Issue {
                 f,
                 "{entity} skates {mps:.1} m/s between {from_ms} and {to_ms} ms (max {MAX_SKATE_SPEED_MPS} m/s)"
             ),
-            Issue::PuckHasPossession { t_ms } => write!(f, "the puck's own keyframe at {t_ms} ms has has_puck set"),
-            Issue::MultipleCarriers { t_ms, entities } => {
-                let names: Vec<&str> = entities.iter().map(EntityId::as_str).collect();
-                write!(f, "{} all pick up the puck at {t_ms} ms", names.join(", "))
+            Issue::MissingActor { t_ms, event } => {
+                write!(f, "{} at {t_ms} ms needs an actor (who does it)", event.label())
+            }
+            Issue::PuckAsActor { t_ms } => write!(f, "event at {t_ms} ms lists the puck as an actor"),
+            Issue::ReleaseWithoutPuck { t_ms, actor, carrier } => match carrier {
+                Some(c) => write!(f, "{actor} passes or shoots at {t_ms} ms, but {c} has the puck then"),
+                None => write!(
+                    f,
+                    "{actor} passes or shoots at {t_ms} ms without the puck; add a puck_recovery or a pass to them first"
+                ),
+            },
+            Issue::PuckKeyframeIgnored { t_ms, carrier } => write!(
+                f,
+                "puck keyframe at {t_ms} ms is ignored because {carrier} has the puck then; \
+                 for a save or rebound use a save event, not a recovery"
+            ),
+            Issue::ArrivalBeforeRelease { t_ms, arrive_ms } => {
+                write!(f, "pass at {t_ms} ms arrives at {arrive_ms} ms, before it is made")
             }
             Issue::MultipleMe { entities } => {
                 let names: Vec<&str> = entities.iter().map(EntityId::as_str).collect();
@@ -99,8 +161,18 @@ pub fn validate(play: &Play) -> Vec<Issue> {
             if !play.rink.contains(k.pos) {
                 issues.push(Issue::OffIce { entity: id.clone(), t_ms: k.t_ms, x: k.pos.x, y: k.pos.y });
             }
-            if entity.is_puck() && k.has_puck {
-                issues.push(Issue::PuckHasPossession { t_ms: k.t_ms });
+        }
+    }
+
+    let ps = possessions(play);
+    // Who has the puck just before `t` (a release at `t` ends possession at `t`).
+    let carrier_before =
+        |t: u32| ps.iter().find(|p| p.start_ms < t && p.end_ms.is_none_or(|e| e >= t)).map(|p| p.entity.clone());
+    if let Some(puck) = play.puck() {
+        for k in play.track(&puck.id) {
+            let holder = ps.iter().find(|p| p.start_ms <= k.t_ms && p.end_ms.is_none_or(|e| k.t_ms < e));
+            if let Some(p) = holder {
+                issues.push(Issue::PuckKeyframeIgnored { t_ms: k.t_ms, carrier: p.entity.clone() });
             }
         }
     }
@@ -110,22 +182,27 @@ pub fn validate(play: &Play) -> Vec<Issue> {
             issues.push(Issue::EventAfterEnd { t_ms: ev.t_ms });
         }
         for a in &ev.actors {
-            if play.entity(a).is_none() {
-                issues.push(Issue::UnknownEventActor { t_ms: ev.t_ms, actor: a.clone() });
+            match play.entity(a) {
+                None => issues.push(Issue::UnknownEventActor { t_ms: ev.t_ms, actor: a.clone() }),
+                Some(e) if e.is_puck() => issues.push(Issue::PuckAsActor { t_ms: ev.t_ms }),
+                _ => {}
             }
         }
-    }
-
-    // Two entities starting possession at the same instant is ambiguous.
-    let ps = possessions(play);
-    let mut i = 0;
-    while i < ps.len() {
-        let same: Vec<EntityId> =
-            ps[i..].iter().take_while(|p| p.start_ms == ps[i].start_ms).map(|p| p.entity.clone()).collect();
-        if same.len() > 1 {
-            issues.push(Issue::MultipleCarriers { t_ms: ps[i].start_ms, entities: same.clone() });
+        let needs_actor = matches!(ev.kind, EventKind::Pass | EventKind::Shot | EventKind::PuckRecovery);
+        if needs_actor && ev.actors.is_empty() {
+            issues.push(Issue::MissingActor { t_ms: ev.t_ms, event: ev.kind });
         }
-        i += same.len();
+        if matches!(ev.kind, EventKind::Pass | EventKind::Shot) {
+            if let Some(actor) = ev.actors.first() {
+                let carrier = carrier_before(ev.t_ms);
+                if carrier.as_ref() != Some(actor) {
+                    issues.push(Issue::ReleaseWithoutPuck { t_ms: ev.t_ms, actor: actor.clone(), carrier });
+                }
+            }
+        }
+        if let Some(arrive_ms) = ev.arrive_ms.filter(|&a| a < ev.t_ms) {
+            issues.push(Issue::ArrivalBeforeRelease { t_ms: ev.t_ms, arrive_ms });
+        }
     }
 
     issues
@@ -146,15 +223,20 @@ mod tests {
     }
 
     #[test]
-    fn flags_off_ice_and_double_pickup() {
+    fn flags_off_ice_speed_and_bad_events() {
+        use crate::model::Event;
         let mut play = templates::build(templates::Template::Faceoff, crate::rink::RinkSpec::iihf());
         let ids: Vec<EntityId> = play.entities.iter().filter(|e| !e.is_puck()).map(|e| e.id.clone()).collect();
         play.set_keyframe(&ids[0], Keyframe::at(500, 40.0, 0.0));
-        play.set_keyframe(&ids[1], Keyframe::at(1000, 0.0, 0.0).with_puck());
-        play.set_keyframe(&ids[2], Keyframe::at(1000, 0.0, 1.0).with_puck());
+        play.events.push(Event::new(1000, EventKind::Pass, &[&ids[1], &ids[2]]));
+        play.events.push(Event::new(1200, EventKind::PuckRecovery, &[]));
+        play.events.push(Event { arrive_ms: Some(1000), ..Event::new(1500, EventKind::Pass, &[&ids[2], &ids[1]]) });
+        play.normalize();
         let issues = validate(&play);
         assert!(issues.iter().any(|i| matches!(i, Issue::OffIce { .. })));
         assert!(issues.iter().any(|i| matches!(i, Issue::TooFast { .. })));
-        assert!(issues.iter().any(|i| matches!(i, Issue::MultipleCarriers { t_ms: 1000, .. })));
+        assert!(issues.iter().any(|i| matches!(i, Issue::ReleaseWithoutPuck { t_ms: 1000, carrier: None, .. })));
+        assert!(issues.iter().any(|i| matches!(i, Issue::MissingActor { t_ms: 1200, .. })));
+        assert!(issues.iter().any(|i| matches!(i, Issue::ArrivalBeforeRelease { t_ms: 1500, .. })));
     }
 }

@@ -1,11 +1,11 @@
 //! `sample(play, t_ms)`: the single function that turns stored keyframes into
-//! the state of every entity at a moment. The renderer and the MCP server both
+//! the state of every entity at a moment. The renderer and the `rink` CLI both
 //! call it, so they can never disagree about where anyone was.
 
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Entity, EntityId, EntityKind, EventKind, Keyframe, Play};
+use crate::model::{Entity, EntityId, Event, EventKind, Keyframe, Play};
 use crate::spline::{lerp_angle, sample_segment};
 
 /// How far in front of the carrier the puck sits, in meters.
@@ -13,6 +13,9 @@ pub const STICK_REACH_M: f32 = 0.6;
 /// Speed of a released puck with no receiver, used to time its flight to an
 /// event's `to` position.
 pub const FREE_PUCK_SPEED_MPS: f32 = 25.0;
+/// Typical pass speed, used to time a pass's arrival when it has no `arrive_ms`.
+pub const PASS_SPEED_MPS: f32 = 15.0;
+const MIN_PASS_MS: u32 = 100;
 /// Below this speed, a skater with no explicit facing keeps facing their team's
 /// attacking direction rather than their (noisy) direction of travel.
 const MIN_TRAVEL_SPEED_MPS: f32 = 0.3;
@@ -163,60 +166,97 @@ impl Possession {
     }
 }
 
+/// Events after which the puck is loose (until someone gains it).
 fn releases_puck(kind: EventKind) -> bool {
-    matches!(kind, EventKind::Pass | EventKind::Shot | EventKind::Turnover)
+    matches!(kind, EventKind::Pass | EventKind::Shot | EventKind::Turnover | EventKind::Whistle)
 }
 
-/// Possession intervals, sorted by start. A keyframe with `has_puck` starts
-/// possession and holds it until that entity's next keyframe without it, a
-/// pass/shot/turnover by that entity, or someone else picking the puck up.
+/// When a pass reaches its receiver: `arrive_ms` if set, otherwise the
+/// distance at [`PASS_SPEED_MPS`]. None for anything but a pass to someone.
+pub fn pass_arrival_ms(play: &Play, ev: &Event) -> Option<u32> {
+    if ev.kind != EventKind::Pass {
+        return None;
+    }
+    let receiver = ev.actors.get(1)?;
+    if let Some(a) = ev.arrive_ms {
+        return Some(a.max(ev.t_ms));
+    }
+    let from = ev.from.or_else(|| ev.actors.first().map(|p| stick_pos(play, p, ev.t_ms)))?;
+    let to = position_at(play.track(receiver), ev.t_ms)?;
+    let flight_ms = (from.distance(to) / PASS_SPEED_MPS * 1000.0) as u32;
+    Some(ev.t_ms + flight_ms.max(MIN_PASS_MS))
+}
+
+enum Change {
+    Gain(EntityId),
+    /// A pass reaching its receiver; void if anyone gained the puck since it
+    /// was released (an interception).
+    Arrive {
+        receiver: EntityId,
+        released_ms: u32,
+    },
+    Release,
+}
+
+/// Possession intervals, sorted by start, derived from the events (see
+/// [`Event`] for what each kind does).
 pub fn possessions(play: &Play) -> Vec<Possession> {
-    let mut out = Vec::new();
-    for e in play.entities.iter().filter(|e| e.kind != EntityKind::Puck) {
-        let mut start = None;
-        for k in play.track(&e.id) {
-            match (start, k.has_puck) {
-                (None, true) => start = Some(k.t_ms),
-                (Some(s), false) => {
-                    out.push(Possession { entity: e.id.clone(), start_ms: s, end_ms: Some(k.t_ms) });
-                    start = None;
+    // (time, order within the same time, change): releases go before gains.
+    let mut changes: Vec<(u32, u8, Change)> = Vec::new();
+    for ev in &play.events {
+        let first = ev.actors.first().cloned();
+        let second = ev.actors.get(1).cloned();
+        match ev.kind {
+            EventKind::PuckRecovery | EventKind::Faceoff => {
+                if let Some(a) = first {
+                    changes.push((ev.t_ms, 1, Change::Gain(a)));
                 }
-                _ => {}
             }
-        }
-        if let Some(s) = start {
-            out.push(Possession { entity: e.id.clone(), start_ms: s, end_ms: None });
+            EventKind::Pass => {
+                changes.push((ev.t_ms, 0, Change::Release));
+                if let (Some(receiver), Some(arrive)) = (second, pass_arrival_ms(play, ev)) {
+                    changes.push((arrive, 1, Change::Arrive { receiver, released_ms: ev.t_ms }));
+                }
+            }
+            EventKind::Shot | EventKind::Whistle => changes.push((ev.t_ms, 0, Change::Release)),
+            EventKind::Turnover => {
+                changes.push((ev.t_ms, 0, Change::Release));
+                if let Some(b) = second {
+                    changes.push((ev.t_ms, 1, Change::Gain(b)));
+                }
+            }
+            _ => {}
         }
     }
-    out.sort_by_key(|p| p.start_ms);
+    changes.sort_by_key(|c| (c.0, c.1));
 
-    // Release events cut possession short.
-    for p in &mut out {
-        let release = play
-            .events
-            .iter()
-            .filter(|ev| releases_puck(ev.kind) && ev.actors.first() == Some(&p.entity))
-            .map(|ev| ev.t_ms)
-            .filter(|&t| t >= p.start_ms && p.end_ms.is_none_or(|e| t < e))
-            .min();
-        if let Some(t) = release {
+    let mut out: Vec<Possession> = Vec::new();
+    let mut last_gain_ms: Option<u32> = None;
+    let end_current = |out: &mut Vec<Possession>, t: u32| {
+        if let Some(p) = out.last_mut().filter(|p| p.end_ms.is_none()) {
             p.end_ms = Some(t);
         }
-    }
-
-    // Someone else picking the puck up ends the current holder's possession.
-    let starts: Vec<(u32, EntityId)> = out.iter().map(|p| (p.start_ms, p.entity.clone())).collect();
-    for p in &mut out {
-        let taken = starts
-            .iter()
-            .filter(|(s, id)| *id != p.entity && *s > p.start_ms && p.end_ms.is_none_or(|e| *s < e))
-            .map(|(s, _)| *s)
-            .min();
-        if let Some(s) = taken {
-            p.end_ms = Some(s);
+    };
+    for (t, _, change) in changes {
+        let gainer = match change {
+            Change::Release => {
+                end_current(&mut out, t);
+                None
+            }
+            Change::Gain(e) => Some(e),
+            Change::Arrive { receiver, released_ms } => {
+                last_gain_ms.is_none_or(|g| g < released_ms).then_some(receiver)
+            }
+        };
+        if let Some(e) = gainer {
+            if out.last().is_some_and(|p| p.end_ms.is_none() && p.entity == e) {
+                continue;
+            }
+            end_current(&mut out, t);
+            out.push(Possession { entity: e, start_ms: t, end_ms: None });
+            last_gain_ms = Some(t);
         }
     }
-
     out.retain(|p| p.end_ms.is_none_or(|e| e > p.start_ms));
     out
 }
@@ -245,10 +285,7 @@ fn free_puck_pos(play: &Play, possessions: &[Possession], t_ms: u32) -> Vec2 {
     let mut release_to = None;
     if let Some(p) = prev {
         let t = p.end_ms.unwrap_or(0);
-        let event = play
-            .events
-            .iter()
-            .find(|ev| releases_puck(ev.kind) && ev.t_ms == t && ev.actors.first() == Some(&p.entity));
+        let event = play.events.iter().find(|ev| releases_puck(ev.kind) && ev.t_ms == t);
         let from = event.and_then(|ev| ev.from).unwrap_or_else(|| stick_pos(play, &p.entity, t));
         anchors.push((t, from));
         release_to = event.and_then(|ev| ev.to);
@@ -295,7 +332,7 @@ fn free_puck_pos(play: &Play, possessions: &[Possession], t_ms: u32) -> Vec2 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Event, Role, TeamSide};
+    use crate::model::{EntityKind, Role, TeamSide};
     use crate::rink::RinkSpec;
 
     fn skater(id: &str, team: TeamSide) -> Entity {
@@ -358,20 +395,19 @@ mod tests {
         assert!((f - std::f32::consts::FRAC_PI_2).abs() < 0.05);
     }
 
+    fn ev(t_ms: u32, kind: EventKind, actors: &[&str]) -> Event {
+        let ids: Vec<EntityId> = actors.iter().map(|&a| a.into()).collect();
+        let refs: Vec<&EntityId> = ids.iter().collect();
+        Event::new(t_ms, kind, &refs)
+    }
+
     #[test]
     fn pass_moves_puck_between_carriers() {
         let mut play = two_skater_play();
-        play.set_keyframe(&"a".into(), Keyframe::at(0, 0.0, 0.0).facing(0.0).with_puck());
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 0.0, 0.0).facing(0.0));
         play.set_keyframe(&"b".into(), Keyframe::at(0, 10.0, 0.0).facing(std::f32::consts::PI));
-        play.set_keyframe(&"b".into(), Keyframe::at(2000, 10.0, 0.0).with_puck());
-        play.events.push(Event {
-            t_ms: 1000,
-            kind: EventKind::Pass,
-            actors: vec!["a".into(), "b".into()],
-            from: None,
-            to: None,
-            note: String::new(),
-        });
+        play.events.push(ev(0, EventKind::PuckRecovery, &["a"]));
+        play.events.push(Event { arrive_ms: Some(2000), ..ev(1000, EventKind::Pass, &["a", "b"]) });
 
         let s = sample(&play, 500);
         assert_eq!(s.puck.carrier, Some("a".into()));
@@ -386,27 +422,50 @@ mod tests {
     }
 
     #[test]
-    fn pickup_by_other_ends_possession() {
+    fn pass_arrival_is_timed_from_distance() {
         let mut play = two_skater_play();
-        play.set_keyframe(&"a".into(), Keyframe::at(0, 0.0, 0.0).with_puck());
-        play.set_keyframe(&"b".into(), Keyframe::at(1000, 1.0, 0.0).with_puck());
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 0.0, 0.0).facing(0.0));
+        play.set_keyframe(&"b".into(), Keyframe::at(0, 15.6, 0.0));
+        play.events.push(ev(0, EventKind::PuckRecovery, &["a"]));
+        play.events.push(ev(1000, EventKind::Pass, &["a", "b"]));
+        // 15 m from stick to receiver at 15 m/s = 1 s.
+        assert_eq!(pass_arrival_ms(&play, &play.events[1]), Some(2000));
+        assert_eq!(sample(&play, 1900).puck.carrier, None);
+        assert_eq!(sample(&play, 2000).puck.carrier, Some("b".into()));
+    }
+
+    #[test]
+    fn interception_cancels_the_pass() {
+        let mut play = two_skater_play();
+        play.entities.push(skater("x", TeamSide::Away));
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 0.0, 0.0));
+        play.set_keyframe(&"b".into(), Keyframe::at(0, 10.0, 0.0));
+        play.set_keyframe(&"x".into(), Keyframe::at(0, 5.0, 0.5));
+        play.events.push(ev(0, EventKind::PuckRecovery, &["a"]));
+        play.events.push(Event { arrive_ms: Some(2000), ..ev(1000, EventKind::Pass, &["a", "b"]) });
+        play.events.push(ev(1300, EventKind::PuckRecovery, &["x"]));
+        assert_eq!(sample(&play, 2500).puck.carrier, Some("x".into()));
+    }
+
+    #[test]
+    fn recovery_by_other_ends_possession() {
+        let mut play = two_skater_play();
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 0.0, 0.0));
+        play.set_keyframe(&"b".into(), Keyframe::at(0, 1.0, 0.0));
+        play.events.push(ev(0, EventKind::PuckRecovery, &["a"]));
+        play.events.push(ev(1000, EventKind::Turnover, &["a", "b"]));
         assert_eq!(sample(&play, 1500).puck.carrier, Some("b".into()));
         let p = possessions(&play);
         assert_eq!(p[0].end_ms, Some(1000));
+        assert_eq!(p[1].start_ms, 1000);
     }
 
     #[test]
     fn shot_flies_to_target_and_stops() {
         let mut play = two_skater_play();
-        play.set_keyframe(&"a".into(), Keyframe::at(0, 20.0, 0.0).facing(0.0).with_puck());
-        play.events.push(Event {
-            t_ms: 1000,
-            kind: EventKind::Shot,
-            actors: vec!["a".into()],
-            from: None,
-            to: Some(Vec2::new(26.0, 0.0)),
-            note: String::new(),
-        });
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 20.0, 0.0).facing(0.0));
+        play.events.push(ev(0, EventKind::PuckRecovery, &["a"]));
+        play.events.push(Event { to: Some(Vec2::new(26.0, 0.0)), ..ev(1000, EventKind::Shot, &["a"]) });
         let end = sample(&play, 5000);
         assert_eq!(end.puck.carrier, None);
         assert!(end.puck.pos.distance(Vec2::new(26.0, 0.0)) < 1e-3);
@@ -415,15 +474,9 @@ mod tests {
     #[test]
     fn puck_keyframes_win_over_shot_target() {
         let mut play = two_skater_play();
-        play.set_keyframe(&"a".into(), Keyframe::at(0, 20.0, 0.0).facing(0.0).with_puck());
-        play.events.push(Event {
-            t_ms: 1000,
-            kind: EventKind::Shot,
-            actors: vec!["a".into()],
-            from: None,
-            to: Some(Vec2::new(26.0, 0.0)),
-            note: String::new(),
-        });
+        play.set_keyframe(&"a".into(), Keyframe::at(0, 20.0, 0.0).facing(0.0));
+        play.events.push(ev(0, EventKind::PuckRecovery, &["a"]));
+        play.events.push(Event { to: Some(Vec2::new(26.0, 0.0)), ..ev(1000, EventKind::Shot, &["a"]) });
         // Rebound off the pad into the corner.
         play.set_keyframe(&"puck".into(), Keyframe::at(1300, 25.0, 0.5));
         play.set_keyframe(&"puck".into(), Keyframe::at(2300, 26.0, 10.0));

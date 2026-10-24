@@ -31,6 +31,9 @@ USAGE:
                [--entity ID] [--from MS] [--facing DEG] [--radius M] [--detail TEXT] [--confidence 0..1]
   rink review <play>                         suggestions stored for a play
   rink unsuggest <play> <id>                 remove a suggestion
+  rink upgrade <play>                        rewrite an older play file in the current format
+
+A suggestion is \"stale\" when the play's motion changed after it was written.
 
 <play> is a path to a .rink.json file. The library folder is $RINK_REPLAY_LIBRARY
 or the platform data dir. Coordinates are meters from center ice; +x is the home
@@ -77,6 +80,7 @@ fn run(raw: Vec<String>) -> Result<(Value, Format)> {
         "suggest" => suggest(&mut args),
         "review" => show_review(&args),
         "unsuggest" => unsuggest(&args),
+        "upgrade" => upgrade(&args),
         "help" | "--help" | "-h" => {
             println!("{USAGE}");
             std::process::exit(0);
@@ -309,6 +313,7 @@ fn compare(play: &Play, args: &Args) -> Result<Value> {
         reason: String::new(),
         detail: String::new(),
         confidence: None,
+        play_hash: String::new(),
     };
     let mut out = comparison(play, &entity, t_ms, h);
     out["valid"] = json!(probe.check(play).err().map(|e| e.to_string()).unwrap_or_else(|| "ok".into()));
@@ -333,6 +338,7 @@ fn suggest(args: &mut Args) -> Result<Value> {
         reason: args.flag("reason").ok_or_else(|| anyhow!("--reason is required"))?,
         detail: args.flag("detail").unwrap_or_default(),
         confidence: args.parsed("confidence")?,
+        play_hash: String::new(),
     };
 
     let mut review = load_review(&path)?.unwrap_or_else(|| Review::new(&play));
@@ -357,6 +363,7 @@ fn show_review(args: &Args) -> Result<Value> {
             let mut v = serde_json::to_value(s).expect("suggestions serialize");
             v["miss_m"] = json!(s.miss_distance(&play).map(round_half));
             v["valid"] = json!(s.check(&play).err().map(|e| e.to_string()).unwrap_or_else(|| "ok".into()));
+            v["stale"] = json!(s.is_stale(&play));
             v
         })
         .collect();
@@ -372,4 +379,13 @@ fn unsuggest(args: &Args) -> Result<Value> {
     }
     save_review(&path, &review)?;
     Ok(json!({ "removed": id, "remaining": review.suggestions.len() }))
+}
+
+fn upgrade(args: &Args) -> Result<Value> {
+    let path = play_path(args)?;
+    let before = std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let old_version = serde_json::from_str::<Value>(&before)?.get("schema_version").and_then(Value::as_u64);
+    let play = io::load(&path)?;
+    io::save(&play, &path)?;
+    Ok(json!({ "path": path, "from_version": old_version, "to_version": play.schema_version }))
 }

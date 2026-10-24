@@ -34,7 +34,7 @@ fn line(text: impl Into<SharedString>) -> gpui::Div {
 const SHORTCUTS: [(&str, &str); 12] = [
     ("Drag", "move (auto-keyframe)"),
     ("Shift-drag", "turn facing"),
-    ("Alt-click", "toggle puck"),
+    ("Alt-click", "give puck (pass / recovery)"),
     ("Space", "play / pause"),
     ("← →", "step 100 ms"),
     ("Shift ← →", "jump keyframe"),
@@ -138,7 +138,8 @@ impl Render for InspectorView {
             for sug in suggestions {
                 let on = active.contains(&sug.id.as_str()) || s.focused_suggestion.as_deref() == Some(sug.id.as_str());
                 let miss = sug.miss_distance(play).map(|m| format!(" · {m:.1} m off")).unwrap_or_default();
-                let head = format!("{} · {:.1}s · {}{miss}", sug.id, sug.t_ms as f32 / 1000.0, sug.entity);
+                let stale = if sug.is_stale(play) { " · play edited since" } else { "" };
+                let head = format!("{} · {:.1}s · {}{miss}{stale}", sug.id, sug.t_ms as f32 / 1000.0, sug.entity);
                 let mut item = div()
                     .pt_1()
                     .text_xs()

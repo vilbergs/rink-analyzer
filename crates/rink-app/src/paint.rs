@@ -5,6 +5,7 @@
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use gpui::{point, px, rgb, rgba, App, Hsla, PathBuilder, Pixels, Point, Rgba, SharedString, TextRun, Window};
+use rink_core::review::play_fingerprint;
 use rink_core::{EntityId, EntityKind, Play, RinkSpec, Snapshot, Suggestion, Vec2};
 
 use crate::transform::RinkTransform;
@@ -22,6 +23,25 @@ const ZONE_FILL: u32 = 0x22b35a40;
 const GHOST: u32 = 0x1a9a4c;
 const GHOST_FILL: u32 = 0xd8f5e3c0;
 const GHOST_LABEL: u32 = 0x146b37;
+
+struct GhostColors {
+    zone: u32,
+    line: u32,
+    fill: u32,
+    label: u32,
+}
+
+const FRESH: GhostColors = GhostColors { zone: ZONE_FILL, line: GHOST, fill: GHOST_FILL, label: GHOST_LABEL };
+/// For suggestions written before the play's motion was edited.
+const STALE: GhostColors = GhostColors { zone: 0x8a93a033, line: 0x8a93a0, fill: 0xe6e9edc0, label: 0x5b6370 };
+
+fn colors_for(s: &Suggestion, fingerprint: &str) -> &'static GhostColors {
+    if !s.play_hash.is_empty() && s.play_hash != fingerprint {
+        &STALE
+    } else {
+        &FRESH
+    }
+}
 
 pub const SKATER_RADIUS_M: f32 = 0.9;
 pub const GOALIE_RADIUS_M: f32 = 1.1;
@@ -239,14 +259,16 @@ pub fn paint_suggestion_zones(
     play: &Play,
     active: &[(Suggestion, Vec2)],
 ) {
+    let fingerprint = play_fingerprint(play);
     for (s, _) in active {
-        fill_translucent(window, t, &circle(s.target, s.zone_radius_m), ZONE_FILL);
+        let c = colors_for(s, &fingerprint);
+        fill_translucent(window, t, &circle(s.target, s.zone_radius_m), c.zone);
         let label = match s.miss_distance(play) {
             Some(m) => format!("{} · {:.1} m", s.id, m),
             None => s.id.clone(),
         };
         let below = s.target - Vec2::new(0.0, s.zone_radius_m + 0.8);
-        paint_text(window, cx, t.to_screen(below), &label, px(12.0), GHOST_LABEL);
+        paint_text(window, cx, t.to_screen(below), &label, px(12.0), c.label);
     }
 }
 
@@ -260,25 +282,27 @@ pub fn paint_ghosts(
     snapshot: &Snapshot,
     active: &[(Suggestion, Vec2)],
 ) {
+    let fingerprint = play_fingerprint(play);
     for (s, ghost) in active {
+        let c = colors_for(s, &fingerprint);
         let Some(entity) = play.entity(&s.entity) else { continue };
         let r = entity_radius(entity.kind);
         if let Some(actual) = snapshot.entity(&s.entity).map(|e| e.pos) {
             let gap = ghost.distance(actual);
             if gap > r * 1.2 {
                 let dir = (*ghost - actual).normalize();
-                arrow(window, t, actual + dir * r, *ghost - dir * (r * 0.6), 2.5, GHOST);
+                arrow(window, t, actual + dir * r, *ghost - dir * (r * 0.6), 2.5, c.line);
             }
         }
         if let Some(facing) = s.facing {
             let tip = *ghost + Vec2::from_angle(facing) * (r + 0.7);
-            stroke(window, t, &[*ghost, tip], false, 3.0, GHOST);
+            stroke(window, t, &[*ghost, tip], false, 3.0, c.line);
         }
-        fill_translucent(window, t, &circle(*ghost, r), GHOST_FILL);
-        stroke_dashed(window, t, &circle(*ghost, r), 2.0, GHOST);
+        fill_translucent(window, t, &circle(*ghost, r), c.fill);
+        stroke_dashed(window, t, &circle(*ghost, r), 2.0, c.line);
         if let Some(n) = entity.number {
             let font = px((r * 1.1 * t.scale()).clamp(8.0, 28.0));
-            paint_text(window, cx, t.to_screen(*ghost), &n.to_string(), font, GHOST_LABEL);
+            paint_text(window, cx, t.to_screen(*ghost), &n.to_string(), font, c.label);
         }
     }
 }

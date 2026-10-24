@@ -20,7 +20,7 @@ const TRACK: u32 = 0x343a43;
 const TICK: u32 = 0x5b6370;
 const LABEL: u32 = 0x9aa3b0;
 const KEYFRAME: u32 = 0xe8ecf1;
-const KEYFRAME_PUCK: u32 = 0x111111;
+const POSSESSION: u32 = 0xc9d1d9;
 const PLAYHEAD: u32 = 0xff4d4d;
 const DECISION: u32 = 0xffb300;
 const EVENT: u32 = 0x5fb3ff;
@@ -150,12 +150,14 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
     }
 
     if let Some(id) = &state.selected {
+        // A bar under the keyframes while the selected player has the puck.
+        for p in rink_core::sample::possessions(play).iter().filter(|p| &p.entity == id) {
+            let x0 = axis.x(p.start_ms);
+            let x1 = axis.x(p.end_ms.unwrap_or(play.duration_ms));
+            fill_rect(window, point(x0, px(keys_y + 8.0)), f32::from(x1 - x0), 3.0, POSSESSION);
+        }
         for k in play.track(id) {
-            let c = point(axis.x(k.t_ms), px(keys_y));
-            diamond(window, c, 6.0, KEYFRAME);
-            if k.has_puck {
-                diamond(window, c, 3.0, KEYFRAME_PUCK);
-            }
+            diamond(window, point(axis.x(k.t_ms), px(keys_y)), 6.0, KEYFRAME);
         }
     }
 

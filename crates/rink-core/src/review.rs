@@ -52,6 +52,10 @@ pub struct Suggestion {
     pub detail: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f32>,
+    /// [`play_fingerprint`] of the play when this was written. If the play's
+    /// motion changes afterwards, the suggestion may no longer fit.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub play_hash: String,
 }
 
 fn default_radius() -> f32 {
@@ -113,7 +117,28 @@ fn smoothstep(u: f32) -> f32 {
     u * u * (3.0 - 2.0 * u)
 }
 
+/// A short hash of everything that decides where players and the puck are:
+/// rink, duration, roster, keyframes and events. Title and notes don't count,
+/// so editing them never makes a review stale.
+pub fn play_fingerprint(play: &Play) -> String {
+    let motion = (&play.rink, play.duration_ms, &play.teams, &play.entities, &play.tracks, &play.events);
+    let bytes = serde_json::to_vec(&motion).expect("play data serializes");
+    // FNV-1a: stable across builds and platforms, unlike std's hasher.
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in bytes {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("{h:016x}")
+}
+
 impl Suggestion {
+    /// True when the play's motion changed after this suggestion was written.
+    /// Suggestions from before fingerprints existed are never stale.
+    pub fn is_stale(&self, play: &Play) -> bool {
+        !self.play_hash.is_empty() && self.play_hash != play_fingerprint(play)
+    }
+
     /// Where the player actually was when the ghost's route splits off.
     pub fn branch_pos(&self, play: &Play) -> Option<Vec2> {
         position_at(play.track(&self.entity), self.branch_from_ms)
@@ -171,6 +196,7 @@ impl Review {
     /// Check `s`, give it the next free id, and append it. Returns the id.
     pub fn add(&mut self, play: &Play, mut s: Suggestion) -> Result<String, SuggestionError> {
         s.check(play)?;
+        s.play_hash = play_fingerprint(play);
         // Older files have no counter; start past every id already used.
         let highest = self.suggestions.iter().filter_map(|x| x.id.strip_prefix('s')?.parse::<u32>().ok()).max();
         let next = self.next_id.max(highest.map_or(1, |h| h + 1)).max(1);
@@ -236,7 +262,22 @@ mod tests {
             reason: "test".into(),
             detail: String::new(),
             confidence: None,
+            play_hash: String::new(),
         }
+    }
+
+    #[test]
+    fn edits_to_motion_make_suggestions_stale() {
+        let mut play = build(Template::Breakout, RinkSpec::iihf());
+        let mut review = Review::new(&play);
+        review.add(&play, suggestion(&play, Vec2::new(-20.0, 12.8), 0, 1200)).unwrap();
+        let s = review.suggestions[0].clone();
+        assert!(!s.is_stale(&play));
+        play.notes = "edited notes".into();
+        assert!(!s.is_stale(&play));
+        let me = play.me().unwrap().id.clone();
+        play.set_keyframe(&me, crate::model::Keyframe::at(500, -18.0, 10.0));
+        assert!(s.is_stale(&play));
     }
 
     #[test]

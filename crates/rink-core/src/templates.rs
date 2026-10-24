@@ -103,7 +103,7 @@ fn faceoff(play: &mut Play) {
         place(play, Away, role, Keyframe::at(0, -x, -y).facing(PI));
     }
     play.set_keyframe(&PUCK_ID.into(), Keyframe::at(0, 0.0, 0.0));
-    play.events.push(event(0, EventKind::Faceoff, &[]));
+    play.events.push(Event::new(0, EventKind::Faceoff, &[]));
 }
 
 fn dzone_set(play: &mut Play) {
@@ -129,9 +129,9 @@ fn dzone_set(play: &mut Play) {
         (RD, -9.0, 8.0, PI),
     ];
     for (role, x, y, f) in away {
-        let kf = Keyframe::at(0, x, y).facing(f);
-        place(play, Away, role, if role == LW { kf.with_puck() } else { kf });
+        place(play, Away, role, Keyframe::at(0, x, y).facing(f));
     }
+    play.events.push(Event::new(0, EventKind::PuckRecovery, &[&entity_id(Away, LW)]));
 }
 
 /// (t_ms, x, y)
@@ -168,24 +168,15 @@ fn breakout(play: &mut Play) {
 
     let ld = entity_id(Home, LD);
     let lw = entity_id(Home, LW);
-    play.set_keyframe(&ld, Keyframe::at(0, -27.5, 3.0).with_puck());
-    // Keyframes are state at a moment, so the carrier's later keyframes say so too.
-    for k in play.tracks.get_mut(&lw).into_iter().flatten().filter(|k| k.t_ms >= 2000) {
-        k.has_puck = true;
-    }
     play.events = vec![
-        event(0, EventKind::PuckRecovery, &[&ld]),
-        event(1500, EventKind::Pass, &[&ld, &lw]),
+        Event::new(0, EventKind::PuckRecovery, &[&ld]),
+        Event { arrive_ms: Some(2000), ..Event::new(1500, EventKind::Pass, &[&ld, &lw]) },
         Event {
             note: "Chip it past the pinching D or carry it out?".into(),
-            ..event(3000, EventKind::DecisionPoint, &[&lw])
+            ..Event::new(3000, EventKind::DecisionPoint, &[&lw])
         },
-        event(4600, EventKind::ZoneExit, &[&lw]),
+        Event::new(4600, EventKind::ZoneExit, &[&lw]),
     ];
-}
-
-fn event(t_ms: u32, kind: EventKind, actors: &[&EntityId]) -> Event {
-    Event { t_ms, kind, actors: actors.iter().map(|&a| a.clone()).collect(), from: None, to: None, note: String::new() }
 }
 
 #[cfg(test)]
