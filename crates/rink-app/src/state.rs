@@ -346,6 +346,7 @@ mod tests {
                 t_ms: t,
                 branch_from_ms: t - 1000,
                 target: Vec2::new(x, 12.0),
+                facing: None,
                 zone_radius_m: DEFAULT_ZONE_RADIUS_M,
                 principle: "p".into(),
                 reason: "r".into(),

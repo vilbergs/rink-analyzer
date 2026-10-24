@@ -6,7 +6,7 @@ mod args;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
-use rink_core::facts::{entity_facts, facts, FactSnapshot};
+use rink_core::facts::{entity_facts, facts, round_half, FactSnapshot, Hypothetical};
 use rink_core::review::{load_review, review_path, save_review, Review, Suggestion, DEFAULT_ZONE_RADIUS_M};
 use rink_core::templates::{build, Template};
 use rink_core::{io, sample, validate, EntityId, Play, RinkSpec, Vec2};
@@ -23,9 +23,11 @@ USAGE:
   rink check <play>                          validation issues
   rink summary <play>                        roster, events, decision points, notes
   rink timeline <play> [--interval MS] [--from MS] [--to MS] [--compact]
-  rink snapshot <play> <t_ms>                every player's facts at one moment
+  rink snapshot <play> <t_ms> [--entity ID]  facts at one moment (all players, or one)
+  rink compare <play> --t MS --x X --y Y [--entity ID] [--facing DEG] [--from MS]
+                                             dry run: actual vs. hypothetical spot, nothing saved
   rink suggest <play> --t MS --x X --y Y --principle TEXT --reason TEXT
-               [--entity ID] [--from MS] [--radius M] [--detail TEXT] [--confidence 0..1]
+               [--entity ID] [--from MS] [--facing DEG] [--radius M] [--detail TEXT] [--confidence 0..1]
   rink review <play>                         suggestions stored for a play
   rink unsuggest <play> <id>                 remove a suggestion
 
@@ -35,7 +37,8 @@ team's attacking direction and +y is home's left.";
 
 fn main() {
     match run(std::env::args().skip(1).collect()) {
-        Ok(out) => println!("{}", serde_json::to_string_pretty(&out).expect("JSON values serialize")),
+        Ok((out, Format::Pretty)) => println!("{}", serde_json::to_string_pretty(&out).expect("JSON values serialize")),
+        Ok((out, Format::Compact)) => println!("{}", serde_json::to_string(&out).expect("JSON values serialize")),
         Err(e) => {
             eprintln!("error: {e:#}");
             std::process::exit(1);
@@ -43,7 +46,12 @@ fn main() {
     }
 }
 
-fn run(raw: Vec<String>) -> Result<Value> {
+enum Format {
+    Pretty,
+    Compact,
+}
+
+fn run(raw: Vec<String>) -> Result<(Value, Format)> {
     let mut args = Args::parse(raw)?;
     let Some(command) = args.positional(0) else {
         println!("{USAGE}");
@@ -59,6 +67,7 @@ fn run(raw: Vec<String>) -> Result<Value> {
         }
         "timeline" => timeline(&load(&args)?, &mut args),
         "snapshot" => snapshot(&load(&args)?, &args),
+        "compare" => compare(&load(&args)?, &args),
         "suggest" => suggest(&mut args),
         "review" => show_review(&args),
         "unsuggest" => unsuggest(&args),
@@ -69,7 +78,8 @@ fn run(raw: Vec<String>) -> Result<Value> {
         other => bail!("unknown command {other:?}\n\n{USAGE}"),
     }?;
     args.finish()?;
-    Ok(result)
+    let format = if command == "timeline" && args.switch("compact") { Format::Compact } else { Format::Pretty };
+    Ok((result, format))
 }
 
 fn play_path(args: &Args) -> Result<PathBuf> {
@@ -125,18 +135,36 @@ fn check(play: &Play) -> Result<Value> {
     Ok(json!({ "ok": issues.is_empty(), "issues": issues }))
 }
 
-fn coordinate_guide(play: &Play) -> String {
-    format!(
-        "Meters from center ice. x runs along the length ({:.1} to {:.1}); +x is the direction the home team \
-         attacks. y runs across ({:.1} to {:.1}); +y is home's left. Goal lines at x = ±{:.2}, blue lines at \
-         x = ±{:.2}. Positions were entered by hand: judge shape and spacing, not centimeters.",
-        -play.rink.half_length(),
-        play.rink.half_length(),
-        -play.rink.half_width(),
-        play.rink.half_width(),
-        play.rink.goal_line_x(),
-        play.rink.blue_line_x(),
-    )
+/// Round to centimeters so JSON doesn't show f32 noise like 7.1399993.
+fn cm(v: f32) -> f64 {
+    (v as f64 * 100.0).round() / 100.0
+}
+
+fn coordinate_guide(play: &Play) -> Value {
+    let r = &play.rink;
+    let end_dot = r.end_dots()[3];
+    let neutral_dot = r.neutral_dots()[3];
+    let slot_x = r.goal_line_x() - 7.0;
+    json!({
+        "axes": format!(
+            "Meters from center ice. x runs along the length ({:.1} to {:.1}); +x is the direction home attacks, \
+             so home's defensive zone is x < -{:.2}. y runs across ({:.1} to {:.1}); +y is home's left. \
+             Corners are rounded with a {:.1} m radius.",
+            -r.half_length(), r.half_length(), r.blue_line_x(), -r.half_width(), r.half_width(), r.corner_radius_m
+        ),
+        "landmarks": {
+            "goal_lines_x": [-cm(r.goal_line_x()), cm(r.goal_line_x())],
+            "blue_lines_x": [-cm(r.blue_line_x()), cm(r.blue_line_x())],
+            "end_zone_dots": format!("(±{:.1}, ±{:.1}); circles radius {:.1}; hash marks on the circle at y = ±{:.1}", end_dot.x, end_dot.y, r.faceoff_circle_radius_m, end_dot.y + r.faceoff_circle_radius_m),
+            "neutral_zone_dots": format!("(±{:.1}, ±{:.1})", neutral_dot.x, neutral_dot.y),
+            "nets": format!("goal mouth at x = ±{:.1}, y within ±{:.2}; goalie usually about 1 m out", r.goal_line_x(), r.goal_width_m / 2.0),
+            "slot": format!("about (±{slot_x:.0}, 0)"),
+            "points": format!("about (±{:.0}, ±{:.0}), just inside the blue line near the boards", r.blue_line_x() + 2.0, r.half_width() - 3.5),
+            "behind_net": format!("about (±{:.0}, ±2)", r.goal_line_x() + 2.0),
+        },
+        "zones": "Each player's zone is from their own team's view: an away player in home's defensive zone is in its offensive zone.",
+        "precision": "Positions were entered by hand. Judge shape and spacing, not centimeters.",
+    })
 }
 
 fn summary(play: &Play, path: &Path) -> Result<Value> {
@@ -171,20 +199,19 @@ fn summary(play: &Play, path: &Path) -> Result<Value> {
     }))
 }
 
+/// Full facts for `me` and the carrier; everyone else as `id: [x, y]`.
 fn compact(play: &Play, f: FactSnapshot) -> Value {
     let me = play.me().map(|e| e.id.clone());
-    let entities: Vec<Value> = f
-        .entities
-        .into_iter()
-        .map(|e| {
-            if Some(&e.id) == me.as_ref() || Some(&e.id) == f.puck.carrier.as_ref() {
-                serde_json::to_value(e).expect("facts serialize")
-            } else {
-                json!({ "id": e.id, "pos": e.pos })
-            }
-        })
-        .collect();
-    json!({ "t_ms": f.t_ms, "puck": f.puck, "entities": entities })
+    let mut focus = Vec::new();
+    let mut others = serde_json::Map::new();
+    for e in f.entities {
+        if Some(&e.id) == me.as_ref() || Some(&e.id) == f.puck.carrier.as_ref() {
+            focus.push(serde_json::to_value(e).expect("facts serialize"));
+        } else {
+            others.insert(e.id.to_string(), json!(e.pos));
+        }
+    }
+    json!({ "t_ms": f.t_ms, "puck": f.puck, "focus": focus, "others": others })
 }
 
 fn timeline(play: &Play, args: &mut Args) -> Result<Value> {
@@ -217,30 +244,83 @@ fn timeline(play: &Play, args: &mut Args) -> Result<Value> {
             v
         })
         .collect();
-    Ok(json!({ "coordinates": coordinate_guide(play), "interval_ms": interval, "snapshots": snapshots }))
+    Ok(json!({ "interval_ms": interval, "snapshots": snapshots }))
 }
 
 fn snapshot(play: &Play, args: &Args) -> Result<Value> {
     let t: u32 = args.positional(2).ok_or_else(|| anyhow!("missing <t_ms>"))?.parse().context("<t_ms>")?;
-    Ok(serde_json::to_value(facts(play, &sample(play, t.min(play.duration_ms))))?)
+    let snap = sample(play, t.min(play.duration_ms));
+    match args.flag("entity") {
+        Some(id) => {
+            let id = EntityId(id);
+            let f = entity_facts(play, &snap, &id, None).ok_or_else(|| anyhow!("{id} isn't on the ice at {t} ms"))?;
+            Ok(json!({ "t_ms": snap.t_ms, "puck": facts(play, &snap).puck, "entity": f }))
+        }
+        None => Ok(serde_json::to_value(facts(play, &snap))?),
+    }
+}
+
+/// The player a command is about: `--entity`, or whoever is marked as me.
+fn target_entity(play: &Play, args: &Args) -> Result<EntityId> {
+    match args.flag("entity") {
+        Some(id) => Ok(EntityId(id)),
+        None => play.me().map(|e| e.id.clone()).ok_or_else(|| anyhow!("no --entity and no player marked as me")),
+    }
+}
+
+fn hypothetical(args: &Args) -> Result<Hypothetical> {
+    let x: f32 = args.parsed("x")?.ok_or_else(|| anyhow!("--x is required"))?;
+    let y: f32 = args.parsed("y")?.ok_or_else(|| anyhow!("--y is required"))?;
+    let facing = args.parsed::<f32>("facing")?.map(f32::to_radians);
+    Ok(Hypothetical { pos: Vec2::new(x, y), facing })
+}
+
+/// Facts at `t_ms` where the player was and at the hypothetical spot.
+fn comparison(play: &Play, entity: &EntityId, t_ms: u32, h: Hypothetical) -> Value {
+    let snap = sample(play, t_ms);
+    json!({
+        "miss_m": rink_core::sample::position_at(play.track(entity), t_ms).map(|p| round_half(p.distance(h.pos))),
+        "actual": entity_facts(play, &snap, entity, None),
+        "suggested": entity_facts(play, &snap, entity, Some(h)),
+    })
+}
+
+fn compare(play: &Play, args: &Args) -> Result<Value> {
+    let t_ms: u32 = args.parsed("t")?.ok_or_else(|| anyhow!("--t is required"))?;
+    let entity = target_entity(play, args)?;
+    let h = hypothetical(args)?;
+    let branch_from_ms = args.parsed("from")?.unwrap_or(t_ms.saturating_sub(1500));
+    let probe = Suggestion {
+        id: String::new(),
+        entity: entity.clone(),
+        t_ms,
+        branch_from_ms,
+        target: h.pos,
+        facing: h.facing,
+        zone_radius_m: DEFAULT_ZONE_RADIUS_M,
+        principle: String::new(),
+        reason: String::new(),
+        detail: String::new(),
+        confidence: None,
+    };
+    let mut out = comparison(play, &entity, t_ms, h);
+    out["valid"] = json!(probe.check(play).err().map(|e| e.to_string()).unwrap_or_else(|| "ok".into()));
+    Ok(out)
 }
 
 fn suggest(args: &mut Args) -> Result<Value> {
     let path = play_path(args)?;
     let play = io::load(&path)?;
     let t_ms: u32 = args.parsed("t")?.ok_or_else(|| anyhow!("--t is required"))?;
-    let x: f32 = args.parsed("x")?.ok_or_else(|| anyhow!("--x is required"))?;
-    let y: f32 = args.parsed("y")?.ok_or_else(|| anyhow!("--y is required"))?;
-    let entity = match args.flag("entity") {
-        Some(id) => EntityId(id),
-        None => play.me().map(|e| e.id.clone()).ok_or_else(|| anyhow!("no --entity and no player marked as me"))?,
-    };
+    let entity = target_entity(&play, args)?;
+    let h = hypothetical(args)?;
     let suggestion = Suggestion {
         id: String::new(),
         entity: entity.clone(),
         t_ms,
         branch_from_ms: args.parsed("from")?.unwrap_or(t_ms.saturating_sub(1500)),
-        target: Vec2::new(x, y),
+        target: h.pos,
+        facing: h.facing,
         zone_radius_m: args.parsed("radius")?.unwrap_or(DEFAULT_ZONE_RADIUS_M),
         principle: args.flag("principle").ok_or_else(|| anyhow!("--principle is required"))?,
         reason: args.flag("reason").ok_or_else(|| anyhow!("--reason is required"))?,
@@ -253,14 +333,10 @@ fn suggest(args: &mut Args) -> Result<Value> {
     let saved = save_review(&path, &review)?;
 
     // Show what the move changes, everyone else held where they were.
-    let snap = sample(&play, t_ms);
-    Ok(json!({
-        "id": id,
-        "review": saved,
-        "miss_m": suggestion.miss_distance(&play).map(rink_core::facts::round_half),
-        "actual": entity_facts(&play, &snap, &entity, None),
-        "suggested": entity_facts(&play, &snap, &entity, Some(suggestion.target)),
-    }))
+    let mut out = comparison(&play, &entity, t_ms, h);
+    out["id"] = json!(id);
+    out["review"] = json!(saved);
+    Ok(out)
 }
 
 fn show_review(args: &Args) -> Result<Value> {
@@ -272,7 +348,7 @@ fn show_review(args: &Args) -> Result<Value> {
         .iter()
         .map(|s| {
             let mut v = serde_json::to_value(s).expect("suggestions serialize");
-            v["miss_m"] = json!(s.miss_distance(&play).map(rink_core::facts::round_half));
+            v["miss_m"] = json!(s.miss_distance(&play).map(round_half));
             v["valid"] = json!(s.check(&play).err().map(|e| e.to_string()).unwrap_or_else(|| "ok".into()));
             v
         })

@@ -26,7 +26,7 @@ crates/
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
 rinks/         # rink presets (IIHF 60x30, NHL 61x26) as JSON
 examples/      # breakout play with an example review
-.claude/skills/review-positioning/  # the review workflow for Claude Code
+.claude/skills/   # Claude Code skills: review-positioning, draft-play, team-system
 ```
 
 `rink-core` has no UI dependency. `sample(play, t_ms) -> Snapshot` is the one function that turns keyframes into
@@ -60,8 +60,16 @@ was.
    a ghost skating the suggested route, an arrow from your real position, and a green bar on the timeline. N and
    Shift-N jump between suggestions, and G toggles ghosts.
 
-For feedback that fits how your team plays, copy `docs/system-profile.example.md` to `system.md` in your library
-folder and fill it in.
+Three Claude Code skills in `.claude/skills/` drive this loop:
+
+| Skill | Ask Claude Code | Writes |
+| --- | --- | --- |
+| `review-positioning` | "review my positioning in <play>" | `<play>.review.json` through `rink suggest` |
+| `draft-play` | "draft a play: D-zone breakout, I'm LW strong side, our D rims it and their D pinches" | a new `.rink.json` |
+| `team-system` | "set up my team's system" | `system.md` in the library folder, read by reviews |
+
+`rink compare` is a dry run: it shows the facts for any spot without saving anything. Use it to try a spot before
+writing a suggestion.
 
 ```sh
 cargo run -q -p rink-cli -- summary examples/breakout.rink.json

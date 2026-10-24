@@ -151,6 +151,9 @@ impl Render for InspectorView {
                     );
                 if on {
                     item = item.child(div().text_color(rgb(TEXT)).child(SharedString::from(sug.reason.clone())));
+                    if !sug.detail.is_empty() {
+                        item = item.child(div().text_color(rgb(MUTED)).child(SharedString::from(sug.detail.clone())));
+                    }
                 }
                 panel = panel.child(item);
             }

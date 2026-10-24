@@ -38,6 +38,9 @@ pub struct Suggestion {
     pub branch_from_ms: u32,
     /// Where the player should have been at `t_ms`, rink meters.
     pub target: Vec2,
+    /// Which way to face at `t_ms`, radians (0 = +x).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub facing: Option<f32>,
     /// Radius of the acceptable area around `target`.
     #[serde(default = "default_radius")]
     pub zone_radius_m: f32,
@@ -61,6 +64,10 @@ pub struct Review {
     pub play_id: Uuid,
     #[serde(default)]
     pub suggestions: Vec<Suggestion>,
+    /// Ids are never reused, so a removed suggestion's ghost can't be
+    /// mistaken for a new one.
+    #[serde(default)]
+    pub next_id: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -158,17 +165,22 @@ impl Suggestion {
 
 impl Review {
     pub fn new(play: &Play) -> Self {
-        Review { schema_version: REVIEW_SCHEMA_VERSION, play_id: play.id, suggestions: Vec::new() }
+        Review { schema_version: REVIEW_SCHEMA_VERSION, play_id: play.id, suggestions: Vec::new(), next_id: 1 }
     }
 
     /// Check `s`, give it the next free id, and append it. Returns the id.
     pub fn add(&mut self, play: &Play, mut s: Suggestion) -> Result<String, SuggestionError> {
         s.check(play)?;
-        let next = (1..).find(|n| !self.suggestions.iter().any(|x| x.id == format!("s{n}"))).unwrap_or(1);
+        // Older files have no counter; start past every id already used.
+        let highest = self.suggestions.iter().filter_map(|x| x.id.strip_prefix('s')?.parse::<u32>().ok()).max();
+        let next = self.next_id.max(highest.map_or(1, |h| h + 1)).max(1);
+        self.next_id = next + 1;
         s.id = format!("s{next}");
+        s.confidence = s.confidence.map(|c| (c.clamp(0.0, 1.0) * 100.0).round() / 100.0);
+        let id = s.id.clone();
         self.suggestions.push(s);
         self.suggestions.sort_by_key(|s| s.t_ms);
-        Ok(self.suggestions.iter().find(|x| x.id == format!("s{next}")).map(|x| x.id.clone()).unwrap_or_default())
+        Ok(id)
     }
 
     pub fn remove(&mut self, id: &str) -> bool {
@@ -218,6 +230,7 @@ mod tests {
             t_ms,
             branch_from_ms,
             target,
+            facing: None,
             zone_radius_m: DEFAULT_ZONE_RADIUS_M,
             principle: "test".into(),
             reason: "test".into(),
@@ -266,7 +279,7 @@ mod tests {
         assert_eq!(review.suggestions[0].id, "s2");
         assert!(review.remove("s1"));
         let c = review.add(&play, suggestion(&play, Vec2::new(-19.0, 12.0), 1000, 3000)).unwrap();
-        assert_eq!(c, "s1");
+        assert_eq!(c, "s3");
     }
 
     #[test]

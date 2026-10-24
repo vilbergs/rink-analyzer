@@ -270,6 +270,10 @@ pub fn paint_ghosts(
                 arrow(window, t, actual + dir * r, *ghost - dir * (r * 0.6), 2.5, GHOST);
             }
         }
+        if let Some(facing) = s.facing {
+            let tip = *ghost + Vec2::from_angle(facing) * (r + 0.7);
+            stroke(window, t, &[*ghost, tip], false, 3.0, GHOST);
+        }
         fill_translucent(window, t, &circle(*ghost, r), GHOST_FILL);
         stroke_dashed(window, t, &circle(*ghost, r), 2.0, GHOST);
         if let Some(n) = entity.number {

@@ -8,7 +8,7 @@
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
 
-use crate::model::{EntityId, EntityKind, Play, Role, TeamSide};
+use crate::model::{EntityId, EntityKind, EventKind, Play, Role, TeamSide};
 use crate::rink::Zone;
 use crate::sample::Snapshot;
 
@@ -21,6 +21,9 @@ pub const PASSER_PRESSURE_M: f32 = 1.5;
 /// Within this many meters of the puck's y (or x), a player counts as level
 /// with it rather than on one side.
 const LEVEL_BAND_M: f32 = 1.0;
+/// Right after a pass the puck has no carrier, but the lanes that mattered are
+/// the passer's; keep reporting them for this long after the release.
+const PASS_LANE_WINDOW_MS: u32 = 300;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -59,19 +62,25 @@ pub struct EntityFacts {
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub is_me: bool,
     pub pos: Vec2,
-    pub facing_deg: f32,
-    pub speed_mps: f32,
+    /// Absent for a hypothetical spot given without a facing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facing_deg: Option<f32>,
+    /// Absent for a hypothetical spot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed_mps: Option<f32>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub has_puck: bool,
-    /// From this player's team's point of view.
+    /// From this player's own team's point of view: an away player in home's
+    /// defensive zone is in its offensive zone.
     pub zone: Zone,
     pub side: Side,
     pub relative_to_puck: RelativeToPuck,
     pub dist_to_puck_m: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nearest_opponent: Option<Nearest>,
-    /// For teammates of the carrier: whether a pass from the carrier to this
-    /// player has no opponent within [`LANE_CLEARANCE_M`] of its line.
+    /// For skaters on the carrier's team (or the passer's, just after a
+    /// pass): whether a pass to this player has no opponent within
+    /// [`LANE_CLEARANCE_M`] of its line.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_pass_lane_from_carrier: Option<bool>,
 }
@@ -138,19 +147,46 @@ fn relative_to(puck: Vec2, pos: Vec2) -> RelativeToPuck {
     }
 }
 
-/// Facts for one entity in `snap`. With `pos_override`, the entity is treated
-/// as if it stood there instead (everyone else stays put), which is how a
-/// suggested position is compared with the real one.
-pub fn entity_facts(play: &Play, snap: &Snapshot, id: &EntityId, pos_override: Option<Vec2>) -> Option<EntityFacts> {
+/// A spot to evaluate instead of where the player really was.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Hypothetical {
+    pub pos: Vec2,
+    /// Radians, 0 = +x.
+    pub facing: Option<f32>,
+}
+
+/// Who passes are judged from at `snap`: the carrier, or the passer for a
+/// moment after a pass is released.
+fn lane_source(play: &Play, snap: &Snapshot) -> Option<EntityId> {
+    if let Some(c) = &snap.puck.carrier {
+        return Some(c.clone());
+    }
+    play.events
+        .iter()
+        .filter(|e| e.kind == EventKind::Pass && e.t_ms <= snap.t_ms && snap.t_ms < e.t_ms + PASS_LANE_WINDOW_MS)
+        .filter_map(|e| e.actors.first().cloned())
+        .next_back()
+}
+
+/// Facts for one entity in `snap`. With `hypothetical`, the entity is treated
+/// as if it stood there instead while everyone else stays put; a carrier
+/// takes the puck along. This is how a suggested spot is compared with the
+/// real one.
+pub fn entity_facts(
+    play: &Play,
+    snap: &Snapshot,
+    id: &EntityId,
+    hypothetical: Option<Hypothetical>,
+) -> Option<EntityFacts> {
     let entity = play.entity(id)?;
     if entity.kind == EntityKind::Puck {
         return None;
     }
     let state = snap.entity(id)?;
-    let pos = pos_override.unwrap_or(state.pos);
+    let pos = hypothetical.map_or(state.pos, |h| h.pos);
     let team = entity.team;
     let attack_sign = team.map(|t| play.team(t).attack_sign()).unwrap_or(1.0);
-    let puck = snap.puck.pos;
+    let puck = if state.has_puck && hypothetical.is_some() { pos } else { snap.puck.pos };
 
     let opponents = snap.entities.iter().filter(|o| {
         let other = play.entity(&o.id);
@@ -162,13 +198,22 @@ pub fn entity_facts(play: &Play, snap: &Snapshot, id: &EntityId, pos_override: O
         .min_by(|a, b| a.0.total_cmp(&b.0))
         .map(|(d, oid)| Nearest { id: oid.clone(), dist_m: round_half(d) });
 
-    let carrier = snap.puck.carrier.as_ref().and_then(|c| snap.entity(c));
-    let carrier_team = carrier.and_then(|c| play.entity(&c.id)).and_then(|e| e.team);
-    let open_lane = match carrier {
-        Some(c) if c.id != *id && carrier_team.is_some() && carrier_team == team => {
-            Some(!opponents.clone().any(|o| blocks_lane(o.pos, c.pos, pos)))
+    let source = lane_source(play, snap).and_then(|s| snap.entity(&s).map(|st| (s, st.pos)));
+    let open_lane = match source {
+        Some((sid, spos))
+            if sid != *id
+                && entity.kind == EntityKind::Skater
+                && team.is_some()
+                && play.entity(&sid).and_then(|e| e.team) == team =>
+        {
+            Some(!opponents.clone().any(|o| blocks_lane(o.pos, spos, pos)))
         }
         _ => None,
+    };
+
+    let (facing_deg, speed_mps) = match hypothetical {
+        None => (Some(state.facing.to_degrees().round()), Some(round_half(state.speed_mps))),
+        Some(h) => (h.facing.map(|f| f.to_degrees().round()), None),
     };
 
     Some(EntityFacts {
@@ -177,9 +222,9 @@ pub fn entity_facts(play: &Play, snap: &Snapshot, id: &EntityId, pos_override: O
         role: entity.role,
         is_me: entity.is_me,
         pos: round_vec(pos),
-        facing_deg: state.facing.to_degrees().round(),
-        speed_mps: round_half(state.speed_mps),
-        has_puck: state.has_puck && pos_override.is_none(),
+        facing_deg,
+        speed_mps,
+        has_puck: state.has_puck,
         zone: play.rink.zone_at(pos.x, attack_sign),
         side: side_of(puck, pos),
         relative_to_puck: relative_to(puck, pos),
@@ -234,9 +279,35 @@ mod tests {
         let play = build(Template::Breakout, RinkSpec::iihf());
         let snap = sample(&play, 0);
         let me = play.me().unwrap().id.clone();
-        let moved = entity_facts(&play, &snap, &me, Some(Vec2::new(-10.0, -10.0))).unwrap();
+        let moved =
+            entity_facts(&play, &snap, &me, Some(Hypothetical { pos: Vec2::new(-10.0, -10.0), facing: None })).unwrap();
         assert_eq!(moved.pos, Vec2::new(-10.0, -10.0));
         assert_eq!(moved.side, Side::Weak);
+        assert_eq!((moved.facing_deg, moved.speed_mps), (None, None));
+    }
+
+    #[test]
+    fn carrier_takes_the_puck_along() {
+        let play = build(Template::Breakout, RinkSpec::iihf());
+        let snap = sample(&play, 3000);
+        let me = play.me().unwrap().id.clone();
+        let h = Hypothetical { pos: Vec2::new(-13.0, 8.5), facing: Some(0.0) };
+        let moved = entity_facts(&play, &snap, &me, Some(h)).unwrap();
+        assert!(moved.has_puck);
+        assert_eq!(moved.dist_to_puck_m, 0.0);
+        assert_eq!(moved.facing_deg, Some(0.0));
+    }
+
+    #[test]
+    fn lanes_reported_at_the_moment_of_a_pass() {
+        let play = build(Template::Breakout, RinkSpec::iihf());
+        let snap = sample(&play, 1500);
+        assert_eq!(snap.puck.carrier, None);
+        let f = facts(&play, &snap);
+        let lw = f.entities.iter().find(|e| e.is_me).unwrap();
+        assert!(lw.open_pass_lane_from_carrier.is_some());
+        let goalie = f.entities.iter().find(|e| e.role == Some(Role::G) && e.team == Some(TeamSide::Home)).unwrap();
+        assert_eq!(goalie.open_pass_lane_from_carrier, None);
     }
 
     #[test]
