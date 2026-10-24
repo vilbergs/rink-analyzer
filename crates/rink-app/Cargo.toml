@@ -1,0 +1,17 @@
+[package]
+name = "rink-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Rink Replay desktop editor (GPUI)."
+
+[[bin]]
+name = "rink-replay"
+path = "src/main.rs"
+
+[dependencies]
+rink-core.workspace = true
+gpui = "=0.2.2"
+anyhow.workspace = true
+env_logger = "0.11"
+log = "0.4"

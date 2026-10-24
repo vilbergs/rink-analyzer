@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["crates/rink-core", "crates/rink-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+rink-core = { path = "crates/rink-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+glam = { version = "0.29", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+directories = "5"
+thiserror = "2"
+anyhow = "1"

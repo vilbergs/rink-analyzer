@@ -1,0 +1,20 @@
+{
+  "name": "NHL 61x26",
+  "length_m": 60.96,
+  "width_m": 25.91,
+  "corner_radius_m": 8.53,
+  "goal_line_from_end_m": 3.35,
+  "blue_line_from_end_m": 22.86,
+  "line_width_m": 0.05,
+  "blue_line_width_m": 0.30,
+  "red_line_width_m": 0.30,
+  "center_circle_radius_m": 4.57,
+  "faceoff_circle_radius_m": 4.57,
+  "end_dot_from_goal_line_m": 6.1,
+  "end_dot_lateral_m": 6.71,
+  "neutral_dot_from_blue_line_m": 1.52,
+  "neutral_dot_lateral_m": 6.71,
+  "crease_radius_m": 1.83,
+  "goal_width_m": 1.83,
+  "goal_depth_m": 1.12
+}
