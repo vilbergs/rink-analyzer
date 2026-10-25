@@ -69,6 +69,8 @@ code.
 - **Toolbar.** Click the play's title to open another play (same as Cmd-O). Next to it are the file name
   and "Saved" or "Unsaved changes". The last status message ("Undid move of #17 LW", "Opened …") sits on
   the right. Drag an empty part of the toolbar to move the window.
+- **Menu bar** (macOS). File, Edit, View and Playback menus hold the same commands as the keys, and
+  show each key next to its command. Use them when you forget a shortcut.
 - **Rink.** It's drawn to scale (IIHF by default). Your player has an orange ring, and the selected one
   has a blue halo. The short line on each player shows where they face. The puck sits on the carrier's
   stick side.

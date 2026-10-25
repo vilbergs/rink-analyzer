@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 use std::path::PathBuf;
 
 use gpui::{
-    actions, deferred, div, prelude::*, px, rgb, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Task, Window,
+    actions, deferred, div, prelude::*, px, rgb, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Menu,
+    MenuItem, SystemMenuType, Task, Window,
 };
 
 use crate::inspector::InspectorView;
@@ -46,6 +47,7 @@ actions!(
         PickerDown,
         PickerConfirm,
         ClosePicker,
+        Hide,
         Quit
     ]
 );
@@ -92,13 +94,68 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("down", PickerDown, Some(CONTEXT)),
         KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
         KeyBinding::new("escape", ClosePicker, Some(CONTEXT)),
+        KeyBinding::new("cmd-h", Hide, None),
         KeyBinding::new("ctrl-q", Quit, None),
         KeyBinding::new("cmd-q", Quit, None),
     ]);
+    cx.on_action(|_: &Hide, cx| cx.hide());
     cx.on_action(|_: &Quit, cx| {
         session::clear_state(std::process::id());
         cx.quit()
     });
+}
+
+/// The macOS menu bar. Without one, the menu bar keeps showing the previous
+/// app's menus while this window is active. Items dispatch the same actions as
+/// the keys, and show those keys.
+pub fn menus() -> Vec<Menu> {
+    vec![
+        Menu {
+            name: "Rink Replay".into(),
+            items: vec![
+                MenuItem::os_submenu("Services", SystemMenuType::Services),
+                MenuItem::separator(),
+                MenuItem::action("Hide Rink Replay", Hide),
+                MenuItem::action("Quit Rink Replay", Quit),
+            ],
+        },
+        Menu {
+            name: "File".into(),
+            items: vec![MenuItem::action("Open Play…", OpenLibrary), MenuItem::action("Save", Save)],
+        },
+        Menu {
+            name: "Edit".into(),
+            items: vec![
+                MenuItem::action("Undo", Undo),
+                MenuItem::action("Redo", Redo),
+                MenuItem::separator(),
+                MenuItem::action("Delete Keyframe at Playhead", DeleteKeyframe),
+            ],
+        },
+        Menu {
+            name: "View".into(),
+            items: vec![
+                MenuItem::action("Show or Hide Ghosts", ToggleGhosts),
+                MenuItem::action("Flip Ends", FlipEnds),
+                MenuItem::action("Fit Rink", ResetZoom),
+            ],
+        },
+        Menu {
+            name: "Playback".into(),
+            items: vec![
+                MenuItem::action("Play or Pause", TogglePlay),
+                MenuItem::action("Change Speed", CycleSpeed),
+                MenuItem::separator(),
+                MenuItem::action("Go to Start", JumpStart),
+                MenuItem::action("Go to End", JumpEnd),
+                MenuItem::action("Previous Keyframe", PrevKeyframe),
+                MenuItem::action("Next Keyframe", NextKeyframe),
+                MenuItem::separator(),
+                MenuItem::action("Previous Suggestion", PrevFeedback),
+                MenuItem::action("Next Suggestion", NextFeedback),
+            ],
+        },
+    ]
 }
 
 pub struct Workspace {

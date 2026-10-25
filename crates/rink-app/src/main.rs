@@ -4,6 +4,7 @@
 //! Usage: `rink-replay [PLAY.rink.json]` or `rink-replay --template NAME`
 //! (faceoff, dzone, breakout). With no arguments it opens the breakout example.
 
+mod activation;
 mod inspector;
 mod library;
 mod paint;
@@ -56,6 +57,7 @@ fn main() -> Result<()> {
     let state = initial_state()?;
     Application::new().run(move |cx: &mut App| {
         workspace::bind_keys(cx);
+        cx.set_menus(workspace::menus());
         let bounds = Bounds::centered(None, size(px(1440.), px(860.)), cx);
         let window = cx
             .open_window(
@@ -84,6 +86,7 @@ fn main() -> Result<()> {
         })
         .detach();
         cx.activate(true);
+        activation::take_menu_bar(cx);
     });
     Ok(())
 }
