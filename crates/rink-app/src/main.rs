@@ -2,7 +2,8 @@
 //! rink.
 //!
 //! Usage: `rink-replay [PLAY.rink.json]` or `rink-replay --template NAME`
-//! (faceoff, dzone, breakout). With no arguments it opens the breakout example.
+//! (faceoff, dzone, breakout). With no arguments it opens the most recently
+//! changed play in the library, or a new breakout play if there are none.
 
 mod activation;
 mod inspector;
@@ -34,7 +35,11 @@ use crate::workspace::Workspace;
 fn initial_state() -> Result<PlayState> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
-        [] => Ok(PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None)),
+        // From the Dock or Spotlight: the play you worked on last.
+        [] => Ok(match library::scan(&io::library_dir()).into_iter().find(|e| !e.is_backup) {
+            Some(last) => PlayState::new(io::load(&last.path)?, Some(last.path)),
+            None => PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None),
+        }),
         [flag, name] if flag == "--template" => {
             let template = match name.as_str() {
                 "faceoff" => Template::Faceoff,

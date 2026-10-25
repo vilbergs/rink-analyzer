@@ -161,7 +161,10 @@ fn open(args: &Args) -> Result<Value> {
         "updated"
     } else {
         // The app picks up the request on launch, including --at and --select.
-        let app = std::env::current_exe()?.with_file_name("rink-replay");
+        // Through a symlink (e.g. ~/.local/bin/rink), find the real binary first:
+        // the app sits next to it, inside the installed bundle.
+        let exe = std::env::current_exe()?;
+        let app = exe.canonicalize().unwrap_or(exe).with_file_name("rink-replay");
         // Detached from our stdio, or the caller's shell waits for the window to close.
         let launched = std::process::Command::new(&app)
             .arg(&path)
