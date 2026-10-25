@@ -7,7 +7,7 @@ use crate::theme::{self, kbd};
 
 type Group = (&'static str, &'static [(&'static str, &'static str)]);
 
-const LEFT: [Group; 3] = [
+const LEFT: [Group; 4] = [
     (
         "Editing",
         &[
@@ -15,6 +15,8 @@ const LEFT: [Group; 3] = [
             ("Shift-drag", "Turn facing"),
             ("Alt-click", "Give the puck (again to undo)"),
             ("D", "Decision point here, then type it"),
+            ("Alt-arrows", "Nudge the selected player 0.5 m"),
+            ("Cmd-C  Cmd-V", "Copy / paste a position"),
             ("Drag a timeline ◆", "Retime a keyframe or event"),
             ("Delete", "Remove the keyframe here"),
             ("Cmd-Z", "Undo"),
@@ -22,7 +24,8 @@ const LEFT: [Group; 3] = [
         ],
     ),
     ("Plays", &[("Cmd-O", "Open a play or start a new one"), ("Cmd-S", "Save")]),
-    ("Help", &[("?  Cmd-/", "This sheet"), ("Esc", "Close a dialog")]),
+    ("Selection", &[("Tab  Shift-Tab", "Next / previous player"), ("Click a lane name", "Select that player")]),
+    ("Help", &[("?  Cmd-/", "This sheet"), ("Esc", "Close a dialog or field")]),
 ];
 
 const RIGHT: [Group; 3] = [
@@ -37,7 +40,16 @@ const RIGHT: [Group; 3] = [
         ],
     ),
     ("Feedback", &[("N  Shift-N", "Next / previous suggestion"), ("G", "Show / hide ghosts")]),
-    ("View", &[("Pinch, wheel", "Zoom"), ("Two-finger scroll", "Pan"), ("0", "Fit the rink"), ("F", "Flip ends")]),
+    (
+        "View",
+        &[
+            ("Pinch, wheel", "Zoom"),
+            ("Two-finger scroll", "Pan"),
+            ("0", "Fit the rink"),
+            ("F", "Flip ends"),
+            ("A", "All players in the timeline"),
+        ],
+    ),
 ];
 
 fn column(groups: &[Group]) -> Div {

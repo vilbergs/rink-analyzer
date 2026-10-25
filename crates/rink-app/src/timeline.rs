@@ -1,7 +1,8 @@
 //! The timeline: a transport bar (play, time, speed) over a strip with a
-//! ruler, the play's events, position feedback, and the selected entity's
-//! keyframes, plus a playhead you can scrub. Hovering a marker names it;
-//! dragging a keyframe or event marker retimes it.
+//! ruler, the play's events, position feedback, and keyframe lanes (the
+//! selected player's, or everyone's), plus a playhead you can scrub.
+//! Hovering a marker names it; dragging a keyframe or event marker retimes
+//! it; clicking a lane's name selects that player.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -16,14 +17,14 @@ use rink_core::{EntityId, EventKind, Play, Suggestion};
 use crate::paint::paint_text;
 use crate::state::{snap, PlayState};
 use crate::theme::{self, button, seconds, short_name};
-use crate::workspace::{CycleSpeed, TogglePlay, ToggleShortcuts};
+use crate::workspace::{CycleSpeed, ToggleAllLanes, TogglePlay, ToggleShortcuts};
 
 const PAD_PX: f32 = 16.0;
 const GUTTER_PX: f32 = 96.0;
 const RULER_PX: f32 = 22.0;
 const LANE_PX: f32 = 22.0;
-const LANES: usize = 3;
-const STRIP_HEIGHT_PX: f32 = RULER_PX + LANE_PX * LANES as f32 + 8.0;
+/// Keyframe lanes are slimmer when every player has one.
+const ALL_LANE_PX: f32 = 17.0;
 
 const LANE_BG: u32 = 0x1a1e24;
 const TICK: u32 = 0x3a404b;
@@ -38,11 +39,63 @@ pub struct TimelineView {
     drag: Option<Drag>,
     /// Pointer position while it's over the strip, for hover labels.
     hover: Option<Point<Pixels>>,
+    /// A keyframe lane for every player on the ice, not just the selection.
+    pub all_players: bool,
+}
+
+/// The strip's rows below the ruler: events, feedback, then one keyframe
+/// lane per player shown.
+#[derive(Clone)]
+struct Lanes {
+    keys: Vec<EntityId>,
+    key_px: f32,
+}
+
+impl Lanes {
+    fn new(play: &Play, selected: Option<&EntityId>, all: bool) -> Self {
+        if all {
+            let mut keys: Vec<EntityId> =
+                play.entities.iter().filter(|e| !play.track(&e.id).is_empty()).map(|e| e.id.clone()).collect();
+            // Players first, the puck last.
+            keys.sort_by_key(|id| play.entity(id).is_some_and(|e| e.is_puck()));
+            Lanes { keys, key_px: ALL_LANE_PX }
+        } else {
+            Lanes { keys: selected.cloned().into_iter().collect(), key_px: LANE_PX }
+        }
+    }
+
+    fn count(&self) -> usize {
+        2 + self.keys.len().max(1)
+    }
+
+    fn height(&self, lane: usize) -> f32 {
+        if lane < 2 {
+            LANE_PX
+        } else {
+            self.key_px
+        }
+    }
+
+    fn top(&self, strip_top: f32, lane: usize) -> f32 {
+        strip_top + RULER_PX + (0..lane).map(|l| self.height(l)).sum::<f32>()
+    }
+
+    fn center(&self, strip_top: f32, lane: usize) -> f32 {
+        self.top(strip_top, lane) + self.height(lane) / 2.0
+    }
+
+    fn strip_height(&self) -> f32 {
+        RULER_PX + (0..self.count()).map(|l| self.height(l)).sum::<f32>() + 8.0
+    }
+
+    fn key_lane(&self, id: &EntityId) -> Option<usize> {
+        self.keys.iter().position(|k| k == id).map(|i| i + 2)
+    }
 }
 
 enum Drag {
     Scrub,
-    /// Moving the selection's keyframe that is now at `t_ms`.
+    /// Moving `id`'s keyframe that is now at `t_ms`.
     Keyframe {
         id: EntityId,
         t_ms: u32,
@@ -59,7 +112,7 @@ enum Drag {
 enum Target {
     Event(usize),
     Suggestion(String),
-    Keyframe(u32),
+    Keyframe(EntityId, u32),
 }
 
 /// Something drawn on a lane that can be hovered or grabbed.
@@ -70,7 +123,7 @@ struct Marker {
     target: Target,
 }
 
-fn markers(play: &Play, selected: Option<&EntityId>, suggestions: &[Suggestion]) -> Vec<Marker> {
+fn markers(play: &Play, lanes: &Lanes, suggestions: &[Suggestion]) -> Vec<Marker> {
     let mut out: Vec<Marker> = play
         .events
         .iter()
@@ -90,24 +143,30 @@ fn markers(play: &Play, selected: Option<&EntityId>, suggestions: &[Suggestion])
         label: format!("{} · {}", seconds(s.t_ms), s.principle),
         target: Target::Suggestion(s.id.clone()),
     }));
-    if let Some(id) = selected {
+    for (i, id) in lanes.keys.iter().enumerate() {
         out.extend(play.track(id).iter().map(|k| Marker {
-            lane: 2,
+            lane: i + 2,
             t_ms: k.t_ms,
             label: format!("{} · keyframe of {}", seconds(k.t_ms), short_name(play, id)),
-            target: Target::Keyframe(k.t_ms),
+            target: Target::Keyframe(id.clone(), k.t_ms),
         }));
     }
     out
 }
 
 /// The marker under `at`, if any: same lane, nearest in time.
-fn hit(markers: &[Marker], bounds: Bounds<Pixels>, axis: TimeAxis, at: Point<Pixels>) -> Option<&Marker> {
+fn hit<'a>(
+    markers: &'a [Marker],
+    lanes: &Lanes,
+    bounds: Bounds<Pixels>,
+    axis: TimeAxis,
+    at: Point<Pixels>,
+) -> Option<&'a Marker> {
     let top = f32::from(bounds.origin.y);
     let y = f32::from(at.y);
     markers
         .iter()
-        .filter(|m| (lane_center(top, m.lane) - y).abs() <= LANE_PX / 2.0)
+        .filter(|m| (lanes.center(top, m.lane) - y).abs() <= lanes.height(m.lane) / 2.0)
         .map(|m| ((f32::from(axis.x(m.t_ms)) - f32::from(at.x)).abs(), m))
         .filter(|(d, _)| *d <= MARKER_HIT_PX)
         .min_by(|a, b| a.0.total_cmp(&b.0))
@@ -143,7 +202,11 @@ impl TimeAxis {
 impl TimelineView {
     pub fn new(state: Entity<PlayState>, cx: &mut Context<Self>) -> Self {
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
-        TimelineView { state, bounds: Rc::new(Cell::new(None)), drag: None, hover: None }
+        TimelineView { state, bounds: Rc::new(Cell::new(None)), drag: None, hover: None, all_players: false }
+    }
+
+    fn lanes(&self, s: &PlayState) -> Lanes {
+        Lanes::new(&s.play, s.selected.as_ref(), self.all_players)
     }
 
     /// The marker under the pointer, from the last painted bounds.
@@ -151,8 +214,9 @@ impl TimelineView {
         let bounds = self.bounds.get()?;
         let s = self.state.read(cx);
         let axis = TimeAxis::new(bounds, s.play.duration_ms);
-        let list = markers(&s.play, s.selected.as_ref(), s.suggestions());
-        hit(&list, bounds, axis, at).map(|m| (m.target.clone(), m.label.clone()))
+        let lanes = self.lanes(s);
+        let list = markers(&s.play, &lanes, s.suggestions());
+        hit(&list, &lanes, bounds, axis, at).map(|m| (m.target.clone(), m.label.clone()))
     }
 
     fn time_at(&self, x: Pixels, cx: &Context<Self>) -> Option<u32> {
@@ -173,11 +237,11 @@ impl TimelineView {
     fn mouse_down(&mut self, ev: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let target = self.marker_at(ev.position, cx).map(|(t, _)| t);
         self.drag = Some(match target {
-            Some(Target::Keyframe(t_ms)) => {
-                let Some(id) = self.state.read(cx).selected.clone() else { return };
+            Some(Target::Keyframe(id, t_ms)) => {
                 self.state.update(cx, |s, cx| {
                     s.playing = false;
                     s.set_playhead(t_ms);
+                    s.selected = Some(id.clone());
                     cx.notify();
                 });
                 Drag::Keyframe { id, t_ms, recorded: false }
@@ -303,18 +367,18 @@ fn paint_label(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
     line.paint(point(px(x0 + pad), px(y0 + (h - 13.2) / 2.0)), px(13.2), window, cx).ok();
 }
 
-fn lane_center(top: f32, lane: usize) -> f32 {
-    top + RULER_PX + LANE_PX * lane as f32 + LANE_PX / 2.0
-}
-
 fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, play: &Play, state: StripState) {
     let axis = TimeAxis::new(bounds, play.duration_ms);
     let top = f32::from(bounds.origin.y);
     let width = f32::from(bounds.size.width);
+    let lanes = &state.lanes;
+    let selected_lane = state.selected.as_ref().and_then(|id| lanes.key_lane(id));
 
-    for lane in 0..LANES {
-        let y = lane_center(top, lane) - LANE_PX / 2.0 + 2.0;
-        rounded_rect(window, point(bounds.origin.x + px(4.0), px(y)), width - 8.0, LANE_PX - 4.0, 4.0, LANE_BG);
+    for lane in 0..lanes.count() {
+        let h = lanes.height(lane);
+        let bg = if lanes.keys.len() > 1 && Some(lane) == selected_lane { theme::HOVER } else { LANE_BG };
+        let y = lanes.top(top, lane) + 2.0;
+        rounded_rect(window, point(bounds.origin.x + px(4.0), px(y)), width - 8.0, h - 4.0, 4.0, bg);
     }
 
     // Ruler: a tick every half second, labelled every second.
@@ -333,12 +397,12 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
     // Lane 0: events.
     for ev in &play.events {
         let color = if ev.kind == EventKind::DecisionPoint { theme::WARN } else { theme::ACCENT };
-        diamond(window, point(axis.x(ev.t_ms), px(lane_center(top, 0))), 5.0, color);
+        diamond(window, point(axis.x(ev.t_ms), px(lanes.center(top, 0))), 5.0, color);
     }
 
     // Lane 1: feedback, a bar from where the better route splits off to the
     // moment it's about.
-    let y = lane_center(top, 1);
+    let y = lanes.center(top, 1);
     for s in &state.suggestions {
         let x0 = axis.x(s.branch_from_ms);
         let x1 = axis.x(s.t_ms);
@@ -346,22 +410,25 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
         diamond(window, point(x1, px(y)), 5.0, theme::FEEDBACK);
     }
 
-    // Lane 2: the selection's keyframes, over a bar while they have the puck.
-    if let Some(id) = &state.selected {
-        let y = lane_center(top, 2);
-        for p in rink_core::sample::possessions(play).iter().filter(|p| &p.entity == id) {
+    // Keyframe lanes: each player's keyframes, over a bar while they have
+    // the puck.
+    let possessions = rink_core::sample::possessions(play);
+    let r = if lanes.key_px < LANE_PX { 4.0 } else { 5.0 };
+    for (i, id) in lanes.keys.iter().enumerate() {
+        let y = lanes.center(top, i + 2);
+        for p in possessions.iter().filter(|p| &p.entity == id) {
             let x0 = axis.x(p.start_ms);
             let x1 = axis.x(p.end_ms.unwrap_or(play.duration_ms));
             rounded_rect(window, point(x0, px(y - 2.0)), f32::from(x1 - x0), 4.0, 2.0, POSSESSION);
         }
         for k in play.track(id) {
-            diamond(window, point(axis.x(k.t_ms), px(y)), 5.0, KEYFRAME);
+            diamond(window, point(axis.x(k.t_ms), px(y)), r, KEYFRAME);
         }
     }
 
     // Playhead: a line with a handle in the ruler.
     let x = axis.x(state.playhead_ms);
-    fill_rect(window, point(x - px(1.0), px(top + 4.0)), 2.0, STRIP_HEIGHT_PX - 4.0, theme::ACCENT);
+    fill_rect(window, point(x - px(1.0), px(top + 4.0)), 2.0, lanes.strip_height() - 4.0, theme::ACCENT);
     rounded_rect(window, point(x - px(6.0), px(top + 2.0)), 12.0, 12.0, 3.0, theme::ACCENT);
 
     if let Some((t_ms, label)) = &state.label {
@@ -373,6 +440,7 @@ struct StripState {
     playhead_ms: u32,
     selected: Option<rink_core::EntityId>,
     suggestions: Vec<rink_core::Suggestion>,
+    lanes: Lanes,
     /// A hover label: the marker's time and text.
     label: Option<(u32, String)>,
 }
@@ -381,8 +449,8 @@ fn legend(label: &'static str, hex: u32) -> gpui::Div {
     div().flex().items_center().gap_1p5().child(div().size(px(7.)).rounded_sm().bg(rgb(hex))).child(label)
 }
 
-fn lane_label(text: impl Into<SharedString>) -> gpui::Div {
-    div().h(px(LANE_PX)).flex().items_center().px_4().truncate().child(text.into())
+fn lane_label(text: impl Into<SharedString>, h: f32) -> gpui::Div {
+    div().h(px(h)).flex().items_center().px_4().truncate().child(text.into())
 }
 
 impl Render for TimelineView {
@@ -398,20 +466,22 @@ impl Render for TimelineView {
                 let t = match target {
                     Target::Event(i) => play.events.get(*i).map_or(0, |e| e.t_ms),
                     Target::Suggestion(id) => s.suggestions().iter().find(|x| &x.id == id).map_or(0, |x| x.t_ms),
-                    Target::Keyframe(t) => *t,
+                    Target::Keyframe(_, t) => *t,
                 };
                 (t, label.clone())
             }),
         };
         let grabbable = matches!(self.drag, Some(Drag::Keyframe { .. } | Drag::Event { .. }))
-            || matches!(hovered, Some((Target::Keyframe(_) | Target::Event(_), _)));
+            || matches!(hovered, Some((Target::Keyframe(..) | Target::Event(_), _)));
+        let lanes = self.lanes(s);
+        let strip_height = lanes.strip_height();
         let strip = StripState {
             playhead_ms: s.playhead_ms,
             selected: s.selected.clone(),
             suggestions: s.suggestions().to_vec(),
+            lanes: lanes.clone(),
             label,
         };
-        let selection = s.selected.as_ref().map(|id| short_name(&play, id)).unwrap_or_else(|| "Keyframes".into());
         let cell = self.bounds.clone();
 
         let transport = div()
@@ -465,6 +535,10 @@ impl Render for TimelineView {
                     .child(
                         button("speed", format!("{}×", s.speed), false)
                             .on_click(|_, window, cx| window.dispatch_action(Box::new(CycleSpeed), cx)),
+                    )
+                    .child(
+                        button("all-players", "All players", self.all_players)
+                            .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleAllLanes), cx)),
                     ),
             )
             .child(
@@ -506,9 +580,30 @@ impl Render for TimelineView {
             .text_color(rgb(theme::TEXT_MUTED))
             .border_r_1()
             .border_color(rgb(theme::BORDER))
-            .child(lane_label("Events"))
-            .child(lane_label("Feedback"))
-            .child(lane_label(selection));
+            .child(lane_label("Events", LANE_PX))
+            .child(lane_label("Feedback", LANE_PX));
+        let labels = if lanes.keys.is_empty() {
+            labels.child(lane_label("Keyframes", LANE_PX).text_color(rgb(theme::TEXT_FAINT)))
+        } else {
+            lanes.keys.iter().enumerate().fold(labels, |labels, (i, id)| {
+                let selected = s.selected.as_ref() == Some(id);
+                let id = id.clone();
+                let state = self.state.clone();
+                labels.child(
+                    lane_label(short_name(&play, &id), lanes.key_px)
+                        .id(("lane", i))
+                        .cursor_pointer()
+                        .when(selected, |d| d.text_color(rgb(theme::TEXT)))
+                        .hover(|d| d.text_color(rgb(theme::TEXT)))
+                        .on_click(move |_, _, cx| {
+                            state.update(cx, |s, cx| {
+                                s.selected = Some(id.clone());
+                                cx.notify();
+                            })
+                        }),
+                )
+            })
+        };
 
         div()
             .flex()
@@ -519,7 +614,7 @@ impl Render for TimelineView {
             .border_color(rgb(theme::BORDER))
             .child(transport)
             .child(
-                div().flex().h(px(STRIP_HEIGHT_PX)).child(labels).child(
+                div().flex().h(px(strip_height)).child(labels).child(
                     div()
                         .id("strip")
                         .flex_1()

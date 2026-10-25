@@ -16,7 +16,7 @@ use crate::rink_canvas::RinkCanvas;
 use crate::shortcuts;
 use rink_core::session::{self, AppState};
 use rink_core::templates::build;
-use rink_core::{io, EntityId};
+use rink_core::{io, EntityId, Vec2};
 
 use crate::state::{snap, PlayState, Status, SNAP_MS};
 use crate::theme::{self, button};
@@ -50,12 +50,23 @@ actions!(
         CloseDialog,
         ToggleShortcuts,
         AddDecisionPoint,
+        ToggleAllLanes,
+        CopyPosition,
+        PastePosition,
+        NextPlayer,
+        PrevPlayer,
+        NudgeLeft,
+        NudgeRight,
+        NudgeUp,
+        NudgeDown,
         Hide,
         Quit
     ]
 );
 
 const CONTEXT: &str = "Workspace";
+/// How far Alt-arrow moves the selected player, in meters.
+const NUDGE_M: f32 = 0.5;
 const FRAME: Duration = Duration::from_millis(16);
 /// How often to look for a new or updated review file and for `rink open`
 /// requests.
@@ -98,6 +109,17 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
         KeyBinding::new("escape", CloseDialog, Some(CONTEXT)),
         KeyBinding::new("d", AddDecisionPoint, Some(CONTEXT)),
+        KeyBinding::new("a", ToggleAllLanes, Some(CONTEXT)),
+        KeyBinding::new("cmd-c", CopyPosition, Some(CONTEXT)),
+        KeyBinding::new("ctrl-c", CopyPosition, Some(CONTEXT)),
+        KeyBinding::new("cmd-v", PastePosition, Some(CONTEXT)),
+        KeyBinding::new("ctrl-v", PastePosition, Some(CONTEXT)),
+        KeyBinding::new("tab", NextPlayer, Some(CONTEXT)),
+        KeyBinding::new("shift-tab", PrevPlayer, Some(CONTEXT)),
+        KeyBinding::new("alt-left", NudgeLeft, Some(CONTEXT)),
+        KeyBinding::new("alt-right", NudgeRight, Some(CONTEXT)),
+        KeyBinding::new("alt-up", NudgeUp, Some(CONTEXT)),
+        KeyBinding::new("alt-down", NudgeDown, Some(CONTEXT)),
         KeyBinding::new("?", ToggleShortcuts, Some(CONTEXT)),
         KeyBinding::new("shift-/", ToggleShortcuts, Some(CONTEXT)),
         KeyBinding::new("cmd-/", ToggleShortcuts, Some(CONTEXT)),
@@ -147,6 +169,12 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::separator(),
                 MenuItem::action("Delete Keyframe at Playhead", DeleteKeyframe),
                 MenuItem::action("Add Decision Point", AddDecisionPoint),
+                MenuItem::separator(),
+                MenuItem::action("Copy Position", CopyPosition),
+                MenuItem::action("Paste Position", PastePosition),
+                MenuItem::separator(),
+                MenuItem::action("Select Next Player", NextPlayer),
+                MenuItem::action("Select Previous Player", PrevPlayer),
             ],
         },
         Menu {
@@ -155,6 +183,7 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::action("Show or Hide Ghosts", ToggleGhosts),
                 MenuItem::action("Flip Ends", FlipEnds),
                 MenuItem::action("Fit Rink", ResetZoom),
+                MenuItem::action("All Players in Timeline", ToggleAllLanes),
             ],
         },
         Menu {
@@ -439,6 +468,63 @@ impl Workspace {
             s.add_event(rink_core::EventKind::DecisionPoint);
         });
         self.inspector.update(cx, |i, cx| i.focus_event_note(window, cx));
+    }
+
+    fn toggle_all_lanes(&mut self, _: &ToggleAllLanes, _: &mut Window, cx: &mut Context<Self>) {
+        self.timeline.update(cx, |t, cx| {
+            t.all_players = !t.all_players;
+            cx.notify();
+        });
+    }
+
+    fn copy_position(&mut self, _: &CopyPosition, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, PlayState::copy_position);
+    }
+
+    fn paste_position(&mut self, _: &PastePosition, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, PlayState::paste_position);
+    }
+
+    fn next_player(&mut self, _: &NextPlayer, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| s.cycle_selection(1));
+    }
+
+    fn prev_player(&mut self, _: &PrevPlayer, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| s.cycle_selection(-1));
+    }
+
+    fn nudge(&mut self, dx: f32, dy: f32, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.nudge(Vec2::new(dx, dy));
+        });
+    }
+
+    fn nudge_left(&mut self, _: &NudgeLeft, _: &mut Window, cx: &mut Context<Self>) {
+        let d = self.screen_step(cx);
+        self.nudge(-d.0, -d.1, cx);
+    }
+
+    fn nudge_right(&mut self, _: &NudgeRight, _: &mut Window, cx: &mut Context<Self>) {
+        let d = self.screen_step(cx);
+        self.nudge(d.0, d.1, cx);
+    }
+
+    fn nudge_up(&mut self, _: &NudgeUp, _: &mut Window, cx: &mut Context<Self>) {
+        let d = self.screen_step(cx);
+        self.nudge(-d.1, d.0, cx);
+    }
+
+    fn nudge_down(&mut self, _: &NudgeDown, _: &mut Window, cx: &mut Context<Self>) {
+        let d = self.screen_step(cx);
+        self.nudge(d.1, -d.0, cx);
+    }
+
+    /// One nudge to the right on screen, in rink meters: +x, or −x when the
+    /// view is flipped. Up on screen is +y (−y flipped).
+    fn screen_step(&self, cx: &App) -> (f32, f32) {
+        let sign = if self.state.read(cx).flipped { -1.0 } else { 1.0 };
+        (NUDGE_M * sign, 0.0)
     }
 
     fn jump_start(&mut self, _: &JumpStart, _: &mut Window, cx: &mut Context<Self>) {
@@ -752,6 +838,15 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::close_dialog))
             .on_action(cx.listener(Self::toggle_shortcuts))
             .on_action(cx.listener(Self::add_decision_point))
+            .on_action(cx.listener(Self::toggle_all_lanes))
+            .on_action(cx.listener(Self::copy_position))
+            .on_action(cx.listener(Self::paste_position))
+            .on_action(cx.listener(Self::next_player))
+            .on_action(cx.listener(Self::prev_player))
+            .on_action(cx.listener(Self::nudge_left))
+            .on_action(cx.listener(Self::nudge_right))
+            .on_action(cx.listener(Self::nudge_up))
+            .on_action(cx.listener(Self::nudge_down))
             .on_action(cx.listener(Self::picker_up))
             .on_action(cx.listener(Self::picker_down))
             .on_action(cx.listener(Self::picker_confirm))

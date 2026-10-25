@@ -71,6 +71,8 @@ pub struct PlayState {
     pub focused_suggestion: Option<String>,
     /// The event open for editing in the inspector, by index.
     pub selected_event: Option<usize>,
+    /// A position copied with Cmd-C, to paste onto a player with Cmd-V.
+    copied: Option<(Vec2, Option<f32>)>,
 }
 
 /// The last thing the app has to say: a passing note in the toolbar, or an
@@ -147,6 +149,7 @@ impl PlayState {
             show_ghosts: true,
             focused_suggestion: None,
             selected_event: None,
+            copied: None,
         }
     }
 
@@ -700,6 +703,84 @@ impl PlayState {
         self.edited();
     }
 
+    /// Cmd-C: remember where the selected player (or puck) is at the
+    /// playhead, and which way they face.
+    pub fn copy_position(&mut self) {
+        let Some(id) = self.selected.clone() else { return };
+        let snap = self.snapshot();
+        let copied = if self.play.entity(&id).is_some_and(|e| e.is_puck()) {
+            Some((snap.puck.pos, None))
+        } else {
+            snap.entity(&id).map(|e| (e.pos, Some(e.facing)))
+        };
+        if let Some(c) = copied {
+            self.copied = Some(c);
+            self.set_status(format!(
+                "Copied where {} is at {:.1}s",
+                short_name(&self.play, &id),
+                self.playhead_ms as f32 / 1000.0
+            ));
+        }
+    }
+
+    /// Cmd-V: put the selected player at the copied spot, as a keyframe at
+    /// the playhead. Pasting onto the same player later holds them there.
+    pub fn paste_position(&mut self) {
+        let (Some(id), Some((pos, facing))) = (self.selected.clone(), self.copied) else {
+            self.set_status("Nothing to paste: select a player and press Cmd-C first");
+            return;
+        };
+        self.checkpoint(format!("paste onto {}", short_name(&self.play, &id)));
+        let mut kf = self.keyframe_at_playhead(&id);
+        kf.pos = pos;
+        if !self.play.entity(&id).is_some_and(|e| e.is_puck()) {
+            kf.facing = facing;
+        }
+        self.play.set_keyframe(&id, kf);
+        self.set_status(format!("Pasted onto {} at {:.1}s", short_name(&self.play, &id), kf.t_ms as f32 / 1000.0));
+        self.edited();
+    }
+
+    /// Tab: select the next (dir > 0) or previous player on the ice, in
+    /// roster order, starting from you.
+    pub fn cycle_selection(&mut self, dir: i32) {
+        let snap = self.snapshot();
+        let mut on_ice: Vec<EntityId> = self
+            .play
+            .entities
+            .iter()
+            .filter(|e| !e.is_puck() && snap.entity(&e.id).is_some())
+            .map(|e| e.id.clone())
+            .collect();
+        if let Some(me) = on_ice.iter().position(|id| self.play.entity(id).is_some_and(|e| e.is_me)) {
+            on_ice.rotate_left(me);
+        }
+        if on_ice.is_empty() {
+            return;
+        }
+        let n = on_ice.len() as i32;
+        let next = match self.selected.as_ref().and_then(|id| on_ice.iter().position(|x| x == id)) {
+            Some(i) => (i as i32 + dir).rem_euclid(n) as usize,
+            None => 0,
+        };
+        self.selected = Some(on_ice[next].clone());
+    }
+
+    /// Alt-arrow: move the selected player by `delta` meters at the
+    /// playhead, as a keyframe.
+    pub fn nudge(&mut self, delta: Vec2) {
+        let Some(id) = self.selected.clone() else { return };
+        let snap = self.snapshot();
+        let here = if self.play.entity(&id).is_some_and(|e| e.is_puck()) {
+            Some(snap.puck.pos)
+        } else {
+            snap.entity(&id).map(|e| e.pos)
+        };
+        let Some(here) = here else { return };
+        self.checkpoint(format!("nudge of {}", short_name(&self.play, &id)));
+        self.move_entity(&id, here + delta);
+    }
+
     /// Start an unsaved play (e.g. from a template). View settings stay.
     pub fn new_play(&mut self, play: Play) {
         let mut next = PlayState::new(play, None);
@@ -1143,6 +1224,40 @@ mod tests {
 
         s.delete_event(i);
         assert_eq!(s.selected_event, None);
+    }
+
+    #[test]
+    fn copy_paste_cycle_and_nudge() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let me = s.play.me().unwrap().id.clone();
+        let c = EntityId::from("home_C");
+
+        s.selected = Some(c.clone());
+        s.set_playhead(1000);
+        s.copy_position();
+        let spot = s.snapshot().entity(&c).unwrap().pos;
+        s.selected = Some(me.clone());
+        s.set_playhead(3000);
+        s.paste_position();
+        assert!(s.snapshot().entity(&me).unwrap().pos.distance(spot) < 1e-3);
+        s.undo();
+        assert!(s.snapshot().entity(&me).unwrap().pos.distance(spot) > 0.1);
+
+        s.selected = None;
+        s.cycle_selection(1);
+        assert_eq!(s.selected, Some(me.clone()), "starts from you");
+        s.cycle_selection(1);
+        s.cycle_selection(-1);
+        assert_eq!(s.selected, Some(me.clone()));
+        s.cycle_selection(-1);
+        assert_ne!(s.selected, Some(me.clone()), "wraps around");
+
+        s.selected = Some(me.clone());
+        s.set_playhead(1500);
+        let before = s.snapshot().entity(&me).unwrap().pos;
+        s.nudge(Vec2::new(0.5, 0.0));
+        let after = s.snapshot().entity(&me).unwrap().pos;
+        assert!((after - before - Vec2::new(0.5, 0.0)).length() < 1e-3);
     }
 
     #[test]
