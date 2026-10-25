@@ -1,50 +1,27 @@
 //! Right-hand panel: the play's notes, the selected entity's exact state at
-//! the playhead, position feedback, the play's events, validation warnings,
-//! and the shortcut list. Clicking a feedback card or an event jumps there.
+//! the playhead, position feedback, the play's events and validation
+//! warnings. Clicking a feedback card or an event jumps there.
 
 use gpui::{div, prelude::*, px, rgb, Context, Div, Entity, FontWeight, SharedString, Window};
 use rink_core::{EventKind, Play};
 
 use crate::state::PlayState;
-use crate::theme::{self, badge, card, kbd, role_name, seconds, section, short_name};
+use crate::theme::{self, badge, card, role_name, seconds, section, short_name};
 
 pub struct InspectorView {
     state: Entity<PlayState>,
-    show_shortcuts: bool,
     notes_expanded: bool,
 }
 
 impl InspectorView {
     pub fn new(state: Entity<PlayState>, cx: &mut Context<Self>) -> Self {
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
-        InspectorView { state, show_shortcuts: false, notes_expanded: false }
+        InspectorView { state, notes_expanded: false }
     }
 }
 
 /// Notes longer than this are cut off until "More" is clicked.
 const NOTES_PREVIEW_CHARS: usize = 220;
-
-const SHORTCUTS: [(&str, &str); 19] = [
-    ("Cmd-O", "Open a play or start a new one"),
-    ("Drag", "Move; keyframes at the playhead"),
-    ("Shift-drag", "Turn facing"),
-    ("Alt-click", "Give the puck"),
-    ("Drag a ◆ in the timeline", "Retime a keyframe or event"),
-    ("Space", "Play / pause"),
-    ("← →", "Step 100 ms"),
-    ("Shift ← →", "Previous / next keyframe"),
-    ("Home End", "Start / end of the play"),
-    ("Delete", "Remove keyframe here"),
-    ("Cmd-Z", "Undo"),
-    ("Shift-Cmd-Z", "Redo"),
-    ("]", "Playback speed"),
-    ("F", "Flip ends"),
-    ("N", "Next feedback (Shift: previous)"),
-    ("G", "Show / hide ghosts"),
-    ("Pinch, scroll", "Zoom / pan"),
-    ("0", "Fit rink"),
-    ("Cmd-S", "Save"),
-];
 
 fn muted(text: impl Into<SharedString>) -> Div {
     div().text_xs().text_color(rgb(theme::TEXT_MUTED)).child(text.into())
@@ -390,35 +367,6 @@ impl Render for InspectorView {
         if let Some(w) = warnings(s) {
             panel = panel.child(w);
         }
-
-        let open = self.show_shortcuts;
-        let mut shortcuts = div().flex().flex_col().gap_2().px_4().py_3().child(
-            div()
-                .id("shortcuts-toggle")
-                .flex()
-                .justify_between()
-                .cursor_pointer()
-                .child(theme::section_label("Keyboard shortcuts"))
-                .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child(if open { "Hide" } else { "Show" }))
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.show_shortcuts = !this.show_shortcuts;
-                    cx.notify();
-                })),
-        );
-        if open {
-            for (key, what) in SHORTCUTS {
-                shortcuts = shortcuts.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .text_xs()
-                        .text_color(rgb(theme::TEXT_MUTED))
-                        .child(what)
-                        .child(kbd(key)),
-                );
-            }
-        }
-        panel.child(shortcuts)
+        panel
     }
 }

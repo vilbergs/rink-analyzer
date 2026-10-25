@@ -13,6 +13,7 @@ use gpui::{
 use crate::inspector::InspectorView;
 use crate::library::{self, Entry, TEMPLATES};
 use crate::rink_canvas::RinkCanvas;
+use crate::shortcuts;
 use rink_core::session::{self, AppState};
 use rink_core::templates::build;
 use rink_core::{io, EntityId};
@@ -46,7 +47,8 @@ actions!(
         PickerUp,
         PickerDown,
         PickerConfirm,
-        ClosePicker,
+        CloseDialog,
+        ToggleShortcuts,
         Hide,
         Quit
     ]
@@ -93,7 +95,11 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("up", PickerUp, Some(CONTEXT)),
         KeyBinding::new("down", PickerDown, Some(CONTEXT)),
         KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
-        KeyBinding::new("escape", ClosePicker, Some(CONTEXT)),
+        KeyBinding::new("escape", CloseDialog, Some(CONTEXT)),
+        KeyBinding::new("?", ToggleShortcuts, Some(CONTEXT)),
+        KeyBinding::new("shift-/", ToggleShortcuts, Some(CONTEXT)),
+        KeyBinding::new("cmd-/", ToggleShortcuts, Some(CONTEXT)),
+        KeyBinding::new("ctrl-/", ToggleShortcuts, Some(CONTEXT)),
         KeyBinding::new("cmd-h", Hide, None),
         KeyBinding::new("ctrl-q", Quit, None),
         KeyBinding::new("cmd-q", Quit, None),
@@ -155,6 +161,7 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::action("Next Suggestion", NextFeedback),
             ],
         },
+        Menu { name: "Help".into(), items: vec![MenuItem::action("Keyboard Shortcuts", ToggleShortcuts)] },
     ]
 }
 
@@ -173,6 +180,8 @@ pub struct Workspace {
     published: Option<AppState>,
     /// The open play picker, if it's showing.
     picker: Option<Picker>,
+    /// The keyboard shortcut sheet is showing.
+    show_shortcuts: bool,
 }
 
 struct Picker {
@@ -211,6 +220,7 @@ impl Workspace {
             last_request_ms: started,
             published: None,
             picker: None,
+            show_shortcuts: false,
         }
     }
 
@@ -291,6 +301,7 @@ impl Workspace {
     }
 
     fn open_library(&mut self, _: &OpenLibrary, _: &mut Window, cx: &mut Context<Self>) {
+        self.show_shortcuts = false;
         if self.picker.take().is_none() {
             let entries = library::scan(&io::library_dir());
             let current = self.state.read(cx).path.clone();
@@ -300,10 +311,16 @@ impl Workspace {
         cx.notify();
     }
 
-    fn close_picker(&mut self, _: &ClosePicker, _: &mut Window, cx: &mut Context<Self>) {
-        if self.picker.take().is_some() {
+    fn close_dialog(&mut self, _: &CloseDialog, _: &mut Window, cx: &mut Context<Self>) {
+        if self.picker.take().is_some() || std::mem::take(&mut self.show_shortcuts) {
             cx.notify();
         }
+    }
+
+    fn toggle_shortcuts(&mut self, _: &ToggleShortcuts, _: &mut Window, cx: &mut Context<Self>) {
+        self.show_shortcuts = !self.show_shortcuts;
+        self.picker = None;
+        cx.notify();
     }
 
     fn picker_move(&mut self, delta: isize, cx: &mut Context<Self>) {
@@ -371,8 +388,18 @@ impl Workspace {
                     .on_click(cx.listener(move |ws, _, _, cx| ws.pick(row, cx))),
             );
         }
+        let panel = library::panel(
+            &io::library_dir(),
+            div().flex().flex_col().flex_1().min_h_0().child(list.flex_1().min_h_0()),
+        );
+        Some(self.dialog(panel, cx))
+    }
+
+    /// A dialog over the window: `panel` near the top, on a dimmed backdrop
+    /// that closes it when clicked.
+    fn dialog(&self, panel: gpui::Div, cx: &mut Context<Self>) -> impl IntoElement {
         let backdrop = div()
-            .id("picker-backdrop")
+            .id("dialog-backdrop")
             .absolute()
             .top_0()
             .left_0()
@@ -380,21 +407,16 @@ impl Workspace {
             .occlude()
             .flex()
             .justify_center()
+            .items_start()
             .pt(px(theme::TOOLBAR_HEIGHT + 24.))
             .bg(gpui::rgba(0x0000_0066))
             .on_click(cx.listener(|ws, _, _, cx| {
                 ws.picker = None;
+                ws.show_shortcuts = false;
                 cx.notify();
             }))
-            .child(
-                library::panel(
-                    &io::library_dir(),
-                    div().flex().flex_col().flex_1().min_h_0().child(list.flex_1().min_h_0()),
-                )
-                .id("picker")
-                .on_click(|_, _, cx| cx.stop_propagation()),
-            );
-        Some(deferred(backdrop).with_priority(1))
+            .child(panel.id("dialog").on_click(|_, _, cx| cx.stop_propagation()));
+        deferred(backdrop).with_priority(1)
     }
 
     fn jump_start(&mut self, _: &JumpStart, _: &mut Window, cx: &mut Context<Self>) {
@@ -587,7 +609,8 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let picker = self.picker_overlay(cx);
+        let picker = self.picker_overlay(cx).map(IntoElement::into_any_element);
+        let shortcuts = self.show_shortcuts.then(|| self.dialog(shortcuts::sheet(), cx).into_any_element());
         div()
             .key_context(CONTEXT)
             .track_focus(&self.focus_handle)
@@ -609,7 +632,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::jump_start))
             .on_action(cx.listener(Self::jump_end))
             .on_action(cx.listener(Self::open_library))
-            .on_action(cx.listener(Self::close_picker))
+            .on_action(cx.listener(Self::close_dialog))
+            .on_action(cx.listener(Self::toggle_shortcuts))
             .on_action(cx.listener(Self::picker_up))
             .on_action(cx.listener(Self::picker_down))
             .on_action(cx.listener(Self::picker_confirm))
@@ -631,5 +655,6 @@ impl Render for Workspace {
             )
             .child(self.timeline.clone())
             .children(picker)
+            .children(shortcuts)
     }
 }

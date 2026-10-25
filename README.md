@@ -130,7 +130,8 @@ because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` rele
 
 ## Controls
 
-The [manual](docs/MANUAL.md#keyboard-and-mouse-reference) has the full list.
+Press ? in the app for the shortcut sheet. The [manual](docs/MANUAL.md#keyboard-and-mouse-reference) has the
+full list.
 
 | Input | Action |
 | --- | --- |

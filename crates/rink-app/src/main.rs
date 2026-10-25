@@ -10,6 +10,7 @@ mod library;
 mod paint;
 mod pinch;
 mod rink_canvas;
+mod shortcuts;
 mod state;
 mod theme;
 mod timeline;

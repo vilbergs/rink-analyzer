@@ -58,8 +58,8 @@ code.
 │                    Rink                             │ Selection                 │
 │        (drag players, Alt-click for the puck)       │ Position feedback         │
 │                                                     │ Events                    │
-│                                                     │ Warnings · Shortcuts      │
-├─ ▶ 2.2s / 3.6s  1× ──────────────────── legend ─────┴───────────────────────────┤
+│                                                     │ Warnings                  │
+├─ ▶ 2.2s / 3.6s  1× ─────────────────── legend · ? Shortcuts ────────────────────┤
 │ Events    ◆        ◆   (blue: events, orange: decision points)                  │
 │ Feedback  ━━━━━━━━━◆   (green: where the better route splits off → the moment)  │
 │ #17 LW    ◆   ▬▬▬▬ ◆   (the selected player's keyframes; grey bar: has the puck) │
@@ -69,8 +69,10 @@ code.
 - **Toolbar.** Click the play's title to open another play (same as Cmd-O). Next to it are the file name
   and "Saved" or "Unsaved changes". The last status message ("Undid move of #17 LW", "Opened …") sits on
   the right. Drag an empty part of the toolbar to move the window.
+- **Shortcut sheet.** Press ? (or Cmd-/), click "? Shortcuts" at the right of the timeline bar, or choose
+  Help → Keyboard Shortcuts. Every shortcut is listed in one dialog; Esc or a click outside closes it.
 - **Menu bar** (macOS). File, Edit, View and Playback menus hold the same commands as the keys, and
-  show each key next to its command. Use them when you forget a shortcut.
+  show each key next to its command.
 - **Rink.** It's drawn to scale (IIHF by default). Your player has an orange ring, and the selected one
   has a blue halo. The short line on each player shows where they face. The puck sits on the carrier's
   stick side.
@@ -83,7 +85,6 @@ code.
   - **Events:** passes, recoveries, decision points and so on, with their notes. Click a row to jump
     there and select the player. Click ✕ to delete the event; undo brings it back.
   - **Warnings:** problems `rink check` would also report, for example a pass with no receiver.
-  - **Keyboard shortcuts:** click Show.
 - **Timeline.** It has a transport bar (play, time, speed) and three lanes. Click or drag in empty space
   to scrub. Hover a marker to see what it is. Drag a ◆ to retime it (see below).
 
@@ -224,6 +225,7 @@ Things that make this faster:
 
 | Input | Action |
 | --- | --- |
+| ?, Cmd-/ | Show the shortcut sheet |
 | Cmd-O | Open a play or start a new one (Ctrl-O works too) |
 | ↑ ↓ Enter Esc | Move through the picker, open, close |
 | Drag a player or the puck | Move them; creates a keyframe at the playhead (snapped to 100 ms) |
@@ -246,7 +248,7 @@ Things that make this faster:
 | Two-finger scroll | Pan |
 | 0, Cmd-0 | Fit the rink |
 | Cmd-S, Ctrl-S | Save |
-| Cmd-Q | Quit |
+| Cmd-H, Cmd-Q | Hide, quit |
 
 ## Files and folders
 

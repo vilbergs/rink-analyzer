@@ -16,7 +16,7 @@ use rink_core::{EntityId, EventKind, Play, Suggestion};
 use crate::paint::paint_text;
 use crate::state::{snap, PlayState};
 use crate::theme::{self, button, seconds, short_name};
-use crate::workspace::{CycleSpeed, TogglePlay};
+use crate::workspace::{CycleSpeed, TogglePlay, ToggleShortcuts};
 
 const PAD_PX: f32 = 16.0;
 const GUTTER_PX: f32 = 96.0;
@@ -477,7 +477,23 @@ impl Render for TimelineView {
                     .child(legend("Event", theme::ACCENT))
                     .child(legend("Decision point", theme::WARN))
                     .child(legend("Feedback", theme::FEEDBACK))
-                    .child(legend("Has the puck", POSSESSION)),
+                    .child(legend("Has the puck", POSSESSION))
+                    .child(
+                        div()
+                            .id("shortcuts")
+                            .flex()
+                            .items_center()
+                            .gap_1p5()
+                            .ml_2()
+                            .px_1p5()
+                            .py_0p5()
+                            .rounded_md()
+                            .cursor_pointer()
+                            .hover(|st| st.bg(rgb(theme::HOVER)).text_color(rgb(theme::TEXT)))
+                            .child(theme::kbd("?"))
+                            .child("Shortcuts")
+                            .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleShortcuts), cx)),
+                    ),
             );
 
         let labels = div()
