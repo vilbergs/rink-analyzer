@@ -33,7 +33,15 @@ impl Render for ToolbarView {
             .and_then(|p| p.file_name())
             .map(|f| f.to_string_lossy().into_owned())
             .unwrap_or_else(|| "Not saved yet".into());
-        let save_state = if s.dirty { ("Unsaved changes", theme::WARN) } else { ("Saved", theme::TEXT_FAINT) };
+        let save_state = if s.conflict.is_some() {
+            ("Conflict", theme::DANGER)
+        } else if s.dirty {
+            ("Saving…", theme::WARN)
+        } else if s.path.is_none() {
+            ("Saved once you edit", theme::TEXT_FAINT)
+        } else {
+            ("Saved", theme::TEXT_FAINT)
+        };
 
         div()
             .flex()
@@ -97,12 +105,13 @@ impl Render for ToolbarView {
                     .gap_2()
                     .child(
                         div()
+                            .ml_3()
                             .mr_2()
                             .max_w(px(360.))
                             .overflow_hidden()
                             .text_xs()
                             .text_color(rgb(theme::TEXT_MUTED))
-                            .child(SharedString::from(s.status.clone())),
+                            .when(!s.status.is_error(), |d| d.child(SharedString::from(s.status.text().to_string()))),
                     )
                     .child(
                         button("undo", "Undo", false).when(!s.can_undo(), |b| b.opacity(0.4)).on_click(dispatch(Undo)),

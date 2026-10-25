@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use gpui::{
     actions, deferred, div, prelude::*, px, rgb, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Menu,
-    MenuItem, SystemMenuType, Task, Window,
+    MenuItem, PromptLevel, SharedString, SystemMenuType, Task, Window,
 };
 
 use crate::inspector::InspectorView;
@@ -18,8 +18,8 @@ use rink_core::session::{self, AppState};
 use rink_core::templates::build;
 use rink_core::{io, EntityId};
 
-use crate::state::{snap, PlayState, SNAP_MS};
-use crate::theme;
+use crate::state::{snap, PlayState, Status, SNAP_MS};
+use crate::theme::{self, button};
 use crate::timeline::TimelineView;
 use crate::toolbar::ToolbarView;
 
@@ -106,6 +106,14 @@ pub fn bind_keys(cx: &mut App) {
     ]);
     cx.on_action(|_: &Hide, cx| cx.hide());
     cx.on_action(|_: &Quit, cx| {
+        for window in cx.windows() {
+            if let Some(ws) = window.downcast::<Workspace>() {
+                let ok = ws.update(cx, |ws, window, cx| ws.save_before_closing(window, cx, true));
+                if !matches!(ok, Ok(true)) {
+                    return;
+                }
+            }
+        }
         session::clear_state(std::process::id());
         cx.quit()
     });
@@ -198,6 +206,10 @@ impl Workspace {
             focus(&mut state, req.at_ms, req.select.as_deref());
         }
         let state = cx.new(|_| state);
+        window.on_window_should_close(cx, {
+            let this = cx.weak_entity();
+            move |window, cx| this.update(cx, |ws, cx| ws.save_before_closing(window, cx, false)).unwrap_or(true)
+        });
 
         // A Claude Code agent works through the `rink` CLI while the app is
         // open: poll for reviews it writes and plays it asks us to open.
@@ -225,8 +237,15 @@ impl Workspace {
     }
 
     fn poll(&mut self, cx: &mut Context<Self>) {
+        let now = Instant::now();
         self.state.update(cx, |s, cx| {
             if s.reload_review_if_changed() {
+                cx.notify();
+            }
+            if s.autosave_due(now) {
+                if let Err(e) = s.autosave() {
+                    s.set_error(format!("Autosave failed: {e}"));
+                }
                 cx.notify();
             }
         });
@@ -245,34 +264,25 @@ impl Workspace {
         let play = match io::load(&path) {
             Ok(play) => play,
             Err(e) => {
-                self.edit(cx, |s| s.status = format!("Couldn't open the play: {e}"));
+                self.edit(cx, |s| s.set_error(format!("Couldn't open the play: {e}")));
                 return;
             }
         };
         self.playback = None;
         self.state.update(cx, |s, cx| {
-            let mut kept = String::new();
-            if s.dirty {
-                let saved = if switching {
-                    s.save().map(|_| " Your edits to the previous play were saved.".to_string())
-                } else {
-                    s.backup_edits().map(|p| {
-                        let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                        format!(" Your unsaved edits are in {name}.")
-                    })
-                };
-                match saved {
-                    Ok(note) => kept = note,
-                    Err(e) => {
-                        s.status = format!("Didn't open the play: couldn't save your edits ({e})");
-                        cx.notify();
-                        return;
-                    }
+            let kept = match keep_edits(s) {
+                Ok(note) => note,
+                Err(e) => {
+                    s.set_error(format!("Didn't open the play: couldn't save your edits ({e})"));
+                    cx.notify();
+                    return;
                 }
-            }
+            };
+            // An unchanged file we just saved our edits into: reload that.
+            let play = if !switching && kept.is_empty() { io::load(&path).unwrap_or(play) } else { play };
             s.replace_play(play, path);
             focus(s, at_ms, select.as_deref());
-            s.status = format!("{} \"{}\".{kept}", if switching { "Opened" } else { "Reloaded" }, s.play.title);
+            s.set_status(format!("{} \"{}\".{kept}", if switching { "Opened" } else { "Reloaded" }, s.play.title));
             cx.notify();
         });
         if switching {
@@ -285,16 +295,14 @@ impl Workspace {
     fn new_from_template(&mut self, template: rink_core::templates::Template, cx: &mut Context<Self>) {
         self.playback = None;
         self.state.update(cx, |s, cx| {
-            if s.dirty {
-                if let Err(e) = s.save() {
-                    s.status = format!("Didn't start a new play: couldn't save your edits ({e})");
-                    cx.notify();
-                    return;
-                }
+            if let Err(e) = keep_edits(s) {
+                s.set_error(format!("Didn't start a new play: couldn't save your edits ({e})"));
+                cx.notify();
+                return;
             }
             let rink = s.play.rink.clone();
             s.new_play(build(template, rink));
-            s.status = "New play. Ctrl-S saves it to the library.".into();
+            s.set_status("New play. It's saved to the library as soon as you change it.");
             cx.notify();
         });
         self.canvas.update(cx, |c, cx| c.reset_zoom(cx));
@@ -433,6 +441,86 @@ impl Workspace {
         });
     }
 
+    /// Save before the window closes or the app quits. Returns true when it's
+    /// fine to go ahead; otherwise asks, and quits or closes on "anyway".
+    pub fn save_before_closing(&mut self, window: &mut Window, cx: &mut Context<Self>, quitting: bool) -> bool {
+        let result = self.state.update(cx, |s, _| keep_edits(s));
+        let Err(e) = result else { return true };
+        let detail = format!("Your edits couldn't be saved: {e}");
+        let anyway = if quitting { "Quit Anyway" } else { "Close Anyway" };
+        let answer =
+            window.prompt(PromptLevel::Warning, "Lose your unsaved edits?", Some(&detail), &[anyway, "Cancel"], cx);
+        cx.spawn_in(window, async move |_, cx| {
+            if answer.await == Ok(0) {
+                cx.update(|window, cx| {
+                    if quitting {
+                        session::clear_state(std::process::id());
+                        cx.quit();
+                    } else {
+                        window.remove_window();
+                    }
+                })
+                .ok();
+            }
+        })
+        .detach();
+        false
+    }
+
+    /// Keep the edits that are in the window over a file that changed on
+    /// disk.
+    fn keep_mine(&mut self, cx: &mut Context<Self>) {
+        self.edit(cx, |s| match s.save() {
+            Ok(_) => s.set_status("Saved your version over the file. The copy of your edits is still there."),
+            Err(e) => s.set_error(format!("Save failed: {e}")),
+        });
+    }
+
+    /// Drop the window's edits (they're in a copy) and load the file.
+    fn use_file(&mut self, cx: &mut Context<Self>) {
+        let Some(path) = self.state.read(cx).path.clone() else { return };
+        self.state.update(cx, |s, _| s.dirty = false);
+        self.open_path(path, None, None, cx);
+    }
+
+    /// The red banner under the toolbar: a conflict to resolve, or an error.
+    fn banner(&self, cx: &mut Context<Self>) -> Option<gpui::Div> {
+        let s = self.state.read(cx);
+        let base = || {
+            div()
+                .flex()
+                .items_center()
+                .gap_3()
+                .px_4()
+                .py_2()
+                .bg(gpui::rgba((theme::DANGER << 8) | 0x1f))
+                .border_b_1()
+                .border_color(rgb(theme::BORDER))
+                .text_sm()
+                .text_color(rgb(theme::TEXT))
+        };
+        if let Some(copy) = &s.conflict {
+            let name = copy.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            return Some(
+                base()
+                    .child(div().flex_1().child(SharedString::from(format!(
+                        "This play changed on disk while you were editing it, probably by Claude. Your edits are kept in {name}."
+                    ))))
+                    .child(button("keep-mine", "Keep my version", false).on_click(cx.listener(|ws, _, _, cx| ws.keep_mine(cx))))
+                    .child(button("use-file", "Use the file's", false).on_click(cx.listener(|ws, _, _, cx| ws.use_file(cx)))),
+            );
+        }
+        if !s.status.is_error() {
+            return None;
+        }
+        Some(
+            base().child(div().flex_1().child(SharedString::from(s.status.text().to_string()))).child(
+                button("dismiss", "Dismiss", false)
+                    .on_click(cx.listener(|ws, _, _, cx| ws.edit(cx, |s| s.status = Status::None))),
+            ),
+        )
+    }
+
     /// Tell `rink current` what the window shows, when that changes.
     fn publish_state(&mut self, cx: &mut Context<Self>) {
         let s = self.state.read(cx);
@@ -539,7 +627,7 @@ impl Workspace {
     fn delete_keyframe(&mut self, _: &DeleteKeyframe, _: &mut Window, cx: &mut Context<Self>) {
         self.edit(cx, |s| {
             if !s.delete_keyframe() {
-                s.status = "No keyframe here for the selected player".into();
+                s.set_status("No keyframe here for the selected player");
             }
         });
     }
@@ -581,13 +669,27 @@ impl Workspace {
     }
 
     fn save(&mut self, _: &Save, _: &mut Window, cx: &mut Context<Self>) {
-        self.edit(cx, |s| {
-            s.status = match s.save() {
-                Ok(_) => "Saved".into(),
-                Err(e) => format!("Save failed: {e}"),
-            };
+        self.edit(cx, |s| match s.save() {
+            Ok(_) => s.set_status("Saved"),
+            Err(e) => s.set_error(format!("Save failed: {e}")),
         });
     }
+}
+
+/// Before the window shows something else: save unsaved edits to their
+/// play, or, if the file changed on disk meanwhile, to a copy next to it.
+/// Returns a note for the status line when the edits went to a copy.
+fn keep_edits(s: &mut PlayState) -> Result<String, io::IoError> {
+    if s.dirty {
+        s.autosave()?;
+    }
+    Ok(match &s.conflict {
+        Some(copy) => {
+            let name = copy.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            format!(" Your edits are in {name}.")
+        }
+        None => String::new(),
+    })
 }
 
 /// Apply a request's moment and selection.
@@ -609,6 +711,7 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let banner = self.banner(cx);
         let picker = self.picker_overlay(cx).map(IntoElement::into_any_element);
         let shortcuts = self.show_shortcuts.then(|| self.dialog(shortcuts::sheet(), cx).into_any_element());
         div()
@@ -644,6 +747,7 @@ impl Render for Workspace {
             .bg(rgb(theme::APP_BG))
             .text_color(rgb(theme::TEXT))
             .child(self.toolbar.clone())
+            .children(banner)
             .child(
                 div()
                     .flex()

@@ -2,8 +2,9 @@
 //! observe one `Entity<PlayState>`; everything here is plain Rust so it can be
 //! tested without a window.
 
+use std::path::Path;
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 use rink_core::review::{load_review, review_path};
 use rink_core::sample::pass_arrival_ms;
@@ -25,6 +26,8 @@ const BOARDS_CLEARANCE_M: f32 = 0.5;
 pub const SPEEDS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
 /// How many edits undo remembers.
 const UNDO_LIMIT: usize = 200;
+/// Autosave waits this long after the last edit, so a drag saves once.
+pub const AUTOSAVE_IDLE: Duration = Duration::from_millis(800);
 
 /// One undoable edit: what it was called and the play as it was on the other
 /// side of it.
@@ -41,13 +44,23 @@ pub struct PlayState {
     pub speed: f32,
     pub selected: Option<EntityId>,
     pub flipped: bool,
-    /// The play differs from the file (or was never saved).
+    /// The play differs from the file (or was never saved). Autosave clears
+    /// it soon after the last edit.
     pub dirty: bool,
+    /// When the play was last edited, for autosave.
+    last_edit: Option<Instant>,
+    /// The file's modification time as we last loaded or saved it. A
+    /// different time on disk means someone else (an agent) wrote it.
+    disk_mtime: Option<SystemTime>,
+    /// Set when the file changed on disk while we had unsaved edits: our
+    /// edits were copied here, and autosave stops until the user picks a
+    /// version.
+    pub conflict: Option<PathBuf>,
     /// The play as last loaded or saved, so undoing back to it clears `dirty`.
     saved: Play,
     undo: Vec<Step>,
     redo: Vec<Step>,
-    pub status: String,
+    pub status: Status,
     pub issues: Vec<Issue>,
     /// Position feedback from `<play>.review.json`, reloaded when it changes.
     pub review: Option<Review>,
@@ -55,6 +68,33 @@ pub struct PlayState {
     pub show_ghosts: bool,
     /// The suggestion last jumped to; highlighted in the inspector.
     pub focused_suggestion: Option<String>,
+}
+
+/// The last thing the app has to say: a passing note in the toolbar, or an
+/// error that stays in a banner until it's dismissed.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub enum Status {
+    #[default]
+    None,
+    Info(String),
+    Error(String),
+}
+
+impl Status {
+    pub fn text(&self) -> &str {
+        match self {
+            Status::None => "",
+            Status::Info(text) | Status::Error(text) => text,
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        matches!(self, Status::Error(_))
+    }
+}
+
+fn mtime(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
 pub fn snap(t_ms: u32) -> u32 {
@@ -84,6 +124,9 @@ impl PlayState {
         let selected = play.me().map(|e| e.id.clone());
         PlayState {
             saved: play.clone(),
+            last_edit: None,
+            disk_mtime: path.as_deref().and_then(mtime),
+            conflict: None,
             undo: Vec::new(),
             redo: Vec::new(),
             play,
@@ -94,7 +137,7 @@ impl PlayState {
             selected,
             flipped: false,
             dirty: false,
-            status: String::new(),
+            status: Status::default(),
             issues,
             review: None,
             review_mtime: None,
@@ -116,14 +159,14 @@ impl PlayState {
             Ok(review) => {
                 let count = review.as_ref().map_or(0, |r| r.suggestions.len());
                 if review.is_some() {
-                    self.status = match count {
+                    self.set_status(match count {
                         1 => "1 position suggestion loaded".into(),
                         n => format!("{n} position suggestions loaded"),
-                    };
+                    });
                 }
                 self.review = review;
             }
-            Err(e) => self.status = format!("Couldn't read review: {e}"),
+            Err(e) => self.set_error(format!("Couldn't read the review: {e}")),
         }
         true
     }
@@ -160,8 +203,44 @@ impl PlayState {
     }
 
     fn edited(&mut self) {
-        self.dirty = self.path.is_none() || self.play != self.saved;
+        self.dirty = self.play != self.saved;
+        self.last_edit = Some(Instant::now());
         self.issues = validate(&self.play);
+    }
+
+    pub fn set_error(&mut self, message: impl Into<String>) {
+        self.status = Status::Error(message.into());
+    }
+
+    pub fn set_status(&mut self, message: impl Into<String>) {
+        self.status = Status::Info(message.into());
+    }
+
+    /// The open file was written by someone else since we loaded or saved it.
+    pub fn changed_on_disk(&self) -> bool {
+        self.path.as_deref().is_some_and(|p| mtime(p) != self.disk_mtime)
+    }
+
+    /// Unsaved edits that have sat long enough to autosave.
+    pub fn autosave_due(&self, now: Instant) -> bool {
+        self.dirty && self.conflict.is_none() && self.last_edit.is_none_or(|t| now - t >= AUTOSAVE_IDLE)
+    }
+
+    /// Save unsaved edits, unless the file changed on disk since we read it:
+    /// then copy them next to it instead, and stop autosaving until the user
+    /// picks a version (Cmd-S keeps theirs over the file; reopening takes the
+    /// file's).
+    pub fn autosave(&mut self) -> Result<(), io::IoError> {
+        if !self.dirty || self.conflict.is_some() {
+            return Ok(());
+        }
+        if self.changed_on_disk() {
+            let backup = self.backup_edits()?;
+            self.set_error("This play changed on disk while you were editing it. Your edits are kept in a copy.");
+            self.conflict = Some(backup);
+            return Ok(());
+        }
+        self.save().map(|_| ())
     }
 
     /// Remember the play as it is now, before an edit called `label`. A drag
@@ -200,11 +279,11 @@ impl PlayState {
             }
             let current = std::mem::replace(&mut self.play, step.play);
             to.push(Step { label: step.label.clone(), play: current });
-            self.status = format!("{} {}", if back { "Undid" } else { "Redid" }, step.label);
+            self.set_status(format!("{} {}", if back { "Undid" } else { "Redid" }, step.label));
             self.edited();
             return true;
         }
-        self.status = if back { "Nothing to undo" } else { "Nothing to redo" }.into();
+        self.set_status(if back { "Nothing to undo" } else { "Nothing to redo" });
         false
     }
 
@@ -322,10 +401,13 @@ impl PlayState {
             });
             if self.play.events.len() == before {
                 self.play.events.push(Event::new(t, EventKind::Turnover, &[id]));
-                self.status = format!("{} loses the puck at {:.1}s", short_name(&self.play, id), t as f32 / 1000.0);
+                self.set_status(format!("{} loses the puck at {:.1}s", short_name(&self.play, id), t as f32 / 1000.0));
             } else {
-                self.status =
-                    format!("Removed how {} got the puck at {:.1}s", short_name(&self.play, id), t as f32 / 1000.0);
+                self.set_status(format!(
+                    "Removed how {} got the puck at {:.1}s",
+                    short_name(&self.play, id),
+                    t as f32 / 1000.0
+                ));
             }
         } else {
             let event = match carrier {
@@ -336,7 +418,7 @@ impl PlayState {
                 None => Event::new(t, EventKind::PuckRecovery, &[id]),
             };
             let who: Vec<String> = event.actors.iter().map(|a| short_name(&self.play, a)).collect();
-            self.status = format!("{} {} at {:.1}s", event.kind.label(), who.join(" → "), t as f32 / 1000.0);
+            self.set_status(format!("{} {} at {:.1}s", event.kind.label(), who.join(" → "), t as f32 / 1000.0));
             self.play.events.push(event);
         }
         self.play.normalize();
@@ -400,7 +482,7 @@ impl PlayState {
         let (label, t) = (ev.kind.label().to_lowercase(), ev.t_ms);
         self.checkpoint(format!("delete of a {label}"));
         self.play.events.remove(index);
-        self.status = format!("Deleted the {label} at {:.1}s", t as f32 / 1000.0);
+        self.set_status(format!("Deleted the {label} at {:.1}s", t as f32 / 1000.0));
         self.edited();
     }
 
@@ -429,7 +511,6 @@ impl PlayState {
         next.flipped = self.flipped;
         next.speed = self.speed;
         next.show_ghosts = self.show_ghosts;
-        next.dirty = true;
         *self = next;
     }
 
@@ -472,7 +553,8 @@ impl PlayState {
         Ok(backup)
     }
 
-    /// Save to the open file, or a new file in the library folder.
+    /// Save to the open file, or a new file in the library folder. This
+    /// overwrites the file even if it changed on disk; autosave doesn't.
     pub fn save(&mut self) -> Result<PathBuf, io::IoError> {
         let path = match &self.path {
             Some(p) => p.clone(),
@@ -483,9 +565,11 @@ impl PlayState {
             }
         };
         io::save(&self.play, &path)?;
+        self.disk_mtime = mtime(&path);
         self.path = Some(path.clone());
         self.saved = self.play.clone();
         self.dirty = false;
+        self.conflict = None;
         self.reload_review_if_changed();
         Ok(path)
     }
@@ -732,6 +816,68 @@ mod tests {
         s.checkpoint("move of me");
         s.move_entity(&me, Vec2::new(3.0, 3.0));
         assert!(!s.can_redo());
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("rink-{name}-{}", uuid_like()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn autosave_writes_after_idle() {
+        let dir = temp_dir("autosave");
+        let path = dir.join("a.rink.json");
+        io::save(&build(Template::Breakout, RinkSpec::iihf()), &path).unwrap();
+        let mut s = PlayState::new(io::load(&path).unwrap(), Some(path.clone()));
+        let me = s.play.me().unwrap().id.clone();
+        s.move_entity(&me, Vec2::new(3.0, 3.0));
+        let now = Instant::now();
+        assert!(!s.autosave_due(now), "waits for the edit to settle");
+        assert!(s.autosave_due(now + AUTOSAVE_IDLE));
+        s.autosave().unwrap();
+        assert!(!s.dirty);
+        assert_eq!(io::load(&path).unwrap(), s.play);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn autosave_never_overwrites_a_file_changed_on_disk() {
+        let dir = temp_dir("conflict");
+        let path = dir.join("a.rink.json");
+        io::save(&build(Template::Breakout, RinkSpec::iihf()), &path).unwrap();
+        let mut s = PlayState::new(io::load(&path).unwrap(), Some(path.clone()));
+        let me = s.play.me().unwrap().id.clone();
+        s.move_entity(&me, Vec2::new(3.0, 3.0));
+
+        // An agent rewrites the file meanwhile.
+        std::thread::sleep(Duration::from_millis(20));
+        let mut theirs = io::load(&path).unwrap();
+        theirs.title = "Agent's version".into();
+        io::save(&theirs, &path).unwrap();
+
+        s.autosave().unwrap();
+        assert_eq!(io::load(&path).unwrap().title, "Agent's version", "file untouched");
+        let copy = s.conflict.clone().expect("edits went to a copy");
+        assert_eq!(io::load(&copy).unwrap(), s.play);
+        assert!(s.status.is_error());
+        assert!(!s.autosave_due(Instant::now() + AUTOSAVE_IDLE), "autosave stops until resolved");
+
+        // Keep mine: an explicit save overwrites and clears the conflict.
+        s.save().unwrap();
+        assert!(s.conflict.is_none());
+        assert_eq!(io::load(&path).unwrap(), s.play);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn new_play_is_clean_until_edited() {
+        let mut s = state();
+        s.new_play(build(Template::Faceoff, RinkSpec::iihf()));
+        assert!(!s.dirty);
+        let me = s.play.me().unwrap().id.clone();
+        s.move_entity(&me, Vec2::new(1.0, 1.0));
+        assert!(s.dirty);
     }
 
     #[test]

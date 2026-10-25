@@ -58,7 +58,7 @@ command prints JSON.
 6. **Reply to the user.**
    - Give the path, a one-line summary of each beat, and your assumptions.
    - Say it's in the app window, and ask them to fix positions by dragging, especially `me` and
-     the key opponent around the decision point, then save with Ctrl-S.
+     the key opponent around the decision point. The app autosaves their edits.
    - If they also asked a positioning question ("where should I have been?"), offer to run the
      `review-positioning` skill now. If they want the answer straight away, run it, and say that
      the answer rests on the drafted positions.
@@ -68,16 +68,19 @@ command prints JSON.
 - **Which play.** "This play", "the one I have open": run `rink current`, which gives the path,
   playhead and selection in the app window, and whether it has unsaved edits. Otherwise use the
   path they give, or `rink list`.
-- **Unsaved edits.** If `rink current` says `"dirty": true`, the user has edits the file doesn't
-  have yet. Ask them to save (Ctrl-S) before you change the file, so you build on their version.
+- **Unsaved edits.** The app autosaves about a second after the user's last edit. If
+  `rink current` says `"dirty": true`, they're mid-edit: wait two seconds and run it again. If it
+  stays dirty, ask them to pause editing (or press Cmd-S) before you change the file, so you build
+  on their version.
 - **A variant, such as "the ideal version".** Copy the play to a new file with a new `id` and a
   title that says what it is, and change the copy. Edit the original in place only when they ask.
 - **Edit, check, then show.** Make all your changes, run `rink check`, then run `rink open <play>`
   once. On the play that's already open, this reloads it in place and keeps the playhead and
   selection. Pass `--at` and `--select` to point them at what changed.
-- The window never drops the user's work. Before switching to another play it saves their edits
-  to the old one. Before reloading the same play it saves them to a copy next to it named
-  `<play>.your-edits-<time>.rink.json`. Tell the user if `rink current` showed unsaved edits.
+- The window never drops the user's work. If you change a file while they have unsaved edits in
+  it, the app doesn't overwrite your change: it puts their edits in a copy next to it named
+  `<play>.your-edits-<time>.rink.json` and asks them which version to keep. Avoid that by
+  checking `rink current` first, as above.
 - **Just show a play.** "Open the breakout": `rink open <play>`, with no edits.
 
 ## Coordinates

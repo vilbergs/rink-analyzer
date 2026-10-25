@@ -18,8 +18,9 @@ command prints JSON. `rink help` lists them all.
 
 1. **Find the play.** Use the path the user gave. For "my play", "this one" or no path, run
    `rink current`, which names the play in the app window. Otherwise run `rink list` and pick
-   the one they mean (ask if it's ambiguous). If `rink current` shows `"dirty": true`, ask them
-   to save first (Ctrl-S): the CLI reads the file, not their unsaved edits. If the notes start with "Example", the play is an unchanged
+   the one they mean (ask if it's ambiguous). The app autosaves about a second after the last
+   edit. If `rink current` shows `"dirty": true`, wait two seconds and check again; if it stays
+   dirty, ask them to pause editing: the CLI reads the file, not their unsaved edits. If the notes start with "Example", the play is an unchanged
    template; say so and check that this is the play they meant.
 2. **Read the play.** Run `rink summary <play>`. Note:
    - who `me` is;
