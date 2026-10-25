@@ -1,6 +1,6 @@
 ---
 name: draft-play
-description: Draft a new Rink Replay play (.rink.json) from the user's description of a hockey situation, ready to tweak in the app and review. Use when the user describes a play, shift or scenario and wants it on the rink ("I'm LW, our D rimmed it and their D pinched...").
+description: Draft a new Rink Replay play (.rink.json) from the user's description of a hockey situation, or change an existing one, and show it in the app window. Use when the user describes a play, shift or scenario and wants it on the rink ("I'm LW, our D rimmed it and their D pinched..."), or asks to change, load or show a play or an ideal version of one.
 ---
 
 # Draft a play from a description
@@ -52,13 +52,33 @@ command prints JSON.
      - `me`'s distance and side relative to the key opponent at the moment in question.
 
      If the user says "I was too slow to close", `me` must actually be late there.
-5. **Reply to the user.**
+5. **Show it in the app.** Run `rink open <play> --at <decision point ms> --select <me's id>`.
+   The open window switches to the play, or the app starts if no window is running. Do this once,
+   when the file is finished and `rink check` passes, not after every edit.
+6. **Reply to the user.**
    - Give the path, a one-line summary of each beat, and your assumptions.
-   - Tell them to open it with `cargo run -q -p rink-app -- <play>` and fix positions by
-     dragging, especially `me` and the key opponent around the decision point.
+   - Say it's in the app window, and ask them to fix positions by dragging, especially `me` and
+     the key opponent around the decision point, then save with Ctrl-S.
    - If they also asked a positioning question ("where should I have been?"), offer to run the
      `review-positioning` skill now. If they want the answer straight away, run it, and say that
      the answer rests on the drafted positions.
+
+## Changing or loading an existing play
+
+- **Which play.** "This play", "the one I have open": run `rink current`, which gives the path,
+  playhead and selection in the app window, and whether it has unsaved edits. Otherwise use the
+  path they give, or `rink list`.
+- **Unsaved edits.** If `rink current` says `"dirty": true`, the user has edits the file doesn't
+  have yet. Ask them to save (Ctrl-S) before you change the file, so you build on their version.
+- **A variant, such as "the ideal version".** Copy the play to a new file with a new `id` and a
+  title that says what it is, and change the copy. Edit the original in place only when they ask.
+- **Edit, check, then show.** Make all your changes, run `rink check`, then run `rink open <play>`
+  once. On the play that's already open, this reloads it in place and keeps the playhead and
+  selection. Pass `--at` and `--select` to point them at what changed.
+- The window never drops the user's work. Before switching to another play it saves their edits
+  to the old one. Before reloading the same play it saves them to a copy next to it named
+  `<play>.your-edits-<time>.rink.json`. Tell the user if `rink current` showed unsaved edits.
+- **Just show a play.** "Open the breakout": `rink open <play>`, with no edits.
 
 ## Coordinates
 

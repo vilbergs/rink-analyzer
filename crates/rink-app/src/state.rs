@@ -297,6 +297,40 @@ impl PlayState {
     }
 
     /// Save to the open file, or a new file in the library folder.
+    /// Show `play` from `path` in place of the current one: another play, or a
+    /// fresh copy of this one after an agent changed the file. View settings
+    /// stay; on a reload the playhead and selection stay too, if they still fit.
+    pub fn replace_play(&mut self, play: Play, path: PathBuf) {
+        let reload = self.path.as_deref() == Some(path.as_path());
+        let mut next = PlayState::new(play, Some(path));
+        next.flipped = self.flipped;
+        next.speed = self.speed;
+        next.show_ghosts = self.show_ghosts;
+        if reload {
+            next.playhead_ms = self.playhead_ms.min(next.play.duration_ms);
+            if let Some(id) = self.selected.take().filter(|id| next.play.entity(id).is_some()) {
+                next.selected = Some(id);
+            }
+        }
+        next.reload_review_if_changed();
+        *self = next;
+    }
+
+    /// Save unsaved edits next to the play as `<name>.your-edits-<time>.rink.json`,
+    /// leaving the play file itself alone. Used before reloading it.
+    pub fn backup_edits(&self) -> Result<PathBuf, io::IoError> {
+        let original = self.path.clone().unwrap_or_else(|| io::library_dir().join(io::file_name(&self.play)));
+        let name = original.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let stem = name.strip_suffix(io::PLAY_EXTENSION).unwrap_or(&name);
+        let backup = original.with_file_name(format!(
+            "{stem}.your-edits-{}{}",
+            rink_core::session::now_ms() / 1000,
+            io::PLAY_EXTENSION
+        ));
+        io::save(&self.play, &backup)?;
+        Ok(backup)
+    }
+
     pub fn save(&mut self) -> Result<PathBuf, io::IoError> {
         let path = match &self.path {
             Some(p) => p.clone(),
@@ -486,5 +520,43 @@ mod tests {
         assert_eq!(s.playhead_ms, 3500);
         s.jump_keyframe(-1);
         assert_eq!(s.playhead_ms, 2000);
+    }
+
+    #[test]
+    fn reload_keeps_playhead_and_selection_but_switching_resets_them() {
+        let path = PathBuf::from("/plays/a.rink.json");
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), Some(path.clone()));
+        s.flipped = true;
+        s.set_playhead(3000);
+        s.selected = Some(EntityId::from("home_C"));
+        s.move_entity(&EntityId::from("home_C"), Vec2::new(1.0, 1.0));
+        assert!(s.dirty);
+
+        s.replace_play(build(Template::Breakout, RinkSpec::iihf()), path);
+        assert_eq!((s.playhead_ms, s.selected.as_ref().map(|i| i.as_str())), (3000, Some("home_C")));
+        assert!(!s.dirty);
+        assert!(s.flipped, "view settings carry over");
+
+        s.replace_play(build(Template::Faceoff, RinkSpec::iihf()), PathBuf::from("/plays/b.rink.json"));
+        assert_eq!(s.playhead_ms, 0);
+        assert_eq!(s.selected, s.play.me().map(|e| e.id.clone()));
+    }
+
+    #[test]
+    fn backup_leaves_the_play_file_alone() {
+        let dir = std::env::temp_dir().join(format!("rink-backup-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rush.rink.json");
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), Some(path.clone()));
+        s.save().unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        s.play.title = "Edited".into();
+
+        let backup = s.backup_edits().unwrap();
+        let name = backup.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("rush.your-edits-") && name.ends_with(io::PLAY_EXTENSION), "{name}");
+        assert_eq!(io::load(&backup).unwrap().title, "Edited");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

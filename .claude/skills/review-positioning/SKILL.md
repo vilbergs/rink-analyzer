@@ -16,8 +16,10 @@ command prints JSON. `rink help` lists them all.
 
 ## Steps
 
-1. **Find the play.** Use the path the user gave. Otherwise run `rink list` and pick the one they
-   mean (ask if it's ambiguous). If the notes start with "Example", the play is an unchanged
+1. **Find the play.** Use the path the user gave. For "my play", "this one" or no path, run
+   `rink current`, which names the play in the app window. Otherwise run `rink list` and pick
+   the one they mean (ask if it's ambiguous). If `rink current` shows `"dirty": true`, ask them
+   to save first (Ctrl-S): the CLI reads the file, not their unsaved edits. If the notes start with "Example", the play is an unchanged
    template; say so and check that this is the play they meant.
 2. **Read the play.** Run `rink summary <play>`. Note:
    - who `me` is;
@@ -90,8 +92,10 @@ command prints JSON. `rink help` lists them all.
      comparison ("the lane from your D opens; their RW is 7 m away instead of 4.5").
    - Answer the decision points.
    - Mention what they did well in a line.
-   - Tell them the ghosts are already in the app if the play is open: N and Shift-N jump between
-     suggestions, G toggles ghosts.
+   - Before replying, run `rink open <play> --at <first suggestion's t_ms>`. The window loads the
+     play if it isn't showing it, picks up the review and jumps to the first suggestion.
+   - Tell them the ghosts are in the app window: N and Shift-N jump between suggestions, and G
+     toggles ghosts.
 
 ## Ground rules
 

@@ -7,6 +7,9 @@ use gpui::{actions, div, prelude::*, rgb, App, Context, Entity, FocusHandle, Foc
 
 use crate::inspector::InspectorView;
 use crate::rink_canvas::RinkCanvas;
+use rink_core::session::{self, AppState, OpenRequest};
+use rink_core::{io, EntityId};
+
 use crate::state::{snap, PlayState, SNAP_MS};
 use crate::theme;
 use crate::timeline::TimelineView;
@@ -34,8 +37,12 @@ actions!(
 
 const CONTEXT: &str = "Workspace";
 const FRAME: Duration = Duration::from_millis(16);
-/// How often to look for a new or updated review file.
-const REVIEW_POLL: Duration = Duration::from_millis(750);
+/// How often to look for a new or updated review file and for `rink open`
+/// requests.
+const POLL: Duration = Duration::from_millis(750);
+/// A request this recent naming the play we were launched with is the one
+/// that launched us: apply its moment and selection.
+const LAUNCH_REQUEST_MS: u64 = 10_000;
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
@@ -58,7 +65,10 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-q", Quit, None),
         KeyBinding::new("cmd-q", Quit, None),
     ]);
-    cx.on_action(|_: &Quit, cx| cx.quit());
+    cx.on_action(|_: &Quit, cx| {
+        session::clear_state(std::process::id());
+        cx.quit()
+    });
 }
 
 pub struct Workspace {
@@ -69,26 +79,30 @@ pub struct Workspace {
     inspector: Entity<InspectorView>,
     focus_handle: FocusHandle,
     playback: Option<Task<()>>,
-    _review_watch: Task<()>,
+    _poll: Task<()>,
+    /// The newest `rink open` request already handled.
+    last_request_ms: u64,
+    /// What we last wrote for `rink current`.
+    published: Option<AppState>,
 }
 
 impl Workspace {
-    pub fn new(state: PlayState, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(mut state: PlayState, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let started = session::now_ms();
+        if let Some(req) = session::read_request().filter(|r| {
+            r.requested_at_ms + LAUNCH_REQUEST_MS >= started && state.path.as_deref() == Some(r.path.as_path())
+        }) {
+            focus(&mut state, &req);
+        }
         let state = cx.new(|_| state);
 
-        // A Claude Code agent writes reviews with the `rink` CLI while the app
-        // is open; poll the review file so feedback shows up as it lands.
-        let watched = state.clone();
-        let review_watch = cx.spawn(async move |_, cx| loop {
-            let alive = watched.update(cx, |s, cx| {
-                if s.reload_review_if_changed() {
-                    cx.notify();
-                }
-            });
-            if alive.is_err() {
+        // A Claude Code agent works through the `rink` CLI while the app is
+        // open: poll for reviews it writes and plays it asks us to open.
+        let poll = cx.spawn(async move |this, cx| loop {
+            if this.update(cx, |ws, cx| ws.poll(cx)).is_err() {
                 break;
             }
-            cx.background_executor().timer(REVIEW_POLL).await;
+            cx.background_executor().timer(POLL).await;
         });
 
         Workspace {
@@ -99,7 +113,81 @@ impl Workspace {
             state,
             focus_handle: cx.focus_handle(),
             playback: None,
-            _review_watch: review_watch,
+            _poll: poll,
+            last_request_ms: started,
+            published: None,
+        }
+    }
+
+    fn poll(&mut self, cx: &mut Context<Self>) {
+        self.state.update(cx, |s, cx| {
+            if s.reload_review_if_changed() {
+                cx.notify();
+            }
+        });
+        if let Some(req) = session::read_request().filter(|r| r.requested_at_ms > self.last_request_ms) {
+            self.last_request_ms = req.requested_at_ms;
+            self.open_requested(req, cx);
+        }
+        self.publish_state(cx);
+    }
+
+    /// `rink open`: show another play, or reload this one after an agent
+    /// changed it. Unsaved edits are never dropped: they're saved to their own
+    /// play before switching, or to a copy before a reload.
+    fn open_requested(&mut self, req: OpenRequest, cx: &mut Context<Self>) {
+        let switching = self.state.read(cx).path.as_deref() != Some(req.path.as_path());
+        let play = match io::load(&req.path) {
+            Ok(play) => play,
+            Err(e) => {
+                self.edit(cx, |s| s.status = format!("Couldn't open the requested play: {e}"));
+                return;
+            }
+        };
+        self.playback = None;
+        self.state.update(cx, |s, cx| {
+            let mut kept = String::new();
+            if s.dirty {
+                let saved = if switching {
+                    s.save().map(|_| " Your edits to the previous play were saved.".to_string())
+                } else {
+                    s.backup_edits().map(|p| {
+                        let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                        format!(" Your unsaved edits are in {name}.")
+                    })
+                };
+                match saved {
+                    Ok(note) => kept = note,
+                    Err(e) => {
+                        s.status = format!("Didn't open the requested play: couldn't save your edits ({e})");
+                        cx.notify();
+                        return;
+                    }
+                }
+            }
+            s.replace_play(play, req.path.clone());
+            focus(s, &req);
+            s.status = format!("{} \"{}\".{kept}", if switching { "Opened" } else { "Reloaded" }, s.play.title);
+            cx.notify();
+        });
+        if switching {
+            self.canvas.update(cx, |c, cx| c.reset_zoom(cx));
+        }
+    }
+
+    /// Tell `rink current` what the window shows, when that changes.
+    fn publish_state(&mut self, cx: &mut Context<Self>) {
+        let s = self.state.read(cx);
+        let now = AppState {
+            pid: std::process::id(),
+            path: s.path.clone(),
+            title: s.play.title.clone(),
+            playhead_ms: s.playhead_ms,
+            selected: s.selected.as_ref().map(|id| id.to_string()),
+            dirty: s.dirty,
+        };
+        if self.published.as_ref() != Some(&now) && session::write_state(&now).is_ok() {
+            self.published = Some(now);
         }
     }
 
@@ -227,6 +315,17 @@ impl Workspace {
                 Err(e) => format!("Save failed: {e}"),
             };
         });
+    }
+}
+
+/// Apply a request's moment and selection.
+fn focus(s: &mut PlayState, req: &OpenRequest) {
+    if let Some(t) = req.at_ms {
+        s.playing = false;
+        s.set_playhead(t.min(s.play.duration_ms));
+    }
+    if let Some(id) = req.select.as_deref().map(EntityId::from).filter(|id| s.play.entity(id).is_some()) {
+        s.selected = Some(id);
     }
 }
 

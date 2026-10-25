@@ -86,6 +86,26 @@ cargo run -q -p rink-cli -- snapshot examples/breakout.rink.json 3000
 cargo run -q -p rink-app -- examples/breakout.rink.json      # shows the example review
 ```
 
+## One window, driven by Claude Code
+
+Keep one app window open and ask Claude Code to load or change plays in it: "show me the ideal version",
+"open the breakout", "move their RD to the net front in this play". The agent works on the play files and
+then tells the window to show the result:
+
+```sh
+rink current                                   # what the window shows: play, playhead, selection, unsaved edits
+rink open <play> --at 5500 --select home_LW    # show a play at a moment; reloads it if it's already open
+```
+
+- `rink open` writes a request to `.open-request.json` in the library folder. The window checks for new requests
+  every 0.75 s. If no window is running, `rink open` starts the app.
+- The window doesn't watch play files. It reloads only on `rink open`, so an agent runs it once when it's done
+  editing.
+- Your unsaved edits are never dropped. Switching to another play saves them to the play you were on. Reloading
+  the same play saves them first to `<play>.your-edits-<time>.rink.json` next to it.
+- The window writes what it shows to `.app-state.json` in the library folder, for `rink current`. With several
+  windows open, they all follow every request; one window is the intended setup.
+
 ## Build and run
 
 ```sh

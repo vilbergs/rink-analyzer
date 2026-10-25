@@ -10,6 +10,7 @@ pub mod model;
 pub mod review;
 pub mod rink;
 pub mod sample;
+pub mod session;
 pub mod spline;
 pub mod templates;
 pub mod validate;

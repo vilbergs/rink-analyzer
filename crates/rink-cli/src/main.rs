@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use rink_core::facts::{entity_facts, facts, round_half, FactSnapshot, Hypothetical};
 use rink_core::review::{load_review, review_path, save_review, Review, Suggestion, DEFAULT_ZONE_RADIUS_M};
+use rink_core::session::{self, OpenRequest};
 use rink_core::templates::{build, Template};
 use rink_core::{io, sample, validate, EntityId, Play, RinkSpec, Vec2};
 use serde_json::{json, Value};
@@ -32,6 +33,9 @@ USAGE:
   rink review <play>                         suggestions stored for a play
   rink unsuggest <play> <id>                 remove a suggestion
   rink upgrade <play>                        rewrite an older play file in the current format
+  rink open <play> [--at MS] [--select ID]   show the play in the app window (reloads it if already
+                                             open; starts the app if no window is running)
+  rink current                               what the app window shows: play, playhead, selection
 
 A suggestion is \"stale\" when the play's motion changed after it was written.
 
@@ -81,6 +85,8 @@ fn run(raw: Vec<String>) -> Result<(Value, Format)> {
         "review" => show_review(&args),
         "unsuggest" => unsuggest(&args),
         "upgrade" => upgrade(&args),
+        "open" => open(&args),
+        "current" => current(),
         "help" | "--help" | "-h" => {
             println!("{USAGE}");
             std::process::exit(0);
@@ -118,6 +124,70 @@ fn list() -> Result<Value> {
         })
         .collect();
     Ok(json!({ "library": dir, "plays": plays }))
+}
+
+/// The app writes its state file while it runs; check the process is still
+/// alive in case it crashed without clearing it.
+fn running_app() -> Option<session::AppState> {
+    let state = session::read_state()?;
+    let alive = std::process::Command::new("kill")
+        .args(["-0", &state.pid.to_string()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(true);
+    alive.then_some(state)
+}
+
+fn open(args: &Args) -> Result<Value> {
+    let path = play_path(args)?;
+    let path = std::fs::canonicalize(&path).with_context(|| format!("opening {}", path.display()))?;
+    let play = io::load(&path)?;
+    let at_ms: Option<u32> = args.parsed("at")?;
+    let select = args.flag("select");
+    if let Some(id) = &select {
+        if play.entity(&EntityId::from(id.as_str())).is_none() {
+            bail!("no entity {id:?} in {}", path.display());
+        }
+    }
+    session::write_request(&OpenRequest {
+        requested_at_ms: session::now_ms(),
+        path: path.clone(),
+        at_ms: at_ms.map(|t| t.min(play.duration_ms)),
+        select: select.clone(),
+    })?;
+
+    let window = if running_app().is_some() {
+        "updated"
+    } else {
+        // The app picks up the request on launch, including --at and --select.
+        let app = std::env::current_exe()?.with_file_name("rink-replay");
+        // Detached from our stdio, or the caller's shell waits for the window to close.
+        let launched = std::process::Command::new(&app)
+            .arg(&path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        match launched {
+            Ok(_) => "launched",
+            Err(_) => {
+                return Ok(json!({
+                    "path": path,
+                    "window": "not_running",
+                    "hint": format!("Start the app: cargo run -p rink-app --release -- {}", path.display()),
+                }))
+            }
+        }
+    };
+    Ok(json!({ "path": path, "window": window, "at_ms": at_ms, "select": select }))
+}
+
+fn current() -> Result<Value> {
+    Ok(match running_app() {
+        Some(state) => json!({ "running": true, "state": state }),
+        None => json!({ "running": false }),
+    })
 }
 
 fn new_play(args: &mut Args) -> Result<Value> {

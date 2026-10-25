@@ -41,7 +41,8 @@ fn initial_state() -> Result<PlayState> {
             Ok(PlayState::new(build(template, RinkSpec::iihf()), None))
         }
         [path] => {
-            let path = PathBuf::from(path);
+            // Canonical, so `rink open` requests for the same file match it.
+            let path = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
             let play = io::load(&path).with_context(|| format!("opening {}", path.display()))?;
             Ok(PlayState::new(play, Some(path)))
         }
@@ -76,7 +77,11 @@ fn main() -> Result<()> {
                 window.focus(&ws.focus_handle(cx));
             })
             .ok();
-        cx.on_window_closed(|cx| cx.quit()).detach();
+        cx.on_window_closed(|cx| {
+            rink_core::session::clear_state(std::process::id());
+            cx.quit()
+        })
+        .detach();
         cx.activate(true);
     });
     Ok(())
