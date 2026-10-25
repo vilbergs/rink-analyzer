@@ -38,6 +38,7 @@ actions!(
         NextFeedback,
         PrevFeedback,
         ToggleGhosts,
+        Toggle3d,
         ReplaySuggestion,
         StopReviewReplay,
         ResetZoom,
@@ -91,6 +92,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("n", NextFeedback, Some(CONTEXT)),
         KeyBinding::new("shift-n", PrevFeedback, Some(CONTEXT)),
         KeyBinding::new("g", ToggleGhosts, Some(CONTEXT)),
+        KeyBinding::new("3", Toggle3d, Some(CONTEXT)),
         KeyBinding::new("r", ReplaySuggestion, Some(CONTEXT)),
         KeyBinding::new("shift-r", StopReviewReplay, Some(CONTEXT)),
         KeyBinding::new("0", ResetZoom, Some(CONTEXT)),
@@ -192,6 +194,7 @@ pub fn menus() -> Vec<Menu> {
             name: "View".into(),
             items: vec![
                 MenuItem::action("Show or Hide Ghosts", ToggleGhosts),
+                MenuItem::action("Switch 2D / 3D View", Toggle3d),
                 MenuItem::action("Flip Ends", FlipEnds),
                 MenuItem::action("Fit Rink", ResetZoom),
                 MenuItem::action("All Players in Timeline", ToggleAllLanes),
@@ -516,37 +519,27 @@ impl Workspace {
     }
 
     fn nudge(&mut self, dx: f32, dy: f32, cx: &mut Context<Self>) {
+        let direction = self.canvas.read(cx).screen_direction(Vec2::new(dx, dy), cx) * NUDGE_M;
         self.edit(cx, |s| {
             s.playing = false;
-            s.nudge(Vec2::new(dx, dy));
+            s.nudge(direction);
         });
     }
 
     fn nudge_left(&mut self, _: &NudgeLeft, _: &mut Window, cx: &mut Context<Self>) {
-        let d = self.screen_step(cx);
-        self.nudge(-d.0, -d.1, cx);
+        self.nudge(-1.0, 0.0, cx);
     }
 
     fn nudge_right(&mut self, _: &NudgeRight, _: &mut Window, cx: &mut Context<Self>) {
-        let d = self.screen_step(cx);
-        self.nudge(d.0, d.1, cx);
+        self.nudge(1.0, 0.0, cx);
     }
 
     fn nudge_up(&mut self, _: &NudgeUp, _: &mut Window, cx: &mut Context<Self>) {
-        let d = self.screen_step(cx);
-        self.nudge(-d.1, d.0, cx);
+        self.nudge(0.0, -1.0, cx);
     }
 
     fn nudge_down(&mut self, _: &NudgeDown, _: &mut Window, cx: &mut Context<Self>) {
-        let d = self.screen_step(cx);
-        self.nudge(d.1, -d.0, cx);
-    }
-
-    /// One nudge to the right on screen, in rink meters: +x, or −x when the
-    /// view is flipped. Up on screen is +y (−y flipped).
-    fn screen_step(&self, cx: &App) -> (f32, f32) {
-        let sign = if self.state.read(cx).flipped { -1.0 } else { 1.0 };
-        (NUDGE_M * sign, 0.0)
+        self.nudge(0.0, 1.0, cx);
     }
 
     fn jump_start(&mut self, _: &JumpStart, _: &mut Window, cx: &mut Context<Self>) {
@@ -765,6 +758,11 @@ impl Workspace {
         self.edit(cx, |s| s.show_ghosts = !s.show_ghosts);
     }
 
+    fn toggle_3d(&mut self, _: &Toggle3d, _: &mut Window, cx: &mut Context<Self>) {
+        self.canvas.update(cx, |c, cx| c.cancel_gesture(cx));
+        self.edit(cx, |s| s.view_3d = !s.view_3d);
+    }
+
     fn replay_suggestion(&mut self, _: &ReplaySuggestion, window: &mut Window, cx: &mut Context<Self>) {
         let ready = self.state.update(cx, |s, cx| {
             let ready = s.prepare_review_replay();
@@ -793,6 +791,29 @@ impl Workspace {
             ),
             None => format!("{} · Select a player to edit", theme::seconds(s.playhead_ms)),
         };
+        let is_3d = s.view_3d;
+        let mut heading_row = div()
+            .flex()
+            .items_center()
+            .flex_wrap()
+            .gap_2()
+            .child(div().flex_1().text_sm().child(heading))
+            .child(button("view-2d", "2D", !is_3d).on_click(move |_, window, cx| {
+                if is_3d {
+                    window.dispatch_action(Box::new(Toggle3d), cx);
+                }
+            }))
+            .child(button("view-3d", "3D", is_3d).on_click(move |_, window, cx| {
+                if !is_3d {
+                    window.dispatch_action(Box::new(Toggle3d), cx);
+                }
+            }));
+        if is_3d {
+            heading_row = heading_row.child(
+                button("reset-camera", "Reset camera", false)
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(ResetZoom), cx)),
+            );
+        }
         let mut out = div()
             .flex()
             .flex_col()
@@ -803,7 +824,13 @@ impl Workspace {
             .bg(rgb(theme::PANEL))
             .border_b_1()
             .border_color(rgb(theme::BORDER))
-            .child(div().text_sm().child(heading));
+            .child(heading_row);
+        if is_3d {
+            out = out.child(div().text_xs().text_color(rgb(theme::TEXT_MUTED)).child(
+                "Drag empty ice to orbit · Drag players to edit · Right-click to skate · Wheel / pinch to zoom",
+            ));
+            return out;
+        }
         if let Some(id) = &s.selected {
             let hint = if s.play.entity(id).is_some_and(|e| e.is_puck()) {
                 "Drag to set a puck position here. Possession follows pass and recovery events."
@@ -1000,6 +1027,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::next_feedback))
             .on_action(cx.listener(Self::prev_feedback))
             .on_action(cx.listener(Self::toggle_ghosts))
+            .on_action(cx.listener(Self::toggle_3d))
             .on_action(cx.listener(Self::replay_suggestion))
             .on_action(cx.listener(Self::stop_review_replay))
             .on_action(cx.listener(Self::reset_zoom))
@@ -1098,6 +1126,44 @@ mod tests {
         cx.run_until_parked();
         let bounds = cx.debug_bounds(selector).unwrap_or_else(|| panic!("missing button: {selector}"));
         cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+    }
+
+    #[gpui::test]
+    fn switching_views_preserves_the_play_and_playback(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        cx.update(|_, cx| {
+            state.update(cx, |s, cx| {
+                s.set_playhead(2200);
+                cx.notify();
+            })
+        });
+        let original = cx.update(|_, cx| state.read(cx).play.clone());
+        let selected = cx.update(|_, cx| state.read(cx).selected.clone());
+        click_button(cx, "view-3d");
+        cx.update(|_, cx| {
+            let s = state.read(cx);
+            assert!(s.view_3d && !s.dirty && !s.can_undo());
+            assert_eq!(s.playhead_ms, 2200);
+            assert_eq!(s.selected, selected);
+        });
+        cx.simulate_keystrokes("space");
+        click_button(cx, "view-2d");
+        assert!(cx.update(|_, cx| {
+            let s = state.read(cx);
+            !s.view_3d && s.playing
+        }));
+        cx.simulate_keystrokes("3");
+        assert!(cx.update(|_, cx| {
+            let s = state.read(cx);
+            s.view_3d && s.playing
+        }));
+        click_button(cx, "reset-camera");
+        cx.update(|_, cx| {
+            let s = state.read(cx);
+            assert_eq!(s.play, original);
+            assert!(!s.dirty && !s.can_undo());
+        });
     }
 
     #[gpui::test]
@@ -1208,13 +1274,15 @@ mod tests {
         // D: a decision point at the playhead, and its note takes the typing.
         cx.simulate_keystrokes("d");
         cx.simulate_input("fgn0r");
+        cx.simulate_keystrokes("3");
         let (note, flipped, ghosts) = cx.update(|_, cx| {
             let s = state.read(cx);
             let i = s.selected_event.unwrap();
             assert_eq!(s.play.events[i].kind, EventKind::DecisionPoint);
             (s.play.events[i].note.clone(), s.flipped, s.show_ghosts)
         });
-        assert_eq!(note, "fgn0r");
+        assert_eq!(note, "fgn0r3");
+        assert!(!cx.update(|_, cx| state.read(cx).view_3d), "typing a number must not switch views");
         assert!(!flipped && ghosts, "F and G typed, not run");
 
         // Cmd-Enter ends editing; then F is a shortcut again.

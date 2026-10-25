@@ -60,9 +60,11 @@ const RIGHT: [Group; 4] = [
     (
         "View",
         &[
+            ("3", "Switch 2D / 3D"),
+            ("Drag empty ice", "Orbit the camera in 3D"),
             ("Pinch, wheel", "Zoom"),
             ("Two-finger scroll", "Pan"),
-            ("0", "Fit the rink"),
+            ("0", "Fit the rink / reset 3D camera"),
             ("F", "Flip ends"),
             ("A", "All players in the timeline"),
         ],

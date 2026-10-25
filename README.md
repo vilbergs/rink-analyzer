@@ -4,6 +4,9 @@ A desktop app for recreating real hockey plays as keyframed 2D animations on a t
 Claude Code agent then reviews your positioning ("at that moment you should have been there"). The suggestion
 appears on the rink as a ghost skating the better route.
 
+Switch between the top-down editor and an orbitable **3D view** using the buttons above the rink or
+the **3** key. Both views share playback, editing, and position feedback.
+
 ![Breakout example at 3.0 s with two position suggestions](docs/screenshot.png)
 
 **Using it: read the [manual](docs/MANUAL.md).** It covers retracing a play, reviews, working with Claude Code,
@@ -150,6 +153,7 @@ full list.
 | R / Shift-R | Loop the selected suggestion / exit the loop (Space pauses and resumes) |
 | Cmd-Z, Shift-Cmd-Z | Undo, redo |
 | Pinch, wheel, two-finger scroll, 0 | Zoom, pan, fit the rink |
+| 3, drag empty ice in 3D | Switch 2D / 3D, orbit the 3D camera |
 
 ## Known gaps
 

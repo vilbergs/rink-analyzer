@@ -9,6 +9,7 @@ mod activation;
 mod inspector;
 mod library;
 mod paint;
+mod paint3d;
 mod pinch;
 mod rink_canvas;
 mod shortcuts;

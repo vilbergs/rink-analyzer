@@ -12,6 +12,7 @@ For the model, file format and build details, see the [README](../README.md).
 - [Events and decision points](#events-and-decision-points)
 - [The play, the roster and who you are](#the-play-the-roster-and-who-you-are)
 - [Playback and navigation](#playback-and-navigation)
+- [Switching between 2D and 3D](#switching-between-2d-and-3d)
 - [Position feedback and ghosts](#position-feedback-and-ghosts)
 - [Working with Claude Code](#working-with-claude-code)
 - [What to do in the app, what to ask Claude for](#what-to-do-in-the-app-what-to-ask-claude-for)
@@ -248,6 +249,26 @@ see the [README](../README.md#model-in-brief) for the rules.
 | Fit the whole rink | 0 or the Fit rink button |
 | Flip ends | F |
 
+## Switching between 2D and 3D
+
+Click **2D / 3D** above the rink, press **3**, or use **View → Switch 2D / 3D View**.
+The playhead, selected player, playback, and review loop stay where they are when you switch.
+
+The 3D view shows the same play in perspective, with raised player markers, boards, glass, and goals.
+Players still move on the ice plane; this changes how you view the play, not its motion or saved data.
+The near boards are translucent so they don't obscure the action.
+
+- **Orbit:** drag empty ice, or middle-drag anywhere on the rink. Orbiting keeps the selection and
+  leaves playback running. A click on empty ice without dragging clears the selection and pauses.
+- **Zoom / pan:** use the same pinch, wheel, and two-finger scroll controls as in 2D. Each view remembers
+  its own zoom and pan while the app is open.
+- **Reset:** click **Reset camera**, **Fit rink**, or press **0** to return to the default 3D angle and fit.
+- **Edit:** click or drag the raised player markers. Shift-drag turns facing, Alt-click changes
+  possession, and right-click gives a skating order. Alt-arrows move the selected player in the screen
+  direction even after you orbit or flip ends.
+- **Review:** the same suggestion ghosts, target zones, routes, and Actual / Compare controls work in
+  3D. Suggested markers are translucent green; stale suggestions are grey.
+
 ## Position feedback and ghosts
 
 A review (from Claude, see below) is stored next to the play as `<play>.review.json`. The window picks it
@@ -354,6 +375,8 @@ would take many edits by hand.
 | R, Shift-R | Replay and loop a suggestion / exit its loop |
 | G | Show / hide ghosts |
 | F | Flip ends |
+| 3 | Switch 2D / 3D view |
+| Drag empty ice, middle-drag | Orbit the camera in 3D |
 | Pinch, wheel, Cmd-scroll | Zoom around the pointer |
 | Two-finger scroll | Pan |
 | 0, Cmd-0 | Fit the rink |

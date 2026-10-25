@@ -226,11 +226,13 @@ pub fn paint_rink(window: &mut Window, t: &RinkTransform, rink: &RinkSpec) {
 
     // Goal frames behind the goal lines.
     let gw = rink.goal_width_m / 2.0;
-    for sign in [-1.0f32, 1.0] {
-        let x0 = sign * gx;
-        let x1 = sign * (gx + rink.goal_depth_m);
-        let frame = [Vec2::new(x0, -gw), Vec2::new(x1, -gw), Vec2::new(x1, gw), Vec2::new(x0, gw)];
-        stroke(window, t, &frame, false, 2.0, BOARDS);
+    if !t.is_3d() {
+        for sign in [-1.0f32, 1.0] {
+            let x0 = sign * gx;
+            let x1 = sign * (gx + rink.goal_depth_m);
+            let frame = [Vec2::new(x0, -gw), Vec2::new(x1, -gw), Vec2::new(x1, gw), Vec2::new(x0, gw)];
+            stroke(window, t, &frame, false, 2.0, BOARDS);
+        }
     }
 
     stroke(window, t, &outline, true, 3.0, BOARD_EDGE);
@@ -378,6 +380,10 @@ pub fn paint_ghosts(
                 let dir = (*ghost - actual).normalize();
                 arrow(window, t, actual + dir * r, *ghost - dir * (r * 0.6), 2.5, c.line);
             }
+        }
+        // Raised ghost markers are painted with the other meshes in perspective view.
+        if t.is_3d() {
+            continue;
         }
         if let Some(facing) = s.facing {
             let tip = *ghost + Vec2::from_angle(facing) * (r + 0.7);

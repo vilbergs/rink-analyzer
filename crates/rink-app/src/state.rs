@@ -46,6 +46,8 @@ pub struct PlayState {
     pub speed: f32,
     pub selected: Option<EntityId>,
     pub flipped: bool,
+    /// Perspective is a view preference, never part of a saved play.
+    pub view_3d: bool,
     /// The play differs from the file (or was never saved). Autosave clears
     /// it soon after the last edit.
     pub dirty: bool,
@@ -134,6 +136,7 @@ impl PlayState {
             speed: 1.0,
             selected,
             flipped: false,
+            view_3d: false,
             dirty: false,
             status: Status::default(),
             issues,
@@ -967,6 +970,7 @@ impl PlayState {
     pub fn new_play(&mut self, play: Play) {
         let mut next = PlayState::new(play, None);
         next.flipped = self.flipped;
+        next.view_3d = self.view_3d;
         next.speed = self.speed;
         next.show_ghosts = self.show_ghosts;
         *self = next;
@@ -984,6 +988,7 @@ impl PlayState {
         let reload = self.path.as_deref() == Some(path.as_path());
         let mut next = PlayState::new(play, Some(path));
         next.flipped = self.flipped;
+        next.view_3d = self.view_3d;
         next.speed = self.speed;
         next.show_ghosts = self.show_ghosts;
         if reload {
@@ -1351,6 +1356,7 @@ mod tests {
         let path = PathBuf::from("/plays/a.rink.json");
         let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), Some(path.clone()));
         s.flipped = true;
+        s.view_3d = true;
         s.set_playhead(3000);
         s.selected = Some(EntityId::from("home_C"));
         s.move_entity(&EntityId::from("home_C"), Vec2::new(1.0, 1.0));
@@ -1359,11 +1365,14 @@ mod tests {
         s.replace_play(build(Template::Breakout, RinkSpec::iihf()), path);
         assert_eq!((s.playhead_ms, s.selected.as_ref().map(|i| i.as_str())), (3000, Some("home_C")));
         assert!(!s.dirty);
-        assert!(s.flipped, "view settings carry over");
+        assert!(s.flipped && s.view_3d, "view settings carry over");
 
         s.replace_play(build(Template::Faceoff, RinkSpec::iihf()), PathBuf::from("/plays/b.rink.json"));
         assert_eq!(s.playhead_ms, 0);
         assert_eq!(s.selected, s.play.me().map(|e| e.id.clone()));
+        assert!(s.view_3d);
+        s.new_play(build(Template::DZoneSet, RinkSpec::iihf()));
+        assert!(s.view_3d && !s.dirty, "new plays also preserve the view preference without creating an edit");
     }
 
     #[test]
