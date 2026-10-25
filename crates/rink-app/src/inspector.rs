@@ -20,7 +20,7 @@ impl InspectorView {
     }
 }
 
-const SHORTCUTS: [(&str, &str); 14] = [
+const SHORTCUTS: [(&str, &str); 16] = [
     ("Drag", "Move; keyframes at the playhead"),
     ("Shift-drag", "Turn facing"),
     ("Alt-click", "Give the puck"),
@@ -28,6 +28,8 @@ const SHORTCUTS: [(&str, &str); 14] = [
     ("← →", "Step 100 ms"),
     ("Shift ← →", "Previous / next keyframe"),
     ("Delete", "Remove keyframe here"),
+    ("Cmd-Z", "Undo"),
+    ("Shift-Cmd-Z", "Redo"),
     ("]", "Playback speed"),
     ("F", "Flip ends"),
     ("N", "Next feedback (Shift: previous)"),

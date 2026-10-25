@@ -7,7 +7,7 @@ use gpui::{div, prelude::*, px, rgb, Action, App, Context, Entity, FontWeight, M
 
 use crate::state::PlayState;
 use crate::theme::{self, button, primary_button};
-use crate::workspace::{FlipEnds, ResetZoom, Save, ToggleGhosts};
+use crate::workspace::{FlipEnds, Redo, ResetZoom, Save, ToggleGhosts, Undo};
 
 pub struct ToolbarView {
     state: Entity<PlayState>,
@@ -86,6 +86,15 @@ impl Render for ToolbarView {
                             .text_xs()
                             .text_color(rgb(theme::TEXT_MUTED))
                             .child(SharedString::from(s.status.clone())),
+                    )
+                    .child(
+                        button("undo", "Undo", false).when(!s.can_undo(), |b| b.opacity(0.4)).on_click(dispatch(Undo)),
+                    )
+                    .child(
+                        button("redo", "Redo", false)
+                            .mr_2()
+                            .when(!s.can_redo(), |b| b.opacity(0.4))
+                            .on_click(dispatch(Redo)),
                     )
                     .child(button("ghosts", "Ghosts", s.show_ghosts).on_click(dispatch(ToggleGhosts)))
                     .child(button("flip", "Flip ends", s.flipped).on_click(dispatch(FlipEnds)))

@@ -14,7 +14,7 @@ use rink_core::{EntityId, Vec2};
 use crate::paint::{paint_entities, paint_ghosts, paint_rink, paint_suggestion_zones, puck_draw_pos, EntityPaint};
 use crate::pinch::{self, Pinch};
 use crate::state::PlayState;
-use crate::theme;
+use crate::theme::{self, short_name};
 use crate::transform::{RinkTransform, ViewZoom};
 
 /// Zoom per line of a mouse wheel, and per pixel of Cmd/Ctrl-scroll.
@@ -32,6 +32,8 @@ struct Drag {
     mode: DragMode,
     /// Pointer offset from the entity's center at grab time, so it doesn't jump.
     grab_offset: Vec2,
+    /// Undo is recorded on the first move, so a whole drag is one step.
+    recorded: bool,
 }
 
 pub struct RinkCanvas {
@@ -106,7 +108,7 @@ impl RinkCanvas {
                         snap.entity(&id).map(|e| e.pos).unwrap_or(at)
                     };
                     let mode = if ev.modifiers.shift { DragMode::Rotate } else { DragMode::Move };
-                    self.drag = Some(Drag { id, mode, grab_offset: at - center });
+                    self.drag = Some(Drag { id, mode, grab_offset: at - center, recorded: false });
                 }
             }
             cx.notify();
@@ -118,9 +120,17 @@ impl RinkCanvas {
             self.drag = None;
             return;
         }
-        let (Some(drag), Some(t)) = (&self.drag, self.transform.get()) else { return };
+        let (Some(drag), Some(t)) = (&mut self.drag, self.transform.get()) else { return };
         let at = t.to_rink(ev.position);
+        let first = !std::mem::replace(&mut drag.recorded, true);
         self.state.update(cx, |s, cx| {
+            if first {
+                let who = short_name(&s.play, &drag.id);
+                s.checkpoint(match drag.mode {
+                    DragMode::Move => format!("move of {who}"),
+                    DragMode::Rotate => format!("turn of {who}"),
+                });
+            }
             match drag.mode {
                 DragMode::Move => s.move_entity(&drag.id, at - drag.grab_offset),
                 DragMode::Rotate => s.rotate_entity(&drag.id, at),

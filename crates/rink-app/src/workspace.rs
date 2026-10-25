@@ -31,6 +31,8 @@ actions!(
         PrevFeedback,
         ToggleGhosts,
         ResetZoom,
+        Undo,
+        Redo,
         Quit
     ]
 );
@@ -57,6 +59,11 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("shift-n", PrevFeedback, Some(CONTEXT)),
         KeyBinding::new("g", ToggleGhosts, Some(CONTEXT)),
         KeyBinding::new("0", ResetZoom, Some(CONTEXT)),
+        KeyBinding::new("cmd-z", Undo, Some(CONTEXT)),
+        KeyBinding::new("ctrl-z", Undo, Some(CONTEXT)),
+        KeyBinding::new("cmd-shift-z", Redo, Some(CONTEXT)),
+        KeyBinding::new("ctrl-shift-z", Redo, Some(CONTEXT)),
+        KeyBinding::new("ctrl-y", Redo, Some(CONTEXT)),
         KeyBinding::new("cmd-0", ResetZoom, Some(CONTEXT)),
         KeyBinding::new("ctrl-s", Save, Some(CONTEXT)),
         KeyBinding::new("cmd-s", Save, Some(CONTEXT)),
@@ -304,6 +311,20 @@ impl Workspace {
         self.edit(cx, |s| s.show_ghosts = !s.show_ghosts);
     }
 
+    fn undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.undo();
+        });
+    }
+
+    fn redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.redo();
+        });
+    }
+
     fn reset_zoom(&mut self, _: &ResetZoom, _: &mut Window, cx: &mut Context<Self>) {
         self.canvas.update(cx, |c, cx| c.reset_zoom(cx));
     }
@@ -353,6 +374,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::prev_feedback))
             .on_action(cx.listener(Self::toggle_ghosts))
             .on_action(cx.listener(Self::reset_zoom))
+            .on_action(cx.listener(Self::undo))
+            .on_action(cx.listener(Self::redo))
             .flex()
             .flex_col()
             .size_full()

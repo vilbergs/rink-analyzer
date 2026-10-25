@@ -23,6 +23,15 @@ const HIT_SLOP_M: f32 = 0.3;
 const BOARDS_CLEARANCE_M: f32 = 0.5;
 
 pub const SPEEDS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
+/// How many edits undo remembers.
+const UNDO_LIMIT: usize = 200;
+
+/// One undoable edit: what it was called and the play as it was on the other
+/// side of it.
+struct Step {
+    label: String,
+    play: Play,
+}
 
 pub struct PlayState {
     pub play: Play,
@@ -32,7 +41,12 @@ pub struct PlayState {
     pub speed: f32,
     pub selected: Option<EntityId>,
     pub flipped: bool,
+    /// The play differs from the file (or was never saved).
     pub dirty: bool,
+    /// The play as last loaded or saved, so undoing back to it clears `dirty`.
+    saved: Play,
+    undo: Vec<Step>,
+    redo: Vec<Step>,
     pub status: String,
     pub issues: Vec<Issue>,
     /// Position feedback from `<play>.review.json`, reloaded when it changes.
@@ -69,6 +83,9 @@ impl PlayState {
         let issues = validate(&play);
         let selected = play.me().map(|e| e.id.clone());
         PlayState {
+            saved: play.clone(),
+            undo: Vec::new(),
+            redo: Vec::new(),
             play,
             path,
             playhead_ms: 0,
@@ -143,8 +160,52 @@ impl PlayState {
     }
 
     fn edited(&mut self) {
-        self.dirty = true;
+        self.dirty = self.path.is_none() || self.play != self.saved;
         self.issues = validate(&self.play);
+    }
+
+    /// Remember the play as it is now, before an edit called `label`. A drag
+    /// calls this once, on its first move, so the whole drag is one step.
+    pub fn checkpoint(&mut self, label: impl Into<String>) {
+        self.undo.push(Step { label: label.into(), play: self.play.clone() });
+        if self.undo.len() > UNDO_LIMIT {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
+    }
+
+    pub fn undo(&mut self) -> bool {
+        self.travel(true)
+    }
+
+    pub fn redo(&mut self) -> bool {
+        self.travel(false)
+    }
+
+    /// Step back (or forward) one edit. Steps that changed nothing, like a
+    /// click that started a drag but never moved, are skipped.
+    fn travel(&mut self, back: bool) -> bool {
+        let (from, to) = if back { (&mut self.undo, &mut self.redo) } else { (&mut self.redo, &mut self.undo) };
+        while let Some(step) = from.pop() {
+            if step.play == self.play {
+                continue;
+            }
+            let current = std::mem::replace(&mut self.play, step.play);
+            to.push(Step { label: step.label.clone(), play: current });
+            self.status = format!("{} {}", if back { "Undid" } else { "Redid" }, step.label);
+            self.edited();
+            return true;
+        }
+        self.status = if back { "Nothing to undo" } else { "Nothing to redo" }.into();
+        false
     }
 
     pub fn set_playhead(&mut self, t_ms: u32) {
@@ -238,6 +299,7 @@ impl PlayState {
         if entity.is_puck() {
             return;
         }
+        self.checkpoint(format!("puck change for {}", short_name(&self.play, id)));
         let t = snap(self.playhead_ms);
         self.playhead_ms = t;
         let carrier = self.snapshot().puck.carrier;
@@ -284,11 +346,14 @@ impl PlayState {
     /// Delete the selected entity's keyframe at the playhead.
     pub fn delete_keyframe(&mut self) -> bool {
         let Some(id) = self.selected.clone() else { return false };
-        let removed = self.play.remove_keyframe(&id, snap(self.playhead_ms)).is_some();
-        if removed {
-            self.edited();
+        let t = snap(self.playhead_ms);
+        if !self.play.track(&id).iter().any(|k| k.t_ms == t) {
+            return false;
         }
-        removed
+        self.checkpoint(format!("keyframe delete for {}", short_name(&self.play, &id)));
+        self.play.remove_keyframe(&id, t);
+        self.edited();
+        true
     }
 
     pub fn cycle_speed(&mut self) {
@@ -342,6 +407,7 @@ impl PlayState {
         };
         io::save(&self.play, &path)?;
         self.path = Some(path.clone());
+        self.saved = self.play.clone();
         self.dirty = false;
         self.reload_review_if_changed();
         Ok(path)
@@ -558,5 +624,58 @@ mod tests {
         assert_eq!(io::load(&backup).unwrap().title, "Edited");
         assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn undo_and_redo_walk_edits_and_track_saved_state() {
+        let path = PathBuf::from("/plays/a.rink.json");
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), Some(path));
+        let me = s.play.me().unwrap().id.clone();
+        let start = s.play.clone();
+
+        // A drag is one step however many moves it has.
+        s.checkpoint("move of me");
+        s.move_entity(&me, Vec2::new(1.0, 1.0));
+        s.move_entity(&me, Vec2::new(2.0, 2.0));
+        let moved = s.play.clone();
+        assert!(s.dirty);
+
+        assert!(s.undo());
+        assert_eq!(s.play, start);
+        assert!(!s.dirty, "back at the saved play");
+        assert!(s.redo());
+        assert_eq!(s.play, moved);
+        assert!(s.dirty);
+        assert!(!s.redo());
+
+        // A step that changed nothing is skipped, and a new edit clears redo.
+        s.checkpoint("click without a move");
+        assert!(s.undo());
+        assert_eq!(s.play, start);
+        s.checkpoint("move of me");
+        s.move_entity(&me, Vec2::new(3.0, 3.0));
+        assert!(!s.can_redo());
+    }
+
+    #[test]
+    fn puck_and_keyframe_edits_are_undoable() {
+        let mut s = state();
+        let c = EntityId::from("home_C");
+        let before = s.play.clone();
+        s.give_puck(&c);
+        assert_ne!(s.play, before);
+        s.undo();
+        assert_eq!(s.play, before);
+
+        s.selected = Some(c.clone());
+        s.set_playhead(0);
+        let had = s.play.track(&c).len();
+        assert!(s.delete_keyframe());
+        assert_eq!(s.play.track(&c).len(), had - 1);
+        s.undo();
+        assert_eq!(s.play.track(&c).len(), had);
+        s.set_playhead(1300);
+        assert!(!s.delete_keyframe(), "no keyframe here");
+        assert!(s.can_redo(), "a delete that did nothing leaves redo alone");
     }
 }
