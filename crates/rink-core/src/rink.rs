@@ -104,6 +104,24 @@ impl RinkSpec {
         [Vec2::new(-x, -y), Vec2::new(-x, y), Vec2::new(x, -y), Vec2::new(x, y)]
     }
 
+    /// `p`, pulled back toward center ice until it is at least `clearance_m`
+    /// inside the boards.
+    pub fn clamp_inside(&self, p: Vec2, clearance_m: f32) -> Vec2 {
+        if self.distance_inside_boards(p) >= clearance_m {
+            return p;
+        }
+        let (mut lo, mut hi) = (0.0f32, 1.0f32);
+        for _ in 0..24 {
+            let mid = (lo + hi) / 2.0;
+            if self.distance_inside_boards(p * mid) >= clearance_m {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        p * lo
+    }
+
     /// True when `p` is on the ice surface (inside the rounded boards).
     pub fn contains(&self, p: Vec2) -> bool {
         self.distance_inside_boards(p) >= 0.0

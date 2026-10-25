@@ -1,5 +1,6 @@
-//! The rink view: draws the play at the playhead, turns drags into keyframes,
-//! and zooms with a pinch or the scroll wheel.
+//! The rink view: draws the play at the playhead, turns drags into keyframes
+//! and right-clicks into skating orders, and zooms with a pinch or the
+//! scroll wheel.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -11,7 +12,9 @@ use gpui::{
 };
 use rink_core::{EntityId, Vec2};
 
-use crate::paint::{paint_entities, paint_ghosts, paint_rink, paint_suggestion_zones, puck_draw_pos, EntityPaint};
+use crate::paint::{
+    paint_entities, paint_ghosts, paint_orders, paint_rink, paint_suggestion_zones, puck_draw_pos, EntityPaint,
+};
 use crate::pinch::{self, Pinch};
 use crate::state::PlayState;
 use crate::theme::{self, short_name};
@@ -90,7 +93,22 @@ impl RinkCanvas {
         }
     }
 
-    fn mouse_down(&mut self, ev: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+    /// Right-click (or Ctrl-click): the selected player skates there.
+    /// Shift adds the spot to the order they're on. Works while playing.
+    fn order(&mut self, ev: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(t) = self.transform.get() else { return };
+        let at = t.to_rink(ev.position);
+        self.drag = None;
+        self.state.update(cx, |s, cx| {
+            s.order_to(at, ev.modifiers.shift);
+            cx.notify();
+        });
+    }
+
+    fn mouse_down(&mut self, ev: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if ev.modifiers.control {
+            return self.order(ev, window, cx);
+        }
         let Some(t) = self.transform.get() else { return };
         let at = t.to_rink(ev.position);
         self.state.update(cx, |s, cx| {
@@ -150,6 +168,7 @@ impl Render for RinkCanvas {
         let play = state.play.clone();
         let snapshot = state.snapshot();
         let selected = state.selected.clone();
+        let playhead_ms = state.playhead_ms;
         let active: Vec<_> = if state.show_ghosts {
             state.active_suggestions().map(|(s, g)| (s.clone(), g)).collect()
         } else {
@@ -175,6 +194,7 @@ impl Render for RinkCanvas {
                     move |_, t, window, cx| {
                         paint_rink(window, &t, &play.rink);
                         paint_suggestion_zones(window, cx, &t, &play, &active);
+                        paint_orders(window, &t, &play, playhead_ms, selected.as_ref());
                         paint_entities(
                             window,
                             cx,
@@ -187,6 +207,7 @@ impl Render for RinkCanvas {
                 .size_full(),
             )
             .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::order))
             .on_mouse_move(cx.listener(Self::mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::mouse_up))
             .on_scroll_wheel(cx.listener(Self::scroll))

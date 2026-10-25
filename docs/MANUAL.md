@@ -8,6 +8,7 @@ For the model, file format and build details, see the [README](../README.md).
 - [The window](#the-window)
 - [Opening, creating and saving plays](#opening-creating-and-saving-plays)
 - [Retracing a play](#retracing-a-play)
+- [Giving orders instead of dragging](#giving-orders-instead-of-dragging)
 - [Events and decision points](#events-and-decision-points)
 - [The play, the roster and who you are](#the-play-the-roster-and-who-you-are)
 - [Playback and navigation](#playback-and-navigation)
@@ -167,6 +168,35 @@ Fixing things:
 Coordinates, if you want to read the numbers: meters from center ice. +x is toward the end your team
 attacks and +y is your team's left. F flips the view end to end without changing the play.
 
+## Giving orders instead of dragging
+
+Instead of placing every keyframe, you can tell players where to go, as in a strategy game, and let
+the app skate them there:
+
+1. Select a player and **right-click** (or Ctrl-click) where they should skate. A dotted line shows the
+   path they'll take from the playhead, and a dashed ring shows where they'll stop. The inspector shows
+   the order and when it's done.
+2. Give the other players their orders the same way, then press **Space** and watch.
+3. **Pause where something changes** and right-click again. The new order takes over from that moment:
+   the player keeps the speed and direction they had, so a player flying up the wall turns in a wide arc,
+   and one told to go back the way they came stops and pushes off first. You can also give orders while
+   the play runs.
+
+The skating has limits like a real skater's: a top speed, pushing off, braking, and turns that get wider
+the faster they go. An order replaces everything that player did after its moment, including later
+orders. Scrub back and right-click to change a direction you already gave.
+
+- **Shift-right-click** adds a stop to the player's current order: they skate through the earlier spot
+  without stopping and stop at the new one.
+- **P** changes the pace of the selected player's current order: easy (4 m/s), skate (6.5 m/s) or sprint
+  (7.8 m/s). **B** skates it backwards, facing away from the direction of travel. The inspector has the
+  same buttons. New orders keep the player's last pace and direction.
+- A spot past the boards is pulled onto the ice. If someone is still skating when the play ends, the
+  play gets longer.
+- Orders become ordinary keyframes, so dragging, nudging and Delete still work on them. In the timeline,
+  an order's moment is an accent-colored ◆, and the keyframes it made are small grey ones.
+- The puck takes no orders; passes and shots move it.
+
 ## Events and decision points
 
 Events say what happened: passes, shots, hits, zone entries, whistles. Possession comes only from them;
@@ -278,6 +308,10 @@ would take many edits by hand.
 | Cmd-O | Open a play or start a new one |
 | ↑ ↓ Enter Esc | Move through the picker, open, close |
 | Drag a player or the puck | Move them; creates a keyframe at the playhead (snapped to 100 ms) |
+| Right-click, Ctrl-click | The selected player skates there from the playhead on |
+| Shift-right-click | Add a stop to the selected player's current order |
+| P | Pace of the current order: easy, skate, sprint |
+| B | Skate the current order backwards / forwards |
 | Shift-drag | Turn facing |
 | Alt-click | Give the puck: pass, turnover or recovery. Again to undo |
 | D | Decision point at the playhead for the selected player; type its question |

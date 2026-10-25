@@ -6,7 +6,7 @@ use glam::Vec2;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Entity, EntityId, Event, EventKind, Keyframe, Play};
-use crate::spline::{lerp_angle, sample_segment};
+use crate::spline::{hermite, hermite_velocity, lerp_angle, sample_segment};
 
 /// How far in front of the carrier the puck sits, in meters.
 pub const STICK_REACH_M: f32 = 0.6;
@@ -96,35 +96,82 @@ pub fn position_at(track: &[Keyframe], t_ms: u32) -> Option<Vec2> {
     let i = track.partition_point(|k| k.t_ms <= t_ms);
     let (a, b) = (&track[i - 1], &track[i]);
     let u = (t_ms - a.t_ms) as f32 / (b.t_ms - a.t_ms) as f32;
+    if let Some((v0, v1)) = hermite_tangents(track, i - 1) {
+        return Some(hermite(a.pos, v0, b.pos, v1, seconds(b.t_ms - a.t_ms), u));
+    }
     let points: Vec<Vec2> = track.iter().map(|k| k.pos).collect();
     Some(sample_segment(&points, i - 1, u))
 }
 
-/// Speed in m/s from a centered finite difference.
-pub fn speed_at(track: &[Keyframe], t_ms: u32) -> f32 {
-    let t0 = t_ms.saturating_sub(SPEED_WINDOW_MS);
-    let t1 = t_ms.saturating_add(SPEED_WINDOW_MS);
-    match (position_at(track, t0), position_at(track, t1)) {
-        (Some(a), Some(b)) => a.distance(b) / ((t1 - t0) as f32 / 1000.0),
-        _ => 0.0,
-    }
+fn seconds(ms: u32) -> f32 {
+    ms as f32 / 1000.0
 }
 
-fn velocity_at(track: &[Keyframe], t_ms: u32) -> Vec2 {
+/// Velocities at both ends of the segment from keyframe `i` to `i + 1`, when
+/// either end has one: the stored velocity, or for an end without one the
+/// slope through its neighbours. None means the segment is plain Catmull-Rom.
+fn hermite_tangents(track: &[Keyframe], i: usize) -> Option<(Vec2, Vec2)> {
+    let (a, b) = (&track[i], &track[i + 1]);
+    if a.vel.is_none() && b.vel.is_none() {
+        return None;
+    }
+    let slope = |j: usize| {
+        let (lo, hi) = (&track[j.saturating_sub(1)], &track[(j + 1).min(track.len() - 1)]);
+        if hi.t_ms > lo.t_ms {
+            (hi.pos - lo.pos) / seconds(hi.t_ms - lo.t_ms)
+        } else {
+            Vec2::ZERO
+        }
+    };
+    Some((a.vel.unwrap_or_else(|| slope(i)), b.vel.unwrap_or_else(|| slope(i + 1))))
+}
+
+/// True when `t_ms` falls in a stretch baked from a skating order: the
+/// keyframe at or before it has a velocity, and so does the next one, if any.
+pub fn is_baked_at(track: &[Keyframe], t_ms: u32) -> bool {
+    let i = track.partition_point(|k| k.t_ms <= t_ms);
+    i > 0 && track[i - 1].vel.is_some() && track.get(i).is_none_or(|k| k.vel.is_some())
+}
+
+/// Speed in m/s.
+pub fn speed_at(track: &[Keyframe], t_ms: u32) -> f32 {
+    velocity_at(track, t_ms).length()
+}
+
+/// Velocity in m/s: exact where keyframes carry velocities, otherwise from a
+/// centered finite difference.
+pub fn velocity_at(track: &[Keyframe], t_ms: u32) -> Vec2 {
+    let (Some(first), Some(last)) = (track.first(), track.last()) else { return Vec2::ZERO };
+    if t_ms >= first.t_ms && t_ms < last.t_ms {
+        let i = track.partition_point(|k| k.t_ms <= t_ms);
+        let (a, b) = (&track[i - 1], &track[i]);
+        if let Some((v0, v1)) = hermite_tangents(track, i - 1) {
+            let u = (t_ms - a.t_ms) as f32 / (b.t_ms - a.t_ms) as f32;
+            return hermite_velocity(a.pos, v0, b.pos, v1, seconds(b.t_ms - a.t_ms), u);
+        }
+    } else if let Some(v) = last.vel {
+        // At the last keyframe it moves as baked; after it, it is held still.
+        return if t_ms == last.t_ms { v } else { Vec2::ZERO };
+    }
     let t0 = t_ms.saturating_sub(SPEED_WINDOW_MS);
     let t1 = t_ms.saturating_add(SPEED_WINDOW_MS);
     match (position_at(track, t0), position_at(track, t1)) {
-        (Some(a), Some(b)) => (b - a) / ((t1 - t0) as f32 / 1000.0),
+        (Some(a), Some(b)) => (b - a) / seconds(t1 - t0),
         _ => Vec2::ZERO,
     }
 }
 
 /// Facing from the keyframes that set one (shortest-arc between them, held at
 /// the ends). With none set, face the direction of travel, else the team's
-/// attacking direction.
+/// attacking direction. Stretches baked from skating orders turn as skated:
+/// their keyframes all carry a facing, and are left out of the rest.
 pub fn facing_at(play: &Play, entity: &Entity, t_ms: u32) -> f32 {
     let track = play.track(&entity.id);
-    let faced: Vec<(u32, f32)> = track.iter().filter_map(|k| k.facing.map(|f| (k.t_ms, f))).collect();
+    if let Some(f) = baked_facing(track, t_ms) {
+        return f;
+    }
+    let faced: Vec<(u32, f32)> =
+        track.iter().filter(|k| k.vel.is_none()).filter_map(|k| k.facing.map(|f| (k.t_ms, f))).collect();
 
     if let (Some(&(t_first, f_first)), Some(&(t_last, f_last))) = (faced.first(), faced.last()) {
         if t_ms <= t_first {
@@ -149,6 +196,17 @@ pub fn facing_at(play: &Play, entity: &Entity, t_ms: u32) -> f32 {
     } else {
         std::f32::consts::PI
     }
+}
+
+fn baked_facing(track: &[Keyframe], t_ms: u32) -> Option<f32> {
+    if !is_baked_at(track, t_ms) {
+        return None;
+    }
+    let i = track.partition_point(|k| k.t_ms <= t_ms);
+    let a = &track[i - 1];
+    let Some(b) = track.get(i) else { return a.facing };
+    let u = (t_ms - a.t_ms) as f32 / (b.t_ms - a.t_ms) as f32;
+    Some(lerp_angle(a.facing?, b.facing?, u))
 }
 
 /// One stretch of time during which a single entity holds the puck.

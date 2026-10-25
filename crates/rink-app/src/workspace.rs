@@ -59,6 +59,8 @@ actions!(
         NudgeRight,
         NudgeUp,
         NudgeDown,
+        ToggleBackward,
+        CyclePace,
         Hide,
         Quit
     ]
@@ -109,6 +111,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
         KeyBinding::new("escape", CloseDialog, Some(CONTEXT)),
         KeyBinding::new("d", AddDecisionPoint, Some(CONTEXT)),
+        KeyBinding::new("b", ToggleBackward, Some(CONTEXT)),
+        KeyBinding::new("p", CyclePace, Some(CONTEXT)),
         KeyBinding::new("a", ToggleAllLanes, Some(CONTEXT)),
         KeyBinding::new("cmd-c", CopyPosition, Some(CONTEXT)),
         KeyBinding::new("ctrl-c", CopyPosition, Some(CONTEXT)),
@@ -169,6 +173,9 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::separator(),
                 MenuItem::action("Delete Keyframe at Playhead", DeleteKeyframe),
                 MenuItem::action("Add Decision Point", AddDecisionPoint),
+                MenuItem::separator(),
+                MenuItem::action("Skate Order Backwards or Forwards", ToggleBackward),
+                MenuItem::action("Change Order Pace", CyclePace),
                 MenuItem::separator(),
                 MenuItem::action("Copy Position", CopyPosition),
                 MenuItem::action("Paste Position", PastePosition),
@@ -468,6 +475,14 @@ impl Workspace {
             s.add_event(rink_core::EventKind::DecisionPoint);
         });
         self.inspector.update(cx, |i, cx| i.focus_event_note(window, cx));
+    }
+
+    fn toggle_backward(&mut self, _: &ToggleBackward, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| s.toggle_order_backward());
+    }
+
+    fn cycle_pace(&mut self, _: &CyclePace, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| s.cycle_order_pace());
     }
 
     fn toggle_all_lanes(&mut self, _: &ToggleAllLanes, _: &mut Window, cx: &mut Context<Self>) {
@@ -838,6 +853,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::close_dialog))
             .on_action(cx.listener(Self::toggle_shortcuts))
             .on_action(cx.listener(Self::add_decision_point))
+            .on_action(cx.listener(Self::toggle_backward))
+            .on_action(cx.listener(Self::cycle_pace))
             .on_action(cx.listener(Self::toggle_all_lanes))
             .on_action(cx.listener(Self::copy_position))
             .on_action(cx.listener(Self::paste_position))
@@ -967,6 +984,22 @@ mod tests {
         assert!(cx.update(|_, cx| ws.read(cx).show_shortcuts));
         cx.simulate_keystrokes("escape");
         assert!(!cx.update(|_, cx| ws.read(cx).show_shortcuts));
+    }
+
+    #[gpui::test]
+    fn right_click_gives_an_order_and_keys_change_it(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        let me = cx.update(|_, cx| state.read(cx).play.me().unwrap().id.clone());
+        cx.run_until_parked();
+        cx.simulate_mouse_down(gpui::point(px(300.), px(250.)), gpui::MouseButton::Right, gpui::Modifiers::none());
+        let order = |cx: &mut VisualTestContext| cx.update(|_, cx| state.read(cx).play.orders(&me).first().cloned());
+        let given = order(cx).expect("right-click gives the selected player an order");
+        let on_ice = cx.update(|_, cx| state.read(cx).play.rink.contains(given.to[0]));
+        assert!(on_ice, "{:?}", given.to);
+        cx.simulate_keystrokes("p b");
+        let changed = order(cx).unwrap();
+        assert_eq!((changed.pace, changed.backward), (rink_core::Pace::Sprint, true));
     }
 
     #[gpui::test]

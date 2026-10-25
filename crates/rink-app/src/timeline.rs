@@ -29,6 +29,7 @@ const ALL_LANE_PX: f32 = 17.0;
 const LANE_BG: u32 = 0x1a1e24;
 const TICK: u32 = 0x3a404b;
 const KEYFRAME: u32 = 0xe8ecf1;
+const BAKED_KEYFRAME: u32 = 0x8f99a8;
 const POSSESSION: u32 = 0x8f99a8;
 /// How close (in px) the pointer must be to a marker to hover or grab it.
 const MARKER_HIT_PX: f32 = 7.0;
@@ -421,8 +422,14 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
             let x1 = axis.x(p.end_ms.unwrap_or(play.duration_ms));
             rounded_rect(window, point(x0, px(y - 2.0)), f32::from(x1 - x0), 4.0, 2.0, POSSESSION);
         }
+        // Keyframes baked from an order are many and small; the order's own
+        // moment stands out instead.
         for k in play.track(id) {
-            diamond(window, point(axis.x(k.t_ms), px(y)), r, KEYFRAME);
+            let (size, color) = if k.vel.is_some() { (r * 0.55, BAKED_KEYFRAME) } else { (r, KEYFRAME) };
+            diamond(window, point(axis.x(k.t_ms), px(y)), size, color);
+        }
+        for o in play.orders(id) {
+            diamond(window, point(axis.x(o.t_ms), px(y)), r, theme::ACCENT);
         }
     }
 

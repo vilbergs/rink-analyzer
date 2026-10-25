@@ -28,7 +28,16 @@ const LEFT: [Group; 4] = [
     ("Help", &[("?  Cmd-/", "This sheet"), ("Esc", "Close a dialog or field")]),
 ];
 
-const RIGHT: [Group; 3] = [
+const RIGHT: [Group; 4] = [
+    (
+        "Orders",
+        &[
+            ("Right-click", "Selected player skates there"),
+            ("Shift-right-click", "Add a stop on the way"),
+            ("P", "Pace: easy, skate, sprint"),
+            ("B", "Skate it backwards / forwards"),
+        ],
+    ),
     (
         "Playback",
         &[

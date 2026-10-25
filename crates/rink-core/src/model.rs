@@ -11,7 +11,8 @@ use uuid::Uuid;
 use crate::rink::RinkSpec;
 
 /// v2: possession comes from events; keyframes no longer carry `has_puck`.
-pub const SCHEMA_VERSION: u32 = 2;
+/// v3: keyframes can carry a velocity, and plays can hold skating orders.
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// Human-readable entity id such as `home_LW` or `puck`. Readable ids keep the
 /// files diffable and the MCP output easy for a model to follow.
@@ -150,16 +151,75 @@ pub struct Keyframe {
     /// Radians, 0 = +x. None means "face the direction of travel".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub facing: Option<f32>,
+    /// Meters per second. Keyframes baked from a skating [`Order`] carry it,
+    /// so the path between two of them is the one skated, and a new order
+    /// can pick up from any moment with the speed the skater had.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vel: Option<Vec2>,
 }
 
 impl Keyframe {
     pub fn at(t_ms: u32, x: f32, y: f32) -> Self {
-        Keyframe { t_ms, pos: Vec2::new(x, y), facing: None }
+        Keyframe { t_ms, pos: Vec2::new(x, y), facing: None, vel: None }
     }
 
     pub fn facing(mut self, radians: f32) -> Self {
         self.facing = Some(radians);
         self
+    }
+}
+
+/// How hard a skater goes on an [`Order`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Pace {
+    Easy,
+    #[default]
+    Skate,
+    Sprint,
+}
+
+impl Pace {
+    pub const ALL: [Pace; 3] = [Pace::Easy, Pace::Skate, Pace::Sprint];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Pace::Easy => "Easy",
+            Pace::Skate => "Skate",
+            Pace::Sprint => "Sprint",
+        }
+    }
+
+    pub fn next(self) -> Pace {
+        match self {
+            Pace::Easy => Pace::Skate,
+            Pace::Skate => Pace::Sprint,
+            Pace::Sprint => Pace::Easy,
+        }
+    }
+
+    fn is_default(&self) -> bool {
+        *self == Pace::default()
+    }
+}
+
+/// "Skate there": given at a moment, like a right-click in a strategy game.
+/// [`crate::skate`] simulates the skating and bakes it into the entity's
+/// keyframes from `t_ms` on; the order is kept so it can be shown and changed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Order {
+    pub t_ms: u32,
+    /// Where to skate, in turn, in rink meters. They stop at the last one.
+    pub to: Vec<Vec2>,
+    #[serde(default, skip_serializing_if = "Pace::is_default")]
+    pub pace: Pace,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub backward: bool,
+}
+
+impl Order {
+    pub fn new(t_ms: u32, to: Vec2) -> Self {
+        Order { t_ms, to: vec![to], pace: Pace::default(), backward: false }
     }
 }
 
@@ -268,6 +328,10 @@ pub struct Play {
     /// Keyed by entity id; a BTreeMap so saved files have a stable order.
     #[serde(default)]
     pub tracks: BTreeMap<EntityId, Vec<Keyframe>>,
+    /// Skating orders by entity id, sorted by time. Each one's path is baked
+    /// into the track from its time until the next order.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub orders: BTreeMap<EntityId, Vec<Order>>,
     #[serde(default)]
     pub events: Vec<Event>,
     #[serde(default)]
@@ -288,6 +352,7 @@ impl Play {
             ],
             entities: Vec::new(),
             tracks: BTreeMap::new(),
+            orders: BTreeMap::new(),
             events: Vec::new(),
             notes: String::new(),
         }
@@ -313,6 +378,15 @@ impl Play {
         self.tracks.get(id).map(Vec::as_slice).unwrap_or(&[])
     }
 
+    pub fn orders(&self, id: &EntityId) -> &[Order] {
+        self.orders.get(id).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    /// The order `id` is following at `t_ms`: the last one given at or before it.
+    pub fn order_at(&self, id: &EntityId, t_ms: u32) -> Option<&Order> {
+        self.orders(id).iter().rev().find(|o| o.t_ms <= t_ms)
+    }
+
     /// Insert or replace the keyframe at `kf.t_ms`, keeping the track sorted.
     pub fn set_keyframe(&mut self, id: &EntityId, kf: Keyframe) {
         let track = self.tracks.entry(id.clone()).or_default();
@@ -336,6 +410,11 @@ impl Play {
             track.sort_by_key(|k| k.t_ms);
             track.dedup_by_key(|k| k.t_ms);
         }
+        for orders in self.orders.values_mut() {
+            orders.sort_by_key(|o| o.t_ms);
+            orders.dedup_by_key(|o| o.t_ms);
+        }
+        self.orders.retain(|_, orders| !orders.is_empty());
         self.events.sort_by_key(|e| e.t_ms);
     }
 

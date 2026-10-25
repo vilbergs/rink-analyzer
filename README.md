@@ -139,6 +139,8 @@ full list.
 | --- | --- |
 | Cmd-O | Open a play from the library, or start one from a template |
 | Drag, Shift-drag | Move (a keyframe at the playhead, snapped to 100 ms), turn facing |
+| Right-click, Shift-right-click | The selected player skates there (an order); add a stop on the way |
+| P, B | Pace of the current order (easy, skate, sprint); skate it backwards |
 | Alt-click | Give the puck: a pass from a teammate, a turnover from an opponent, or a recovery |
 | D | Decision point at the playhead; type its question |
 | Tab, Alt-arrows, Cmd-C / Cmd-V | Select the next player, nudge 0.5 m, copy / paste a position |

@@ -9,6 +9,10 @@ pub fn migrate(value: &mut Value) {
     if version < 2 {
         v1_to_v2(value);
     }
+    // v3 only added optional fields (keyframe `vel`, `orders`).
+    if version < 3 {
+        value["schema_version"] = json!(3);
+    }
 }
 
 fn str_field<'a>(v: &'a Value, key: &str) -> &'a str {

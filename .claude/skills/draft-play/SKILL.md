@@ -122,11 +122,11 @@ command prints JSON.
 - `rink` facts round positions to 0.5 m, so a spot you entered as (−9.3, −10.2) reads as
   (−9.5, −10.0).
 
-## File format (`schema_version` 1)
+## File format (`schema_version` 3)
 
 ```jsonc
 {
-  "schema_version": 2, "id": "<keep from template>", "title": "...", "rink": { /* keep */ },
+  "schema_version": 3, "id": "<keep from template>", "title": "...", "rink": { /* keep */ },
   "duration_ms": 6000,
   "teams": [ { "side": "home", "name": "Home", "color": "#1f5fbf", "attacks_positive_x": true },
              { "side": "away", "name": "Away", "color": "#c8322d", "attacks_positive_x": false } ],
@@ -148,6 +148,13 @@ command prints JSON.
   "notes": "What happened, in the user's words."
 }
 ```
+
+Plays the user built in the app may also have `"orders"` (entity id → `{ "t_ms", "to": [[x, y], ...],
+"pace", "backward" }`) and keyframes with `"vel": [vx, vy]` (m/s). The app made those keyframes by
+skating each order, and the curve between them follows the stored velocities. Keep both when you edit
+other parts of the play. If you change a player's movement after an order's moment, remove that
+player's orders from that moment on, and the `vel` of the keyframes you move. Don't write orders
+yourself; write keyframes.
 
 Event kinds: `pass`, `shot`, `save`, `puck_recovery`, `turnover`, `zone_entry`, `zone_exit`, `hit`,
 `faceoff`, `whistle`, `decision_point`. A shot or pass can carry `"to": [x, y]` for where the puck

@@ -49,6 +49,33 @@ pub fn sample_segment(points: &[Vec2], i: usize, u: f32) -> Vec2 {
     centripetal_catmull_rom(p0, p1, p2, p3, u)
 }
 
+/// Point on the cubic Hermite curve from `p0` (velocity `v0`) to `p1`
+/// (velocity `v1`), `dt_s` seconds apart, at `u` in [0, 1]. Used between
+/// keyframes that know their velocity, so speed and direction carry across.
+pub fn hermite(p0: Vec2, v0: Vec2, p1: Vec2, v1: Vec2, dt_s: f32, u: f32) -> Vec2 {
+    let u = u.clamp(0.0, 1.0);
+    let (u2, u3) = (u * u, u * u * u);
+    let h00 = 2.0 * u3 - 3.0 * u2 + 1.0;
+    let h10 = u3 - 2.0 * u2 + u;
+    let h01 = -2.0 * u3 + 3.0 * u2;
+    let h11 = u3 - u2;
+    p0 * h00 + v0 * (h10 * dt_s) + p1 * h01 + v1 * (h11 * dt_s)
+}
+
+/// Velocity (per second) along [`hermite`] at `u`.
+pub fn hermite_velocity(p0: Vec2, v0: Vec2, p1: Vec2, v1: Vec2, dt_s: f32, u: f32) -> Vec2 {
+    if dt_s <= 0.0 {
+        return v0;
+    }
+    let u = u.clamp(0.0, 1.0);
+    let u2 = u * u;
+    let d00 = 6.0 * u2 - 6.0 * u;
+    let d10 = 3.0 * u2 - 4.0 * u + 1.0;
+    let d01 = -6.0 * u2 + 6.0 * u;
+    let d11 = 3.0 * u2 - 2.0 * u;
+    (p0 * d00 + p1 * d01) / dt_s + v0 * d10 + v1 * d11
+}
+
 /// Wrap an angle into (-PI, PI].
 pub fn wrap_angle(a: f32) -> f32 {
     let mut a = a % TAU;
@@ -106,6 +133,15 @@ mod tests {
             assert!(p.x >= prev_x - 0.05, "x went backwards at step {s}");
             prev_x = p.x;
         }
+    }
+
+    #[test]
+    fn hermite_matches_its_ends() {
+        let (p0, v0, p1, v1) = (Vec2::new(0.0, 0.0), Vec2::new(6.0, 0.0), Vec2::new(5.0, 3.0), Vec2::new(0.0, 6.0));
+        assert!(hermite(p0, v0, p1, v1, 1.0, 0.0).distance(p0) < 1e-5);
+        assert!(hermite(p0, v0, p1, v1, 1.0, 1.0).distance(p1) < 1e-5);
+        assert!(hermite_velocity(p0, v0, p1, v1, 1.0, 0.0).distance(v0) < 1e-4);
+        assert!(hermite_velocity(p0, v0, p1, v1, 1.0, 1.0).distance(v1) < 1e-4);
     }
 
     #[test]

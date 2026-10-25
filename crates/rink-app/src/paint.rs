@@ -6,6 +6,8 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use gpui::{point, px, rgb, rgba, App, Hsla, PathBuilder, Pixels, Point, Rgba, SharedString, TextRun, Window};
 use rink_core::review::play_fingerprint;
+use rink_core::sample::position_at;
+use rink_core::skate::order_end_ms;
 use rink_core::{EntityId, EntityKind, Play, RinkSpec, Snapshot, Suggestion, Vec2};
 
 use crate::transform::RinkTransform;
@@ -100,6 +102,16 @@ fn stroke_dashed(window: &mut Window, t: &RinkTransform, pts: &[Vec2], width_px:
     b.add_polygon(&screen, true);
     if let Ok(path) = b.build() {
         window.paint_path(path, color(hex));
+    }
+}
+
+/// An open dotted line through `pts`, in a color with alpha.
+fn dotted(window: &mut Window, t: &RinkTransform, pts: &[Vec2], width_px: f32, hex_rgba: u32) {
+    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let mut b = PathBuilder::stroke(px(width_px)).dash_array(&[px(2.), px(5.)]);
+    b.add_polygon(&screen, false);
+    if let Ok(path) = b.build() {
+        window.paint_path(path, rgba(hex_rgba));
     }
 }
 
@@ -277,6 +289,50 @@ pub fn puck_draw_pos(play: &Play, snapshot: &Snapshot) -> Vec2 {
     let offset = puck - carrier.pos;
     let dir = if offset.length() > 0.05 { offset.normalize() } else { Vec2::from_angle(carrier.facing) };
     carrier.pos + dir * (r + PUCK_RADIUS_M * 0.5)
+}
+
+/// How finely an order's path is drawn.
+const PATH_STEP_MS: u32 = 50;
+
+/// Under the players: where everyone following an order is headed from the
+/// playhead on, dotted along the path they'll skate, with a dashed ring
+/// where they stop and dots at the places they pass through. The selected
+/// player's is drawn strongest.
+pub fn paint_orders(
+    window: &mut Window,
+    t: &RinkTransform,
+    play: &Play,
+    playhead_ms: u32,
+    selected: Option<&EntityId>,
+) {
+    for (id, orders) in &play.orders {
+        let Some(order) = orders.iter().rev().find(|o| o.t_ms <= playhead_ms) else { continue };
+        let end = order_end_ms(play, id, order);
+        let Some(entity) = play.entity(id).filter(|_| end > playhead_ms) else { continue };
+        let track = play.track(id);
+        let hex = entity.team.map(|s| play.team(s).color_rgb()).unwrap_or(0x808080);
+        let (alpha, width) = if selected == Some(id) { (0xff, 2.5) } else { (0x80, 1.5) };
+        let line = (hex << 8) | alpha;
+
+        let pts: Vec<Vec2> = (playhead_ms..end)
+            .step_by(PATH_STEP_MS as usize)
+            .chain([end])
+            .filter_map(|ms| position_at(track, ms))
+            .collect();
+        dotted(window, t, &pts, width, line);
+        for &w in &order.to[..order.to.len().saturating_sub(1)] {
+            fill_translucent(window, t, &circle(w, 0.3), line);
+        }
+        if let Some(stop) = position_at(track, end) {
+            let r = entity_radius(entity.kind);
+            fill_translucent(window, t, &circle(stop, r), (hex << 8) | 0x24);
+            let mut b = PathBuilder::stroke(px(width)).dash_array(&[px(5.), px(4.)]);
+            b.add_polygon(&circle(stop, r).iter().map(|p| t.to_screen(*p)).collect::<Vec<_>>(), true);
+            if let Ok(path) = b.build() {
+                window.paint_path(path, rgba(line));
+            }
+        }
+    }
 }
 
 /// Under the players: the acceptable zone around each active suggestion's

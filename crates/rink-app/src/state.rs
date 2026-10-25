@@ -7,11 +7,12 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 use rink_core::review::{load_review, review_path};
-use rink_core::sample::pass_arrival_ms;
+use rink_core::sample::{facing_at, is_baked_at, pass_arrival_ms, velocity_at};
+use rink_core::skate::{apply_order, order_end_ms};
 use rink_core::templates::{standard_entity, standard_slots};
 use rink_core::{
-    io, sample, validate, EntityId, Event, EventKind, Issue, Keyframe, Play, Review, RinkSpec, Role, Snapshot,
-    Suggestion, TeamSide, Vec2,
+    io, sample, validate, EntityId, Event, EventKind, Issue, Keyframe, Order, Pace, Play, Review, RinkSpec, Role,
+    Snapshot, Suggestion, TeamSide, Vec2,
 };
 
 use crate::paint::{entity_radius, puck_draw_pos};
@@ -108,19 +109,7 @@ pub fn snap(t_ms: u32) -> u32 {
 
 /// Pull `p` back onto the ice along the line to center ice if it's outside.
 pub fn clamp_to_ice(rink: &RinkSpec, p: Vec2) -> Vec2 {
-    if rink.distance_inside_boards(p) >= BOARDS_CLEARANCE_M {
-        return p;
-    }
-    let (mut lo, mut hi) = (0.0f32, 1.0f32);
-    for _ in 0..24 {
-        let mid = (lo + hi) / 2.0;
-        if rink.distance_inside_boards(p * mid) >= BOARDS_CLEARANCE_M {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    p * lo
+    rink.clamp_inside(p, BOARDS_CLEARANCE_M)
 }
 
 impl PlayState {
@@ -337,7 +326,8 @@ impl PlayState {
     }
 
     /// The keyframe at the snapped playhead, or a new one at the entity's
-    /// current sampled position.
+    /// current sampled position. On a path baked from an order, a new one
+    /// keeps the skated velocity and facing, so the path stays smooth.
     fn keyframe_at_playhead(&mut self, id: &EntityId) -> Keyframe {
         let t = snap(self.playhead_ms);
         self.playhead_ms = t;
@@ -350,7 +340,108 @@ impl PlayState {
         } else {
             snapshot.entity(id).map(|s| s.pos).unwrap_or(Vec2::ZERO)
         };
-        Keyframe { t_ms: t, pos, facing: None }
+        let track = self.play.track(id);
+        match self.play.entity(id).filter(|_| is_baked_at(track, t)) {
+            Some(e) => {
+                Keyframe { t_ms: t, pos, facing: Some(facing_at(&self.play, e, t)), vel: Some(velocity_at(track, t)) }
+            }
+            None => Keyframe { t_ms: t, pos, facing: None, vel: None },
+        }
+    }
+
+    /// When an order given now starts: the snapped playhead, or while
+    /// playing, the playhead as it is (to the simulation step).
+    fn order_time(&mut self) -> u32 {
+        if self.playing {
+            self.playhead_ms / 10 * 10
+        } else {
+            self.playhead_ms = snap(self.playhead_ms);
+            self.playhead_ms
+        }
+    }
+
+    /// Right-click: the selected player skates to `to` from the playhead on,
+    /// replacing what they did after it. With `queue` (Shift), `to` is added
+    /// to the order they're following instead, as the new place to stop.
+    pub fn order_to(&mut self, to: Vec2, queue: bool) {
+        let Some(id) = self.selected.clone() else {
+            self.set_status("Select a player, then right-click where they should skate");
+            return;
+        };
+        let Some(entity) = self.play.entity(&id) else { return };
+        if entity.is_puck() {
+            self.set_status("The puck goes where passes and shots send it; Alt-click a player to give it to them");
+            return;
+        }
+        if self.play.track(&id).is_empty() {
+            self.set_status(format!("{} isn't on the ice", short_name(&self.play, &id)));
+            return;
+        }
+        let to = clamp_to_ice(&self.play.rink, to);
+        let t = self.order_time();
+        let order = match self.play.order_at(&id, t).cloned() {
+            Some(mut current) if queue => {
+                current.to.push(to);
+                current
+            }
+            // A new order skates like the last one: same pace, same direction.
+            Some(previous) => Order { t_ms: t, to: vec![to], ..previous },
+            None => Order::new(t, to),
+        };
+        self.checkpoint(format!("order for {}", short_name(&self.play, &id)));
+        self.give_order(&id, order);
+    }
+
+    /// Apply `order` to `id` and say when they get there.
+    fn give_order(&mut self, id: &EntityId, order: Order) {
+        let duration = self.play.duration_ms;
+        let Some(end) = apply_order(&mut self.play, id, order) else { return };
+        let mut status = format!("{} stops at {:.1}s", short_name(&self.play, id), end as f32 / 1000.0);
+        if self.play.duration_ms > duration {
+            status.push_str(&format!("; the play now runs {:.0}s", self.play.duration_ms as f32 / 1000.0));
+        }
+        self.set_status(status);
+        self.edited();
+    }
+
+    /// The order the selected player follows at the playhead.
+    pub fn current_order(&self) -> Option<(EntityId, Order)> {
+        let id = self.selected.as_ref()?;
+        Some((id.clone(), self.play.order_at(id, self.playhead_ms)?.clone()))
+    }
+
+    /// When the selected player's current order is done (see [`order_end_ms`]).
+    pub fn current_order_end(&self) -> Option<u32> {
+        self.current_order().map(|(id, o)| order_end_ms(&self.play, &id, &o))
+    }
+
+    /// Change the selected player's current order and skate it again.
+    fn change_order(&mut self, label: &str, f: impl FnOnce(&mut Order)) {
+        let Some((id, mut order)) = self.current_order() else {
+            self.set_status("No order here: select a player and right-click where they should skate");
+            return;
+        };
+        f(&mut order);
+        self.checkpoint(format!("{label} for {}", short_name(&self.play, &id)));
+        self.give_order(&id, order);
+    }
+
+    pub fn set_order_pace(&mut self, pace: Pace) {
+        self.change_order("pace", |o| o.pace = pace);
+    }
+
+    /// P: easy, skate, sprint, and round again.
+    pub fn cycle_order_pace(&mut self) {
+        if let Some((_, o)) = self.current_order() {
+            self.set_order_pace(o.pace.next());
+        } else {
+            self.change_order("pace", |_| {});
+        }
+    }
+
+    /// B: skate the current order backwards (or forwards again).
+    pub fn toggle_order_backward(&mut self) {
+        self.change_order("skating direction", |o| o.backward = !o.backward);
     }
 
     /// Drag: move `id` to `to` at the playhead, auto-creating a keyframe.
@@ -624,7 +715,8 @@ impl PlayState {
         let near = self.snapshot().puck.pos - Vec2::new(3.0 * sign, 0.0);
         let t = snap(self.playhead_ms);
         self.playhead_ms = t;
-        self.play.set_keyframe(&id, Keyframe { t_ms: t, pos: clamp_to_ice(&self.play.rink, near), facing: None });
+        self.play
+            .set_keyframe(&id, Keyframe { t_ms: t, pos: clamp_to_ice(&self.play.rink, near), facing: None, vel: None });
         self.selected = Some(id.clone());
         self.set_status(format!("{} is on the ice. Drag them where they were.", short_name(&self.play, &id)));
         self.edited();
@@ -644,6 +736,7 @@ impl PlayState {
         }
         self.checkpoint(format!("taking {} off the ice", short_name(&self.play, id)));
         self.play.tracks.remove(id);
+        self.play.orders.remove(id);
         if self.selected.as_ref() == Some(id) {
             self.selected = None;
         }
@@ -1258,6 +1351,48 @@ mod tests {
         s.nudge(Vec2::new(0.5, 0.0));
         let after = s.snapshot().entity(&me).unwrap().pos;
         assert!((after - before - Vec2::new(0.5, 0.0)).length() < 1e-3);
+    }
+
+    #[test]
+    fn orders_skate_and_change() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let me = s.play.me().unwrap().id.clone();
+        s.selected = Some(me.clone());
+        s.set_playhead(1040);
+        let target = Vec2::new(10.0, 5.0);
+        s.order_to(target, false);
+        assert_eq!(s.playhead_ms, 1000, "snapped while paused");
+        let (_, order) = s.current_order().unwrap();
+        assert_eq!((order.t_ms, order.to.clone()), (1000, vec![target]));
+        let end = s.current_order_end().unwrap();
+        assert!(s.play.track(&me).iter().filter(|k| k.t_ms >= 1000).all(|k| k.vel.is_some()));
+        assert!(s.play.track(&me).last().unwrap().pos.distance(target) < 0.2);
+        assert!(s.dirty);
+
+        s.set_order_pace(Pace::Sprint);
+        assert!(s.current_order_end().unwrap() < end, "sprinting gets there sooner");
+        assert_eq!(s.play.orders(&me).len(), 1);
+        s.toggle_order_backward();
+        assert!(s.current_order().unwrap().1.backward);
+
+        // Shift-right-click: one more stop on the same order.
+        s.order_to(Vec2::new(0.0, -10.0), true);
+        assert_eq!(s.current_order().unwrap().1.to.len(), 2);
+
+        // A drag on the baked path keeps it a baked path.
+        s.set_playhead(1500);
+        let here = s.snapshot().entity(&me).unwrap().pos;
+        s.move_entity(&me, here + Vec2::new(0.3, 0.0));
+        assert!(s.play.track(&me).iter().find(|k| k.t_ms == 1500).unwrap().vel.is_some());
+
+        for _ in 0..4 {
+            s.undo();
+        }
+        assert!(s.play.orders.is_empty(), "each order change is one undo step");
+
+        s.selected = s.play.puck().map(|p| p.id.clone());
+        s.order_to(target, false);
+        assert!(s.play.orders.is_empty() && s.status.text().contains("puck"));
     }
 
     #[test]

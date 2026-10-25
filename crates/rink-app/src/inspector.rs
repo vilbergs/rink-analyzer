@@ -9,7 +9,7 @@
 //! - validation warnings.
 
 use gpui::{div, prelude::*, px, rgb, Context, Div, Entity, FocusHandle, Focusable, FontWeight, SharedString, Window};
-use rink_core::{EntityId, EventKind, Play, TeamSide};
+use rink_core::{EntityId, EventKind, Pace, Play, TeamSide};
 
 use crate::state::PlayState;
 use crate::text_input::{InputEvent, TextInput};
@@ -361,6 +361,7 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
             if es.has_puck {
                 body = body.child(div().pt_1().child(badge("Has the puck", theme::TEXT_MUTED)));
             }
+            body = body.child(order(this, s));
             actions = actions.child(
                 chip("off-ice", "Take off the ice", false)
                     .on_click(on_state(&this.state, move |s| s.take_off_ice(&id))),
@@ -377,6 +378,45 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
         }
     }
     section("Selection").child(body.child(actions))
+}
+
+/// The skating order the selected player follows at the playhead, with its
+/// pace and direction to change.
+fn order(this: &InspectorView, s: &PlayState) -> Div {
+    let block = div().flex().flex_col().gap_1p5().pt_2().mt_2().border_t_1().border_color(rgb(theme::BORDER));
+    let Some((_, o)) = s.current_order() else {
+        return block.child(muted("Right-click the ice to send them there; press Space to watch them skate it."));
+    };
+    let dest = o.to.last().copied().unwrap_or_default();
+    let stops = match o.to.len() {
+        1 => String::new(),
+        n => format!(" via {} stop{}", n - 1, if n == 2 { "" } else { "s" }),
+    };
+    let end = s.current_order_end().unwrap_or(o.t_ms);
+    let mut paces = div().flex().gap_1();
+    for pace in Pace::ALL {
+        paces = paces.child(
+            chip(SharedString::from(format!("pace-{}", pace.label())), pace.label(), o.pace == pace)
+                .on_click(on_state(&this.state, move |s| s.set_order_pace(pace))),
+        );
+    }
+    block
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .child(
+                    div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child(format!("Order at {}", seconds(o.t_ms))),
+                )
+                .child(muted(format!("done at {}", seconds(end)))),
+        )
+        .child(div().text_sm().child(format!("Skate to {:.1}, {:.1} m{stops}", dest.x, dest.y)))
+        .child(
+            div().flex().justify_between().child(paces).child(
+                chip("order-backward", "Backwards", o.backward)
+                    .on_click(on_state(&this.state, |s| s.toggle_order_backward())),
+            ),
+        )
 }
 
 /// Roster spots nobody fills on the ice; click one to put them on.
