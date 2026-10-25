@@ -4570,6 +4570,7 @@ dependencies = [
  "objc",
  "raw-window-handle",
  "rink-core",
+ "unicode-segmentation",
 ]
 
 [[package]]

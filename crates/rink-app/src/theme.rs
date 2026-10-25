@@ -93,6 +93,27 @@ pub fn button(id: &'static str, label: impl Into<SharedString>, active: bool) ->
         .child(label.into())
 }
 
+/// A small pill button, for choices and quick actions in the inspector.
+/// `active` marks the current choice.
+pub fn chip(id: impl Into<gpui::ElementId>, label: impl Into<SharedString>, active: bool) -> Stateful<Div> {
+    let (bg, fg, border) = if active { (0x1f3354, 0xa9c7ff, 0x2f4f80) } else { (RAISED, TEXT_MUTED, BORDER_STRONG) };
+    div()
+        .id(id.into())
+        .flex()
+        .items_center()
+        .h(px(22.))
+        .px_2()
+        .rounded_md()
+        .bg(rgb(bg))
+        .border_1()
+        .border_color(rgb(border))
+        .text_xs()
+        .text_color(rgb(fg))
+        .cursor_pointer()
+        .hover(|s| s.bg(rgb(HOVER)).text_color(rgb(TEXT)))
+        .child(label.into())
+}
+
 /// The highlighted call to action, e.g. Save.
 pub fn primary_button(id: &'static str, label: impl Into<SharedString>) -> Stateful<Div> {
     div()

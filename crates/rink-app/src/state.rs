@@ -8,9 +8,10 @@ use std::time::{Duration, Instant, SystemTime};
 
 use rink_core::review::{load_review, review_path};
 use rink_core::sample::pass_arrival_ms;
+use rink_core::templates::{standard_entity, standard_slots};
 use rink_core::{
-    io, sample, validate, EntityId, Event, EventKind, Issue, Keyframe, Play, Review, RinkSpec, Snapshot, Suggestion,
-    Vec2,
+    io, sample, validate, EntityId, Event, EventKind, Issue, Keyframe, Play, Review, RinkSpec, Role, Snapshot,
+    Suggestion, TeamSide, Vec2,
 };
 
 use crate::paint::{entity_radius, puck_draw_pos};
@@ -68,6 +69,8 @@ pub struct PlayState {
     pub show_ghosts: bool,
     /// The suggestion last jumped to; highlighted in the inspector.
     pub focused_suggestion: Option<String>,
+    /// The event open for editing in the inspector, by index.
+    pub selected_event: Option<usize>,
 }
 
 /// The last thing the app has to say: a passing note in the toolbar, or an
@@ -143,6 +146,7 @@ impl PlayState {
             review_mtime: None,
             show_ghosts: true,
             focused_suggestion: None,
+            selected_event: None,
         }
     }
 
@@ -471,7 +475,11 @@ impl PlayState {
             self.play.normalize();
             self.edited();
             self.playhead_ms = to;
-            return self.play.events.iter().position(|e| *e == moved).unwrap_or(index);
+            let new_index = self.play.events.iter().position(|e| *e == moved).unwrap_or(index);
+            if self.selected_event == Some(index) {
+                self.selected_event = Some(new_index);
+            }
+            return new_index;
         }
         self.playhead_ms = to;
         index
@@ -482,6 +490,11 @@ impl PlayState {
         let (label, t) = (ev.kind.label().to_lowercase(), ev.t_ms);
         self.checkpoint(format!("delete of a {label}"));
         self.play.events.remove(index);
+        self.selected_event = match self.selected_event {
+            Some(i) if i == index => None,
+            Some(i) if i > index => Some(i - 1),
+            other => other,
+        };
         self.set_status(format!("Deleted the {label} at {:.1}s", t as f32 / 1000.0));
         self.edited();
     }
@@ -490,6 +503,7 @@ impl PlayState {
     pub fn jump_to_event(&mut self, index: usize) {
         let Some(ev) = self.play.events.get(index) else { return };
         self.playing = false;
+        self.selected_event = Some(index);
         self.playhead_ms = ev.t_ms;
         if let Some(actor) = ev.actors.first() {
             self.selected = Some(actor.clone());
@@ -503,6 +517,187 @@ impl PlayState {
         self.playhead_ms = s.t_ms;
         self.selected = Some(s.entity);
         self.focused_suggestion = Some(s.id);
+    }
+
+    // Play details, edited in the inspector. Text edits don't record undo
+    // steps themselves: the inspector records one when a field gets its
+    // first change.
+
+    pub fn set_title(&mut self, title: &str) {
+        if self.play.title != title {
+            self.play.title = title.to_string();
+            self.edited();
+        }
+    }
+
+    pub fn set_notes(&mut self, notes: &str) {
+        if self.play.notes != notes {
+            self.play.notes = notes.to_string();
+            self.edited();
+        }
+    }
+
+    pub fn set_team_name(&mut self, side: TeamSide, name: &str) {
+        let team = &mut self.play.teams[side.index()];
+        if team.name != name {
+            team.name = name.to_string();
+            self.edited();
+        }
+    }
+
+    /// A jersey number typed into the inspector: digits only, at most two;
+    /// empty clears it. Anything else is ignored.
+    pub fn set_number(&mut self, id: &EntityId, text: &str) {
+        let number = match text.trim() {
+            "" => None,
+            t if t.len() <= 2 && t.chars().all(|c| c.is_ascii_digit()) => t.parse().ok(),
+            _ => return,
+        };
+        if let Some(e) = self.play.entities.iter_mut().find(|e| &e.id == id) {
+            if e.number != number {
+                e.number = number;
+                self.edited();
+            }
+        }
+    }
+
+    pub fn set_me(&mut self, id: &EntityId) {
+        self.checkpoint(format!("making {} you", short_name(&self.play, id)));
+        for e in &mut self.play.entities {
+            e.is_me = &e.id == id;
+        }
+        self.set_status(format!("You're {} now", short_name(&self.play, id)));
+        self.edited();
+    }
+
+    /// The shortest the play can be: up to its last keyframe or event.
+    pub fn min_duration_ms(&self) -> u32 {
+        self.play.key_times().last().copied().unwrap_or(0).max(SNAP_MS)
+    }
+
+    pub fn change_duration(&mut self, delta_ms: i64) {
+        let to = snap((self.play.duration_ms as i64 + delta_ms).clamp(0, 600_000) as u32).max(self.min_duration_ms());
+        if to == self.play.duration_ms {
+            self.set_status("The play can't be shorter than its last keyframe or event");
+            return;
+        }
+        self.checkpoint("length change");
+        self.play.duration_ms = to;
+        self.playhead_ms = self.playhead_ms.min(to);
+        self.edited();
+    }
+
+    /// Standard roster spots with nobody on the ice: players without
+    /// keyframes, and roles the play doesn't have at all.
+    pub fn off_ice(&self) -> Vec<(TeamSide, Role, EntityId)> {
+        standard_slots()
+            .filter_map(|(side, role)| {
+                let id = standard_entity(side, role).id;
+                let on_ice = self
+                    .play
+                    .entities
+                    .iter()
+                    .find(|e| e.team == Some(side) && e.role == Some(role))
+                    .is_some_and(|e| !self.play.track(&e.id).is_empty());
+                (!on_ice).then_some((side, role, id))
+            })
+            .collect()
+    }
+
+    /// Put a roster spot on the ice near the puck at the playhead, adding
+    /// the player if the play doesn't have them, and select them.
+    pub fn put_on_ice(&mut self, side: TeamSide, role: Role) {
+        self.checkpoint(format!("putting {} on the ice", role.as_str()));
+        let id = match self.play.entities.iter().find(|e| e.team == Some(side) && e.role == Some(role)) {
+            Some(e) => e.id.clone(),
+            None => {
+                let e = standard_entity(side, role);
+                let id = e.id.clone();
+                self.play.entities.push(e);
+                id
+            }
+        };
+        let sign = self.play.team(side).attack_sign();
+        let near = self.snapshot().puck.pos - Vec2::new(3.0 * sign, 0.0);
+        let t = snap(self.playhead_ms);
+        self.playhead_ms = t;
+        self.play.set_keyframe(&id, Keyframe { t_ms: t, pos: clamp_to_ice(&self.play.rink, near), facing: None });
+        self.selected = Some(id.clone());
+        self.set_status(format!("{} is on the ice. Drag them where they were.", short_name(&self.play, &id)));
+        self.edited();
+    }
+
+    /// Remove a player's keyframes, so they're not on the ice. Players in
+    /// events stay, since the events need them.
+    pub fn take_off_ice(&mut self, id: &EntityId) {
+        let n = self.play.events.iter().filter(|e| e.actors.contains(id)).count();
+        if n > 0 {
+            self.set_status(format!(
+                "{} is in {n} event{}; remove them from those first",
+                short_name(&self.play, id),
+                if n == 1 { "" } else { "s" }
+            ));
+            return;
+        }
+        self.checkpoint(format!("taking {} off the ice", short_name(&self.play, id)));
+        self.play.tracks.remove(id);
+        if self.selected.as_ref() == Some(id) {
+            self.selected = None;
+        }
+        self.edited();
+    }
+
+    /// Add a `kind` event at the playhead, done by the selected player, and
+    /// open it for editing.
+    pub fn add_event(&mut self, kind: EventKind) -> usize {
+        self.checkpoint(format!("new {}", kind.label().to_lowercase()));
+        let t = snap(self.playhead_ms);
+        self.playhead_ms = t;
+        let actor = self.selected.clone().filter(|id| self.play.entity(id).is_some_and(|e| !e.is_puck()));
+        let event = Event::new(t, kind, &actor.iter().collect::<Vec<_>>());
+        self.play.events.push(event.clone());
+        self.play.normalize();
+        let i = self.play.events.iter().rposition(|e| *e == event).unwrap_or(0);
+        self.selected_event = Some(i);
+        self.set_status(format!("Added a {} at {:.1}s", kind.label().to_lowercase(), t as f32 / 1000.0));
+        self.edited();
+        i
+    }
+
+    pub fn set_event_kind(&mut self, index: usize, kind: EventKind) {
+        let Some(ev) = self.play.events.get(index) else { return };
+        if ev.kind == kind {
+            return;
+        }
+        self.checkpoint(format!("change to a {}", kind.label().to_lowercase()));
+        self.play.events[index].kind = kind;
+        self.edited();
+    }
+
+    pub fn set_event_note(&mut self, index: usize, note: &str) {
+        if let Some(ev) = self.play.events.get_mut(index) {
+            if ev.note != note {
+                ev.note = note.to_string();
+                self.edited();
+            }
+        }
+    }
+
+    pub fn add_event_actor(&mut self, index: usize, id: &EntityId) {
+        let Some(ev) = self.play.events.get(index) else { return };
+        if ev.actors.contains(id) {
+            return;
+        }
+        self.checkpoint(format!("adding {} to an event", short_name(&self.play, id)));
+        self.play.events[index].actors.push(id.clone());
+        self.edited();
+    }
+
+    pub fn remove_event_actor(&mut self, index: usize, actor: usize) {
+        let Some(id) = self.play.events.get(index).and_then(|e| e.actors.get(actor)).cloned() else { return };
+        self.checkpoint(format!("removing {} from an event", short_name(&self.play, &id)));
+        self.play.events[index].actors.remove(actor);
+        self.edited();
     }
 
     /// Start an unsaved play (e.g. from a template). View settings stay.
@@ -878,6 +1073,76 @@ mod tests {
         let me = s.play.me().unwrap().id.clone();
         s.move_entity(&me, Vec2::new(1.0, 1.0));
         assert!(s.dirty);
+    }
+
+    #[test]
+    fn edits_play_details_and_roster() {
+        use rink_core::{Role, TeamSide};
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let c = EntityId::from("home_C");
+
+        s.set_number(&c, "91");
+        assert_eq!(s.play.entity(&c).unwrap().number, Some(91));
+        s.set_number(&c, "9x");
+        assert_eq!(s.play.entity(&c).unwrap().number, Some(91), "junk is ignored");
+        s.set_number(&c, "");
+        assert_eq!(s.play.entity(&c).unwrap().number, None);
+
+        s.set_me(&c);
+        assert_eq!(s.play.me().unwrap().id, c);
+        assert_eq!(s.play.entities.iter().filter(|e| e.is_me).count(), 1);
+
+        let min = s.min_duration_ms();
+        s.change_duration(-100_000);
+        assert_eq!(s.play.duration_ms, min, "can't cut off keyframes or events");
+        s.change_duration(500);
+        assert_eq!(s.play.duration_ms, min + 500);
+
+        // A player in events stays on the ice; one who isn't comes off and back.
+        let rd = EntityId::from("away_RD");
+        s.take_off_ice(&rd);
+        assert!(s.play.track(&rd).is_empty());
+        assert!(s.off_ice().iter().any(|(_, _, id)| *id == rd));
+        s.set_playhead(1000);
+        s.put_on_ice(TeamSide::Away, Role::RD);
+        assert_eq!(s.play.track(&rd).len(), 1);
+        assert_eq!(s.selected, Some(rd.clone()));
+        let actor = s.play.events.iter().find_map(|e| e.actors.first()).cloned().unwrap();
+        let keys = s.play.track(&actor).len();
+        s.take_off_ice(&actor);
+        assert_eq!(s.play.track(&actor).len(), keys, "players in events stay on");
+
+        // A role the play never had is added.
+        s.play.entities.retain(|e| e.id.as_str() != "away_G");
+        s.play.tracks.remove(&EntityId::from("away_G"));
+        s.put_on_ice(TeamSide::Away, Role::G);
+        assert!(s.play.entity(&EntityId::from("away_G")).is_some());
+        s.undo();
+        assert!(s.play.entity(&EntityId::from("away_G")).is_none(), "one undo step");
+    }
+
+    #[test]
+    fn adds_and_edits_events() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let me = s.play.me().unwrap().id.clone();
+        let c = EntityId::from("home_C");
+        s.selected = Some(me.clone());
+        s.set_playhead(2250);
+        let i = s.add_event(EventKind::DecisionPoint);
+        assert_eq!(s.selected_event, Some(i));
+        let ev = &s.play.events[i];
+        assert_eq!((ev.t_ms, ev.kind, ev.actors.clone()), (2300, EventKind::DecisionPoint, vec![me.clone()]));
+
+        s.set_event_note(i, "Where should I be?");
+        s.set_event_kind(i, EventKind::Shot);
+        s.add_event_actor(i, &c);
+        assert_eq!(s.play.events[i].actors, vec![me.clone(), c.clone()]);
+        s.remove_event_actor(i, 0);
+        assert_eq!(s.play.events[i].actors, vec![c]);
+        assert_eq!(s.play.events[i].note, "Where should I be?");
+
+        s.delete_event(i);
+        assert_eq!(s.selected_event, None);
     }
 
     #[test]

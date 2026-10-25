@@ -43,20 +43,32 @@ pub fn entity_id(side: TeamSide, role: Role) -> EntityId {
 
 pub const PUCK_ID: &str = "puck";
 
+/// Every side and role of a standard roster, in roster order.
+pub fn standard_slots() -> impl Iterator<Item = (TeamSide, Role)> {
+    [TeamSide::Home, TeamSide::Away].into_iter().flat_map(|side| ROLES.map(|(role, _)| (side, role)))
+}
+
+/// The player a template puts in `side`'s `role`, with its default number.
+/// Nobody is "me".
+pub fn standard_entity(side: TeamSide, role: Role) -> Entity {
+    let number = ROLES.iter().find(|(r, _)| *r == role).map_or(0, |(_, n)| *n);
+    Entity {
+        id: entity_id(side, role),
+        kind: if role == Role::G { EntityKind::Goalie } else { EntityKind::Skater },
+        team: Some(side),
+        number: Some(if side == TeamSide::Home { number } else { number + 1 }),
+        role: Some(role),
+        label: String::new(),
+        is_me: false,
+    }
+}
+
 /// 5 skaters + a goalie per side and a puck; home LW is "me".
 pub fn standard_roster(play: &mut Play) {
-    for side in [TeamSide::Home, TeamSide::Away] {
-        for (role, number) in ROLES {
-            play.entities.push(Entity {
-                id: entity_id(side, role),
-                kind: if role == Role::G { EntityKind::Goalie } else { EntityKind::Skater },
-                team: Some(side),
-                number: Some(if side == TeamSide::Home { number } else { number + 1 }),
-                role: Some(role),
-                label: String::new(),
-                is_me: side == TeamSide::Home && role == Role::LW,
-            });
-        }
+    for (side, role) in standard_slots() {
+        let mut e = standard_entity(side, role);
+        e.is_me = side == TeamSide::Home && role == Role::LW;
+        play.entities.push(e);
     }
     play.entities.push(Entity {
         id: PUCK_ID.into(),

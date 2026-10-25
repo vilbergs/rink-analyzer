@@ -49,6 +49,7 @@ actions!(
         PickerConfirm,
         CloseDialog,
         ToggleShortcuts,
+        AddDecisionPoint,
         Hide,
         Quit
     ]
@@ -96,6 +97,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("down", PickerDown, Some(CONTEXT)),
         KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
         KeyBinding::new("escape", CloseDialog, Some(CONTEXT)),
+        KeyBinding::new("d", AddDecisionPoint, Some(CONTEXT)),
         KeyBinding::new("?", ToggleShortcuts, Some(CONTEXT)),
         KeyBinding::new("shift-/", ToggleShortcuts, Some(CONTEXT)),
         KeyBinding::new("cmd-/", ToggleShortcuts, Some(CONTEXT)),
@@ -144,6 +146,7 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::action("Redo", Redo),
                 MenuItem::separator(),
                 MenuItem::action("Delete Keyframe at Playhead", DeleteKeyframe),
+                MenuItem::action("Add Decision Point", AddDecisionPoint),
             ],
         },
         Menu {
@@ -220,13 +223,14 @@ impl Workspace {
             cx.background_executor().timer(POLL).await;
         });
 
+        let focus_handle = cx.focus_handle();
         Workspace {
             canvas: cx.new(|cx| RinkCanvas::new(state.clone(), window, cx)),
             toolbar: cx.new(|cx| ToolbarView::new(state.clone(), cx)),
             timeline: cx.new(|cx| TimelineView::new(state.clone(), cx)),
-            inspector: cx.new(|cx| InspectorView::new(state.clone(), cx)),
+            inspector: cx.new(|cx| InspectorView::new(state.clone(), focus_handle.clone(), window, cx)),
             state,
-            focus_handle: cx.focus_handle(),
+            focus_handle,
             playback: None,
             _poll: poll,
             last_request_ms: started,
@@ -425,6 +429,16 @@ impl Workspace {
             }))
             .child(panel.id("dialog").on_click(|_, _, cx| cx.stop_propagation()));
         deferred(backdrop).with_priority(1)
+    }
+
+    /// D: a decision point at the playhead for the selected player, then
+    /// straight into typing its question.
+    fn add_decision_point(&mut self, _: &AddDecisionPoint, window: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.add_event(rink_core::EventKind::DecisionPoint);
+        });
+        self.inspector.update(cx, |i, cx| i.focus_event_note(window, cx));
     }
 
     fn jump_start(&mut self, _: &JumpStart, _: &mut Window, cx: &mut Context<Self>) {
@@ -737,9 +751,19 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_library))
             .on_action(cx.listener(Self::close_dialog))
             .on_action(cx.listener(Self::toggle_shortcuts))
+            .on_action(cx.listener(Self::add_decision_point))
             .on_action(cx.listener(Self::picker_up))
             .on_action(cx.listener(Self::picker_down))
             .on_action(cx.listener(Self::picker_confirm))
+            // Clicking anywhere outside a text field ends editing in it.
+            .on_mouse_down(
+                gpui::MouseButton::Left,
+                cx.listener(|ws, _, window, _| {
+                    if !ws.focus_handle.is_focused(window) {
+                        window.focus(&ws.focus_handle);
+                    }
+                }),
+            )
             .relative()
             .flex()
             .flex_col()

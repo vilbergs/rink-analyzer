@@ -12,6 +12,7 @@ mod pinch;
 mod rink_canvas;
 mod shortcuts;
 mod state;
+mod text_input;
 mod theme;
 mod timeline;
 mod toolbar;
@@ -58,6 +59,7 @@ fn main() -> Result<()> {
     let state = initial_state()?;
     Application::new().run(move |cx: &mut App| {
         workspace::bind_keys(cx);
+        text_input::bind_keys(cx);
         cx.set_menus(workspace::menus());
         let bounds = Bounds::centered(None, size(px(1440.), px(860.)), cx);
         let window = cx

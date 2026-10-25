@@ -14,6 +14,7 @@ const LEFT: [Group; 3] = [
             ("Drag", "Move; keyframes at the playhead"),
             ("Shift-drag", "Turn facing"),
             ("Alt-click", "Give the puck (again to undo)"),
+            ("D", "Decision point here, then type it"),
             ("Drag a timeline ◆", "Retime a keyframe or event"),
             ("Delete", "Remove the keyframe here"),
             ("Cmd-Z", "Undo"),
