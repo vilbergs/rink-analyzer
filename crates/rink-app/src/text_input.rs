@@ -50,7 +50,7 @@ const CONTEXT: &str = "TextInput";
 
 /// Keys the workspace binds without modifiers. Inside a field they must
 /// type, so they're blocked here; a deeper binding wins.
-const TYPED_KEYS: [&str; 22] = [
+const TYPED_KEYS: [&str; 24] = [
     "space",
     "a",
     "b",
@@ -59,6 +59,8 @@ const TYPED_KEYS: [&str; 22] = [
     "g",
     "n",
     "p",
+    "r",
+    "shift-r",
     "shift-n",
     "0",
     "?",

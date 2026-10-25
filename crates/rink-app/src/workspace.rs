@@ -1207,14 +1207,14 @@ mod tests {
 
         // D: a decision point at the playhead, and its note takes the typing.
         cx.simulate_keystrokes("d");
-        cx.simulate_input("fgn0");
+        cx.simulate_input("fgn0r");
         let (note, flipped, ghosts) = cx.update(|_, cx| {
             let s = state.read(cx);
             let i = s.selected_event.unwrap();
             assert_eq!(s.play.events[i].kind, EventKind::DecisionPoint);
             (s.play.events[i].note.clone(), s.flipped, s.show_ghosts)
         });
-        assert_eq!(note, "fgn0");
+        assert_eq!(note, "fgn0r");
         assert!(!flipped && ghosts, "F and G typed, not run");
 
         // Cmd-Enter ends editing; then F is a shortcut again.
