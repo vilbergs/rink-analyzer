@@ -1,4 +1,4 @@
-//! Top bar: the play's title and save state, the last status message, and
+//! Top bar: the play's title (click it to open another play) and save state, the last status message, and
 //! buttons for the view toggles and Save. On macOS it is also the title bar:
 //! the traffic lights sit at its left and dragging its empty part moves the
 //! window.
@@ -7,7 +7,7 @@ use gpui::{div, prelude::*, px, rgb, Action, App, Context, Entity, FontWeight, M
 
 use crate::state::PlayState;
 use crate::theme::{self, button, primary_button};
-use crate::workspace::{FlipEnds, Redo, ResetZoom, Save, ToggleGhosts, Undo};
+use crate::workspace::{FlipEnds, OpenLibrary, Redo, ResetZoom, Save, ToggleGhosts, Undo};
 
 pub struct ToolbarView {
     state: Entity<PlayState>,
@@ -40,7 +40,7 @@ impl Render for ToolbarView {
             .items_center()
             .justify_between()
             .h(px(theme::TOOLBAR_HEIGHT))
-            .pl(px(if cfg!(target_os = "macos") { 84. } else { 16. }))
+            .pl(px(if cfg!(target_os = "macos") { 76. } else { 8. }))
             .pr_4()
             .bg(rgb(theme::PANEL))
             .border_b_1()
@@ -56,10 +56,27 @@ impl Render for ToolbarView {
                     .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                     .child(
                         div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(rgb(theme::TEXT))
-                            .child(SharedString::from(s.play.title.clone())),
+                            .id("title")
+                            .flex()
+                            .items_center()
+                            .gap_1p5()
+                            .min_w_0()
+                            .px_2()
+                            .py_1()
+                            .rounded_md()
+                            .cursor_pointer()
+                            .hover(|st| st.bg(rgb(theme::HOVER)))
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(dispatch(OpenLibrary))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(rgb(theme::TEXT))
+                                    .truncate()
+                                    .child(SharedString::from(s.play.title.clone())),
+                            )
+                            .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child("▾")),
                     )
                     .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child(SharedString::from(file)))
                     .child(

@@ -1,6 +1,6 @@
-//! Right-hand panel: the selected entity's exact state at the playhead,
-//! position feedback, the play's events, validation warnings, and the
-//! shortcut list.
+//! Right-hand panel: the play's notes, the selected entity's exact state at
+//! the playhead, position feedback, the play's events, validation warnings,
+//! and the shortcut list. Clicking a feedback card or an event jumps there.
 
 use gpui::{div, prelude::*, px, rgb, Context, Div, Entity, FontWeight, SharedString, Window};
 use rink_core::{EventKind, Play};
@@ -11,22 +11,29 @@ use crate::theme::{self, badge, card, kbd, role_name, seconds, section, short_na
 pub struct InspectorView {
     state: Entity<PlayState>,
     show_shortcuts: bool,
+    notes_expanded: bool,
 }
 
 impl InspectorView {
     pub fn new(state: Entity<PlayState>, cx: &mut Context<Self>) -> Self {
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
-        InspectorView { state, show_shortcuts: false }
+        InspectorView { state, show_shortcuts: false, notes_expanded: false }
     }
 }
 
-const SHORTCUTS: [(&str, &str); 16] = [
+/// Notes longer than this are cut off until "More" is clicked.
+const NOTES_PREVIEW_CHARS: usize = 220;
+
+const SHORTCUTS: [(&str, &str); 19] = [
+    ("Cmd-O", "Open a play or start a new one"),
     ("Drag", "Move; keyframes at the playhead"),
     ("Shift-drag", "Turn facing"),
     ("Alt-click", "Give the puck"),
+    ("Drag a ◆ in the timeline", "Retime a keyframe or event"),
     ("Space", "Play / pause"),
     ("← →", "Step 100 ms"),
     ("Shift ← →", "Previous / next keyframe"),
+    ("Home End", "Start / end of the play"),
     ("Delete", "Remove keyframe here"),
     ("Cmd-Z", "Undo"),
     ("Shift-Cmd-Z", "Redo"),
@@ -36,7 +43,7 @@ const SHORTCUTS: [(&str, &str); 16] = [
     ("G", "Show / hide ghosts"),
     ("Pinch, scroll", "Zoom / pan"),
     ("0", "Fit rink"),
-    ("Ctrl-S", "Save"),
+    ("Cmd-S", "Save"),
 ];
 
 fn muted(text: impl Into<SharedString>) -> Div {
@@ -68,6 +75,37 @@ fn player_chip(text: impl Into<SharedString>, hex: u32, me: bool) -> Div {
         .font_weight(FontWeight::BOLD)
         .text_color(rgb(0xffffff))
         .child(text.into())
+}
+
+fn notes(s: &PlayState, expanded: bool, cx: &Context<InspectorView>) -> Option<Div> {
+    let text = s.play.notes.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let long = text.chars().count() > NOTES_PREVIEW_CHARS;
+    let shown = if long && !expanded {
+        let cut: String = text.chars().take(NOTES_PREVIEW_CHARS).collect();
+        format!("{}…", cut.trim_end())
+    } else {
+        text.to_string()
+    };
+    let mut out = section("Play notes")
+        .child(div().text_sm().text_color(rgb(theme::TEXT_MUTED)).child(SharedString::from(shown)));
+    if long {
+        out = out.child(
+            div()
+                .id("notes-more")
+                .text_xs()
+                .text_color(rgb(theme::ACCENT))
+                .cursor_pointer()
+                .child(if expanded { "Less" } else { "More" })
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.notes_expanded = !this.notes_expanded;
+                    cx.notify();
+                })),
+        );
+    }
+    Some(out)
 }
 
 fn selection(s: &PlayState) -> Div {
@@ -154,7 +192,7 @@ fn selection(s: &PlayState) -> Div {
     section("Selection").child(body)
 }
 
-fn feedback(s: &PlayState) -> Option<Div> {
+fn feedback(s: &PlayState, cx: &Context<InspectorView>) -> Option<Div> {
     let play = &s.play;
     let suggestions = s.suggestions();
     if suggestions.is_empty() {
@@ -175,8 +213,21 @@ fn feedback(s: &PlayState) -> Option<Div> {
         if sug.is_stale(play) {
             head = head.child(badge("Play edited since", theme::TEXT_MUTED));
         }
-        let mut item =
-            card().border_l_2().border_color(rgb(if on { theme::FEEDBACK } else { theme::BORDER })).child(head).child(
+        let id = sug.id.clone();
+        let mut item = card()
+            .id(SharedString::from(format!("suggestion-{}", sug.id)))
+            .cursor_pointer()
+            .hover(|st| st.bg(rgb(theme::HOVER)))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.state.update(cx, |s, cx| {
+                    s.focus_suggestion(&id);
+                    cx.notify();
+                })
+            }))
+            .border_l_2()
+            .border_color(rgb(if on { theme::FEEDBACK } else { theme::BORDER }))
+            .child(head)
+            .child(
                 div()
                     .text_sm()
                     .font_weight(FontWeight::SEMIBOLD)
@@ -195,59 +246,92 @@ fn feedback(s: &PlayState) -> Option<Div> {
     Some(out)
 }
 
-fn events(s: &PlayState) -> Div {
+fn events(s: &PlayState, cx: &Context<InspectorView>) -> Div {
     let play: &Play = &s.play;
     let mut out = section("Events");
     if play.events.is_empty() {
         return out.child(muted("No events yet. Alt-click a player to give them the puck."));
     }
-    for ev in &play.events {
+    for (i, ev) in play.events.iter().enumerate() {
         let past = ev.t_ms <= s.playhead_ms;
+        let here = ev.t_ms == s.playhead_ms;
         let dot = if ev.kind == EventKind::DecisionPoint { theme::WARN } else { theme::ACCENT };
         let actors: Vec<String> = ev.actors.iter().map(|a| short_name(play, a)).collect();
-        let mut text = div().flex().flex_col().flex_1().min_w_0().child(
-            div()
-                .flex()
-                .flex_wrap()
-                .gap_x_1p5()
-                .text_sm()
-                .child(
-                    div()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(rgb(if past { theme::TEXT } else { theme::TEXT_MUTED }))
-                        .child(ev.kind.label()),
-                )
-                .child(
-                    div()
-                        .text_color(rgb(if past { theme::TEXT_MUTED } else { theme::TEXT_FAINT }))
-                        .child(SharedString::from(actors.join(" → "))),
-                ),
-        );
+        let delete = div()
+            .id(("delete-event", i))
+            .flex_none()
+            .px_1()
+            .rounded_sm()
+            .text_xs()
+            .text_color(rgb(theme::TEXT_FAINT))
+            .cursor_pointer()
+            .hover(|st| st.text_color(rgb(theme::DANGER)).bg(rgb(theme::RAISED)))
+            .child("✕")
+            .on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.state.update(cx, |s, cx| {
+                    s.delete_event(i);
+                    cx.notify();
+                })
+            }));
+        let head = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .text_sm()
+            .child(
+                div()
+                    .flex_none()
+                    .w(px(30.))
+                    .text_xs()
+                    .text_color(rgb(theme::TEXT_FAINT))
+                    .child(SharedString::from(seconds(ev.t_ms))),
+            )
+            .child(div().flex_none().size(px(6.)).rounded_full().bg(rgb(dot)).opacity(if past { 1.0 } else { 0.45 }))
+            .child(
+                div()
+                    .flex_none()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(rgb(if past { theme::TEXT } else { theme::TEXT_MUTED }))
+                    .child(ev.kind.label()),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(rgb(if past { theme::TEXT_MUTED } else { theme::TEXT_FAINT }))
+                    .child(SharedString::from(actors.join(" → "))),
+            )
+            .child(delete);
+        let mut item = div()
+            .id(("event", i))
+            .flex()
+            .flex_col()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .cursor_pointer()
+            .when(here, |d| d.bg(rgb(theme::RAISED)))
+            .hover(|st| st.bg(rgb(theme::HOVER)))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.state.update(cx, |s, cx| {
+                    s.jump_to_event(i);
+                    cx.notify();
+                })
+            }))
+            .child(head);
         if !ev.note.is_empty() {
-            text = text
-                .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child(SharedString::from(ev.note.clone())));
+            item = item.child(
+                div()
+                    .w_full()
+                    .pl(px(52.))
+                    .text_xs()
+                    .text_color(rgb(theme::TEXT_FAINT))
+                    .child(SharedString::from(ev.note.clone())),
+            );
         }
-        out = out.child(
-            div()
-                .flex()
-                .items_start()
-                .gap_2()
-                .child(
-                    div()
-                        .flex_none()
-                        .w(px(34.))
-                        .pt(px(2.))
-                        .text_xs()
-                        .text_color(rgb(theme::TEXT_FAINT))
-                        .child(SharedString::from(seconds(ev.t_ms))),
-                )
-                .child(div().flex_none().mt(px(7.)).size(px(6.)).rounded_full().bg(rgb(dot)).opacity(if past {
-                    1.0
-                } else {
-                    0.45
-                }))
-                .child(text),
-        );
+        out = out.child(item);
     }
     out
 }
@@ -297,11 +381,12 @@ impl Render for InspectorView {
             .border_l_1()
             .border_color(rgb(theme::BORDER))
             .text_color(rgb(theme::TEXT))
+            .children(notes(s, self.notes_expanded, cx))
             .child(selection(s));
-        if let Some(f) = feedback(s) {
+        if let Some(f) = feedback(s, cx) {
             panel = panel.child(f);
         }
-        panel = panel.child(events(s));
+        panel = panel.child(events(s, cx));
         if let Some(w) = warnings(s) {
             panel = panel.child(w);
         }

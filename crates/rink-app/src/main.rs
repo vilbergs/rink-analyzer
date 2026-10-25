@@ -5,6 +5,7 @@
 //! (faceoff, dzone, breakout). With no arguments it opens the breakout example.
 
 mod inspector;
+mod library;
 mod paint;
 mod pinch;
 mod rink_canvas;

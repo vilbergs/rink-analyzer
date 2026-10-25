@@ -1,15 +1,17 @@
 //! The timeline: a transport bar (play, time, speed) over a strip with a
 //! ruler, the play's events, position feedback, and the selected entity's
-//! keyframes, plus a playhead you can scrub.
+//! keyframes, plus a playhead you can scrub. Hovering a marker names it;
+//! dragging a keyframe or event marker retimes it.
 
 use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{
-    canvas, div, point, prelude::*, px, quad, rgb, size, Bounds, Context, Entity, FontWeight, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PathBuilder, Pixels, Point, SharedString, Window,
+    canvas, div, point, prelude::*, px, quad, rgb, size, Bounds, Context, CursorStyle, Entity, FontWeight, Hsla,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PathBuilder, Pixels, Point, SharedString, TextRun,
+    Window,
 };
-use rink_core::{EventKind, Play};
+use rink_core::{EntityId, EventKind, Play, Suggestion};
 
 use crate::paint::paint_text;
 use crate::state::{snap, PlayState};
@@ -27,11 +29,89 @@ const LANE_BG: u32 = 0x1a1e24;
 const TICK: u32 = 0x3a404b;
 const KEYFRAME: u32 = 0xe8ecf1;
 const POSSESSION: u32 = 0x8f99a8;
+/// How close (in px) the pointer must be to a marker to hover or grab it.
+const MARKER_HIT_PX: f32 = 7.0;
 
 pub struct TimelineView {
     state: Entity<PlayState>,
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
-    scrubbing: bool,
+    drag: Option<Drag>,
+    /// Pointer position while it's over the strip, for hover labels.
+    hover: Option<Point<Pixels>>,
+}
+
+enum Drag {
+    Scrub,
+    /// Moving the selection's keyframe that is now at `t_ms`.
+    Keyframe {
+        id: EntityId,
+        t_ms: u32,
+        recorded: bool,
+    },
+    /// Moving the event now at `index`.
+    Event {
+        index: usize,
+        recorded: bool,
+    },
+}
+
+#[derive(Clone, PartialEq)]
+enum Target {
+    Event(usize),
+    Suggestion(String),
+    Keyframe(u32),
+}
+
+/// Something drawn on a lane that can be hovered or grabbed.
+struct Marker {
+    lane: usize,
+    t_ms: u32,
+    label: String,
+    target: Target,
+}
+
+fn markers(play: &Play, selected: Option<&EntityId>, suggestions: &[Suggestion]) -> Vec<Marker> {
+    let mut out: Vec<Marker> = play
+        .events
+        .iter()
+        .enumerate()
+        .map(|(i, ev)| {
+            let who: Vec<String> = ev.actors.iter().map(|a| short_name(play, a)).collect();
+            let mut label = format!("{} · {}", seconds(ev.t_ms), ev.kind.label());
+            if !who.is_empty() {
+                label.push_str(&format!(" · {}", who.join(" → ")));
+            }
+            Marker { lane: 0, t_ms: ev.t_ms, label, target: Target::Event(i) }
+        })
+        .collect();
+    out.extend(suggestions.iter().map(|s| Marker {
+        lane: 1,
+        t_ms: s.t_ms,
+        label: format!("{} · {}", seconds(s.t_ms), s.principle),
+        target: Target::Suggestion(s.id.clone()),
+    }));
+    if let Some(id) = selected {
+        out.extend(play.track(id).iter().map(|k| Marker {
+            lane: 2,
+            t_ms: k.t_ms,
+            label: format!("{} · keyframe of {}", seconds(k.t_ms), short_name(play, id)),
+            target: Target::Keyframe(k.t_ms),
+        }));
+    }
+    out
+}
+
+/// The marker under `at`, if any: same lane, nearest in time.
+fn hit(markers: &[Marker], bounds: Bounds<Pixels>, axis: TimeAxis, at: Point<Pixels>) -> Option<&Marker> {
+    let top = f32::from(bounds.origin.y);
+    let y = f32::from(at.y);
+    markers
+        .iter()
+        .filter(|m| (lane_center(top, m.lane) - y).abs() <= LANE_PX / 2.0)
+        .map(|m| ((f32::from(axis.x(m.t_ms)) - f32::from(at.x)).abs(), m))
+        .filter(|(d, _)| *d <= MARKER_HIT_PX)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, m)| m)
 }
 
 #[derive(Clone, Copy)]
@@ -63,7 +143,21 @@ impl TimeAxis {
 impl TimelineView {
     pub fn new(state: Entity<PlayState>, cx: &mut Context<Self>) -> Self {
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
-        TimelineView { state, bounds: Rc::new(Cell::new(None)), scrubbing: false }
+        TimelineView { state, bounds: Rc::new(Cell::new(None)), drag: None, hover: None }
+    }
+
+    /// The marker under the pointer, from the last painted bounds.
+    fn marker_at(&self, at: Point<Pixels>, cx: &Context<Self>) -> Option<(Target, String)> {
+        let bounds = self.bounds.get()?;
+        let s = self.state.read(cx);
+        let axis = TimeAxis::new(bounds, s.play.duration_ms);
+        let list = markers(&s.play, s.selected.as_ref(), s.suggestions());
+        hit(&list, bounds, axis, at).map(|m| (m.target.clone(), m.label.clone()))
+    }
+
+    fn time_at(&self, x: Pixels, cx: &Context<Self>) -> Option<u32> {
+        let bounds = self.bounds.get()?;
+        Some(TimeAxis::new(bounds, self.state.read(cx).play.duration_ms).t(x))
     }
 
     fn scrub_to(&mut self, x: Pixels, cx: &mut Context<Self>) {
@@ -77,20 +171,79 @@ impl TimelineView {
     }
 
     fn mouse_down(&mut self, ev: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
-        self.scrubbing = true;
-        self.scrub_to(ev.position.x, cx);
+        let target = self.marker_at(ev.position, cx).map(|(t, _)| t);
+        self.drag = Some(match target {
+            Some(Target::Keyframe(t_ms)) => {
+                let Some(id) = self.state.read(cx).selected.clone() else { return };
+                self.state.update(cx, |s, cx| {
+                    s.playing = false;
+                    s.set_playhead(t_ms);
+                    cx.notify();
+                });
+                Drag::Keyframe { id, t_ms, recorded: false }
+            }
+            Some(Target::Event(index)) => {
+                self.state.update(cx, |s, cx| {
+                    s.jump_to_event(index);
+                    cx.notify();
+                });
+                Drag::Event { index, recorded: false }
+            }
+            Some(Target::Suggestion(id)) => {
+                self.state.update(cx, |s, cx| {
+                    s.focus_suggestion(&id);
+                    cx.notify();
+                });
+                return;
+            }
+            None => {
+                self.scrub_to(ev.position.x, cx);
+                Drag::Scrub
+            }
+        });
     }
 
     fn mouse_move(&mut self, ev: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if !self.scrubbing || ev.pressed_button != Some(MouseButton::Left) {
-            self.scrubbing = false;
+        let inside = self.bounds.get().is_some_and(|b| b.contains(&ev.position));
+        let hover = inside.then_some(ev.position);
+        if hover != self.hover {
+            self.hover = hover;
+            cx.notify();
+        }
+        if ev.pressed_button != Some(MouseButton::Left) {
+            self.drag = None;
             return;
         }
-        self.scrub_to(ev.position.x, cx);
+        let Some(to) = self.time_at(ev.position.x, cx) else { return };
+        match &mut self.drag {
+            None => {}
+            Some(Drag::Scrub) => self.scrub_to(ev.position.x, cx),
+            Some(Drag::Keyframe { id, t_ms, recorded }) => {
+                let first = !std::mem::replace(recorded, true);
+                *t_ms = self.state.update(cx, |s, cx| {
+                    if first {
+                        s.checkpoint(format!("retime of {}'s keyframe", short_name(&s.play, id)));
+                    }
+                    cx.notify();
+                    s.retime_keyframe(id, *t_ms, to)
+                });
+            }
+            Some(Drag::Event { index, recorded }) => {
+                let first = !std::mem::replace(recorded, true);
+                *index = self.state.update(cx, |s, cx| {
+                    if first {
+                        let label = s.play.events.get(*index).map_or("event", |e| e.kind.label()).to_lowercase();
+                        s.checkpoint(format!("retime of a {label}"));
+                    }
+                    cx.notify();
+                    s.retime_event(*index, to)
+                });
+            }
+        }
     }
 
     fn mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
-        self.scrubbing = false;
+        self.drag = None;
     }
 }
 
@@ -118,6 +271,36 @@ fn diamond(window: &mut Window, c: Point<Pixels>, r: f32, hex: u32) {
     if let Ok(path) = b.build() {
         window.paint_path(path, rgb(hex));
     }
+}
+
+/// A hover label: `text` in a dark pill centered over `x`, kept inside
+/// `bounds`, in the ruler row.
+fn paint_label(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, x: Pixels, text: &str) {
+    let font_size = px(11.0);
+    let run = TextRun {
+        len: text.len(),
+        font: window.text_style().font(),
+        color: Hsla::from(rgb(theme::TEXT)),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let line = window.text_system().shape_line(SharedString::from(text.to_string()), font_size, &[run], None);
+    let (pad, h) = (8.0, 18.0);
+    let w = f32::from(line.width) + 2.0 * pad;
+    let left = f32::from(bounds.origin.x) + 4.0;
+    let right = f32::from(bounds.origin.x + bounds.size.width) - 4.0 - w;
+    let x0 = (f32::from(x) - w / 2.0).clamp(left, right.max(left));
+    let y0 = f32::from(bounds.origin.y) + 2.0;
+    window.paint_quad(quad(
+        Bounds { origin: point(px(x0), px(y0)), size: size(px(w), px(h)) },
+        px(4.0),
+        rgb(theme::RAISED),
+        px(1.0),
+        rgb(theme::BORDER_STRONG),
+        Default::default(),
+    ));
+    line.paint(point(px(x0 + pad), px(y0 + (h - 13.2) / 2.0)), px(13.2), window, cx).ok();
 }
 
 fn lane_center(top: f32, lane: usize) -> f32 {
@@ -180,12 +363,18 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
     let x = axis.x(state.playhead_ms);
     fill_rect(window, point(x - px(1.0), px(top + 4.0)), 2.0, STRIP_HEIGHT_PX - 4.0, theme::ACCENT);
     rounded_rect(window, point(x - px(6.0), px(top + 2.0)), 12.0, 12.0, 3.0, theme::ACCENT);
+
+    if let Some((t_ms, label)) = &state.label {
+        paint_label(window, cx, bounds, axis.x(*t_ms), label);
+    }
 }
 
 struct StripState {
     playhead_ms: u32,
     selected: Option<rink_core::EntityId>,
     suggestions: Vec<rink_core::Suggestion>,
+    /// A hover label: the marker's time and text.
+    label: Option<(u32, String)>,
 }
 
 fn legend(label: &'static str, hex: u32) -> gpui::Div {
@@ -198,12 +387,29 @@ fn lane_label(text: impl Into<SharedString>) -> gpui::Div {
 
 impl Render for TimelineView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let hovered = self.hover.and_then(|at| self.marker_at(at, cx));
         let s = self.state.read(cx);
         let play = s.play.clone();
+        let label = match &self.drag {
+            Some(Drag::Keyframe { t_ms, .. }) => Some((*t_ms, seconds(*t_ms))),
+            Some(Drag::Event { index, .. }) => play.events.get(*index).map(|e| (e.t_ms, seconds(e.t_ms))),
+            Some(Drag::Scrub) => None,
+            None => hovered.as_ref().map(|(target, label)| {
+                let t = match target {
+                    Target::Event(i) => play.events.get(*i).map_or(0, |e| e.t_ms),
+                    Target::Suggestion(id) => s.suggestions().iter().find(|x| &x.id == id).map_or(0, |x| x.t_ms),
+                    Target::Keyframe(t) => *t,
+                };
+                (t, label.clone())
+            }),
+        };
+        let grabbable = matches!(self.drag, Some(Drag::Keyframe { .. } | Drag::Event { .. }))
+            || matches!(hovered, Some((Target::Keyframe(_) | Target::Event(_), _)));
         let strip = StripState {
             playhead_ms: s.playhead_ms,
             selected: s.selected.clone(),
             suggestions: s.suggestions().to_vec(),
+            label,
         };
         let selection = s.selected.as_ref().map(|id| short_name(&play, id)).unwrap_or_else(|| "Keyframes".into());
         let cell = self.bounds.clone();
@@ -299,9 +505,15 @@ impl Render for TimelineView {
             .child(
                 div().flex().h(px(STRIP_HEIGHT_PX)).child(labels).child(
                     div()
+                        .id("strip")
                         .flex_1()
                         .h_full()
-                        .cursor_pointer()
+                        .cursor(if grabbable { CursorStyle::ResizeLeftRight } else { CursorStyle::PointingHand })
+                        .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                            if !hovered && this.hover.take().is_some() {
+                                cx.notify();
+                            }
+                        }))
                         .child(
                             canvas(
                                 move |bounds, _, _| {

@@ -24,6 +24,8 @@ pub const ACCENT: u32 = 0x4c8dff;
 pub const FEEDBACK: u32 = 0x35c47c;
 /// Decision points and warnings.
 pub const WARN: u32 = 0xf2a93b;
+/// Destructive actions.
+pub const DANGER: u32 = 0xff6b6b;
 /// The user's own player.
 pub const ME: u32 = 0xf2a93b;
 

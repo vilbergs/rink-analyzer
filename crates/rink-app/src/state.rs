@@ -356,12 +356,88 @@ impl PlayState {
         true
     }
 
+    /// Timeline drag: move `id`'s keyframe at `from_ms` to `to_ms`, snapped
+    /// and kept between its neighbours. Returns where it landed.
+    pub fn retime_keyframe(&mut self, id: &EntityId, from_ms: u32, to_ms: u32) -> u32 {
+        let track = self.play.track(id);
+        let Some(i) = track.iter().position(|k| k.t_ms == from_ms) else { return from_ms };
+        let lo = if i > 0 { track[i - 1].t_ms + SNAP_MS } else { 0 };
+        let hi = track.get(i + 1).map_or(self.play.duration_ms, |k| k.t_ms.saturating_sub(SNAP_MS));
+        let to = snap(to_ms).clamp(lo, hi.max(lo));
+        if to != from_ms {
+            if let Some(mut kf) = self.play.remove_keyframe(id, from_ms) {
+                kf.t_ms = to;
+                self.play.set_keyframe(id, kf);
+            }
+            self.edited();
+        }
+        self.playhead_ms = to;
+        to
+    }
+
+    /// Timeline drag: move event `index` to `to_ms`. A pass keeps its flight
+    /// time. Returns the event's index after re-sorting.
+    pub fn retime_event(&mut self, index: usize, to_ms: u32) -> usize {
+        let Some(ev) = self.play.events.get_mut(index) else { return index };
+        let to = snap(to_ms).min(self.play.duration_ms);
+        if to != ev.t_ms {
+            if let Some(arrive) = ev.arrive_ms {
+                ev.arrive_ms = Some((arrive as i64 + to as i64 - ev.t_ms as i64).max(to as i64) as u32);
+            }
+            ev.t_ms = to;
+            let moved = ev.clone();
+            self.play.normalize();
+            self.edited();
+            self.playhead_ms = to;
+            return self.play.events.iter().position(|e| *e == moved).unwrap_or(index);
+        }
+        self.playhead_ms = to;
+        index
+    }
+
+    pub fn delete_event(&mut self, index: usize) {
+        let Some(ev) = self.play.events.get(index) else { return };
+        let (label, t) = (ev.kind.label().to_lowercase(), ev.t_ms);
+        self.checkpoint(format!("delete of a {label}"));
+        self.play.events.remove(index);
+        self.status = format!("Deleted the {label} at {:.1}s", t as f32 / 1000.0);
+        self.edited();
+    }
+
+    /// Inspector click: go to event `index` and select who did it.
+    pub fn jump_to_event(&mut self, index: usize) {
+        let Some(ev) = self.play.events.get(index) else { return };
+        self.playing = false;
+        self.playhead_ms = ev.t_ms;
+        if let Some(actor) = ev.actors.first() {
+            self.selected = Some(actor.clone());
+        }
+    }
+
+    /// Inspector click: go to a suggestion's moment and select its player.
+    pub fn focus_suggestion(&mut self, id: &str) {
+        let Some(s) = self.suggestions().iter().find(|s| s.id == id).cloned() else { return };
+        self.playing = false;
+        self.playhead_ms = s.t_ms;
+        self.selected = Some(s.entity);
+        self.focused_suggestion = Some(s.id);
+    }
+
+    /// Start an unsaved play (e.g. from a template). View settings stay.
+    pub fn new_play(&mut self, play: Play) {
+        let mut next = PlayState::new(play, None);
+        next.flipped = self.flipped;
+        next.speed = self.speed;
+        next.show_ghosts = self.show_ghosts;
+        next.dirty = true;
+        *self = next;
+    }
+
     pub fn cycle_speed(&mut self) {
         let i = SPEEDS.iter().position(|&s| s == self.speed).unwrap_or(2);
         self.speed = SPEEDS[(i + 1) % SPEEDS.len()];
     }
 
-    /// Save to the open file, or a new file in the library folder.
     /// Show `play` from `path` in place of the current one: another play, or a
     /// fresh copy of this one after an agent changed the file. View settings
     /// stay; on a reload the playhead and selection stay too, if they still fit.
@@ -396,6 +472,7 @@ impl PlayState {
         Ok(backup)
     }
 
+    /// Save to the open file, or a new file in the library folder.
     pub fn save(&mut self) -> Result<PathBuf, io::IoError> {
         let path = match &self.path {
             Some(p) => p.clone(),
@@ -655,6 +732,43 @@ mod tests {
         s.checkpoint("move of me");
         s.move_entity(&me, Vec2::new(3.0, 3.0));
         assert!(!s.can_redo());
+    }
+
+    #[test]
+    fn retime_keyframe_stays_between_neighbours() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let me = s.play.me().unwrap().id.clone();
+        let times = |s: &PlayState| s.play.track(&me).iter().map(|k| k.t_ms).collect::<Vec<_>>();
+        assert_eq!(&times(&s)[..3], &[0, 2000, 3500]);
+        let pos = s.play.track(&me)[1].pos;
+
+        assert_eq!(s.retime_keyframe(&me, 2000, 2440), 2400);
+        assert_eq!(&times(&s)[..3], &[0, 2400, 3500]);
+        assert_eq!(s.play.track(&me)[1].pos, pos, "only the time moves");
+        assert_eq!(s.playhead_ms, 2400);
+        assert_eq!(s.retime_keyframe(&me, 2400, 9000), 3400, "stops short of the next keyframe");
+        assert_eq!(s.retime_keyframe(&me, 3400, 0), 100);
+    }
+
+    #[test]
+    fn retime_event_resorts_and_keeps_pass_flight() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let mut pass = Event::new(3000, EventKind::Pass, &[&EntityId::from("home_LW"), &EntityId::from("home_C")]);
+        pass.arrive_ms = Some(3600);
+        s.play.events.push(pass);
+        s.play.normalize();
+        let i = s.play.events.iter().position(|e| e.kind == EventKind::Pass && e.t_ms == 3000).unwrap();
+        let j = s.retime_event(i, 0);
+        assert!(j < i, "re-sorted forward");
+        let moved = &s.play.events[j];
+        assert_eq!((moved.kind, moved.t_ms, moved.arrive_ms), (EventKind::Pass, 0, Some(600)));
+        assert!(s.play.events.windows(2).all(|w| w[0].t_ms <= w[1].t_ms));
+
+        let n = s.play.events.len();
+        s.delete_event(j);
+        assert_eq!(s.play.events.len(), n - 1);
+        s.undo();
+        assert_eq!(s.play.events.len(), n);
     }
 
     #[test]

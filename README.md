@@ -6,6 +6,9 @@ appears on the rink as a ghost skating the better route.
 
 ![Breakout example at 3.0 s with two position suggestions](docs/screenshot.png)
 
+**Using it: read the [manual](docs/MANUAL.md).** It covers retracing a play, reviews, working with Claude Code,
+and every shortcut.
+
 Plan: [Rink Replay — Hockey Play Animator (Plan)](https://claude.ai/artifact/9v9NCszp1ViTAkhPhGwC1m)
 
 ## Status
@@ -14,7 +17,7 @@ Plan: [Rink Replay — Hockey Play Animator (Plan)](https://claude.ai/artifact/9
 | --- | --- |
 | M0 · Spike: GPUI window, IIHF rink drawn to scale, drag a player | Done |
 | M1 · Core + playback: `rink-core` model, `sample()`, keyframes, scrub, play/pause | Done |
-| M2 · Editor: multi-row timeline, event editing, templates UI, undo, autosave | In progress: inspector, save and undo/redo are in |
+| M2 · Editor: multi-row timeline, event editing, templates UI, undo, autosave | In progress: inspector, save, undo/redo, play picker with templates, retiming and deleting in the timeline are in |
 | Position feedback: facts, `rink` CLI, Claude Code skill, ghosts in the app | Done (replaces the planned MCP server for now) |
 
 ## Layout
@@ -127,14 +130,20 @@ because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` rele
 
 ## Controls
 
+The [manual](docs/MANUAL.md#keyboard-and-mouse-reference) has the full list.
+
 | Input | Action |
 | --- | --- |
+| Cmd/Ctrl-O | Open a play from the library, or start one from a template |
 | Drag | Move; creates a keyframe at the playhead, snapped to 100 ms |
 | Shift-drag | Turn facing |
 | Alt-click | Give the puck to a player: a pass from a teammate, a turnover from an opponent, or a recovery. Alt-click again to undo |
+| Drag a timeline ◆ | Retime a keyframe or event; hover one to see what it is |
+| Click an event or feedback card | Jump there |
 | Space | Play / pause |
 | ← → | Step 100 ms |
 | Shift ← → | Jump to the previous or next keyframe of the selected entity |
+| Home / End | Jump to the start or end |
 | Delete | Remove the selected entity's keyframe at the playhead |
 | Cmd/Ctrl-Z | Undo the last edit (a whole drag is one step) |
 | Shift-Cmd/Ctrl-Z, Ctrl-Y | Redo |
@@ -154,8 +163,9 @@ because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` rele
   They still need checking against the current IIHF rulebook.
 - You can't answer a suggestion in the app yet, for example by dragging the ghost and asking "why not here?".
   Ask in Claude Code instead.
-- The timeline shows one row: the selected entity's keyframes, plus the events above it. There's no event
-  editing, overlays or command palette yet.
+- The timeline shows the selected entity's keyframes, plus the events and feedback above it. Events can be
+  retimed and deleted, but new ones come only from Alt-click (pass, turnover, recovery) or from Claude. There
+  are no overlays or command palette yet, and no text editing: titles and notes are changed through Claude.
 - Pinch zoom works only on macOS. GPUI 0.2 doesn't forward magnify gestures, so
   `crates/rink-app/src/pinch.rs` adds a handler to its AppKit view. Elsewhere, zoom with the mouse wheel or
   Ctrl-scroll.

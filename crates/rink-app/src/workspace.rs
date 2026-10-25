@@ -3,11 +3,17 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::{actions, div, prelude::*, rgb, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Task, Window};
+use std::path::PathBuf;
+
+use gpui::{
+    actions, deferred, div, prelude::*, px, rgb, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Task, Window,
+};
 
 use crate::inspector::InspectorView;
+use crate::library::{self, Entry, TEMPLATES};
 use crate::rink_canvas::RinkCanvas;
-use rink_core::session::{self, AppState, OpenRequest};
+use rink_core::session::{self, AppState};
+use rink_core::templates::build;
 use rink_core::{io, EntityId};
 
 use crate::state::{snap, PlayState, SNAP_MS};
@@ -33,6 +39,13 @@ actions!(
         ResetZoom,
         Undo,
         Redo,
+        JumpStart,
+        JumpEnd,
+        OpenLibrary,
+        PickerUp,
+        PickerDown,
+        PickerConfirm,
+        ClosePicker,
         Quit
     ]
 );
@@ -69,6 +82,16 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-s", Save, Some(CONTEXT)),
         KeyBinding::new("delete", DeleteKeyframe, Some(CONTEXT)),
         KeyBinding::new("backspace", DeleteKeyframe, Some(CONTEXT)),
+        KeyBinding::new("home", JumpStart, Some(CONTEXT)),
+        KeyBinding::new("end", JumpEnd, Some(CONTEXT)),
+        KeyBinding::new("cmd-left", JumpStart, Some(CONTEXT)),
+        KeyBinding::new("cmd-right", JumpEnd, Some(CONTEXT)),
+        KeyBinding::new("cmd-o", OpenLibrary, Some(CONTEXT)),
+        KeyBinding::new("ctrl-o", OpenLibrary, Some(CONTEXT)),
+        KeyBinding::new("up", PickerUp, Some(CONTEXT)),
+        KeyBinding::new("down", PickerDown, Some(CONTEXT)),
+        KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
+        KeyBinding::new("escape", ClosePicker, Some(CONTEXT)),
         KeyBinding::new("ctrl-q", Quit, None),
         KeyBinding::new("cmd-q", Quit, None),
     ]);
@@ -91,6 +114,13 @@ pub struct Workspace {
     last_request_ms: u64,
     /// What we last wrote for `rink current`.
     published: Option<AppState>,
+    /// The open play picker, if it's showing.
+    picker: Option<Picker>,
+}
+
+struct Picker {
+    entries: Vec<Entry>,
+    highlighted: usize,
 }
 
 impl Workspace {
@@ -99,7 +129,7 @@ impl Workspace {
         if let Some(req) = session::read_request().filter(|r| {
             r.requested_at_ms + LAUNCH_REQUEST_MS >= started && state.path.as_deref() == Some(r.path.as_path())
         }) {
-            focus(&mut state, &req);
+            focus(&mut state, req.at_ms, req.select.as_deref());
         }
         let state = cx.new(|_| state);
 
@@ -123,6 +153,7 @@ impl Workspace {
             _poll: poll,
             last_request_ms: started,
             published: None,
+            picker: None,
         }
     }
 
@@ -134,20 +165,20 @@ impl Workspace {
         });
         if let Some(req) = session::read_request().filter(|r| r.requested_at_ms > self.last_request_ms) {
             self.last_request_ms = req.requested_at_ms;
-            self.open_requested(req, cx);
+            self.open_path(req.path, req.at_ms, req.select, cx);
         }
         self.publish_state(cx);
     }
 
-    /// `rink open`: show another play, or reload this one after an agent
-    /// changed it. Unsaved edits are never dropped: they're saved to their own
-    /// play before switching, or to a copy before a reload.
-    fn open_requested(&mut self, req: OpenRequest, cx: &mut Context<Self>) {
-        let switching = self.state.read(cx).path.as_deref() != Some(req.path.as_path());
-        let play = match io::load(&req.path) {
+    /// `rink open` or the picker: show another play, or reload this one after
+    /// an agent changed it. Unsaved edits are never dropped: they're saved to
+    /// their own play before switching, or to a copy before a reload.
+    fn open_path(&mut self, path: PathBuf, at_ms: Option<u32>, select: Option<String>, cx: &mut Context<Self>) {
+        let switching = self.state.read(cx).path.as_deref() != Some(path.as_path());
+        let play = match io::load(&path) {
             Ok(play) => play,
             Err(e) => {
-                self.edit(cx, |s| s.status = format!("Couldn't open the requested play: {e}"));
+                self.edit(cx, |s| s.status = format!("Couldn't open the play: {e}"));
                 return;
             }
         };
@@ -166,20 +197,161 @@ impl Workspace {
                 match saved {
                     Ok(note) => kept = note,
                     Err(e) => {
-                        s.status = format!("Didn't open the requested play: couldn't save your edits ({e})");
+                        s.status = format!("Didn't open the play: couldn't save your edits ({e})");
                         cx.notify();
                         return;
                     }
                 }
             }
-            s.replace_play(play, req.path.clone());
-            focus(s, &req);
+            s.replace_play(play, path);
+            focus(s, at_ms, select.as_deref());
             s.status = format!("{} \"{}\".{kept}", if switching { "Opened" } else { "Reloaded" }, s.play.title);
             cx.notify();
         });
         if switching {
             self.canvas.update(cx, |c, cx| c.reset_zoom(cx));
         }
+    }
+
+    /// Start a new play from a template. Unsaved edits to the open play are
+    /// saved first, as when switching plays.
+    fn new_from_template(&mut self, template: rink_core::templates::Template, cx: &mut Context<Self>) {
+        self.playback = None;
+        self.state.update(cx, |s, cx| {
+            if s.dirty {
+                if let Err(e) = s.save() {
+                    s.status = format!("Didn't start a new play: couldn't save your edits ({e})");
+                    cx.notify();
+                    return;
+                }
+            }
+            let rink = s.play.rink.clone();
+            s.new_play(build(template, rink));
+            s.status = "New play. Ctrl-S saves it to the library.".into();
+            cx.notify();
+        });
+        self.canvas.update(cx, |c, cx| c.reset_zoom(cx));
+    }
+
+    fn open_library(&mut self, _: &OpenLibrary, _: &mut Window, cx: &mut Context<Self>) {
+        if self.picker.take().is_none() {
+            let entries = library::scan(&io::library_dir());
+            let current = self.state.read(cx).path.clone();
+            let highlighted = entries.iter().position(|e| Some(&e.path) == current.as_ref()).unwrap_or(0);
+            self.picker = Some(Picker { entries, highlighted });
+        }
+        cx.notify();
+    }
+
+    fn close_picker(&mut self, _: &ClosePicker, _: &mut Window, cx: &mut Context<Self>) {
+        if self.picker.take().is_some() {
+            cx.notify();
+        }
+    }
+
+    fn picker_move(&mut self, delta: isize, cx: &mut Context<Self>) {
+        if let Some(p) = &mut self.picker {
+            let n = library::row_count(&p.entries) as isize;
+            p.highlighted = (p.highlighted as isize + delta).rem_euclid(n) as usize;
+            cx.notify();
+        }
+    }
+
+    fn picker_up(&mut self, _: &PickerUp, _: &mut Window, cx: &mut Context<Self>) {
+        self.picker_move(-1, cx);
+    }
+
+    fn picker_down(&mut self, _: &PickerDown, _: &mut Window, cx: &mut Context<Self>) {
+        self.picker_move(1, cx);
+    }
+
+    fn picker_confirm(&mut self, _: &PickerConfirm, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(p) = &self.picker {
+            let row = p.highlighted;
+            self.pick(row, cx);
+        }
+    }
+
+    /// Open picker row `row`: a play, or a template after the plays.
+    fn pick(&mut self, row: usize, cx: &mut Context<Self>) {
+        let Some(p) = self.picker.take() else { return };
+        match p.entries.get(row) {
+            Some(e) => self.open_path(e.path.clone(), None, None, cx),
+            None => {
+                if let Some((template, _)) = TEMPLATES.get(row - p.entries.len()) {
+                    self.new_from_template(*template, cx);
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    fn picker_overlay(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        let p = self.picker.as_ref()?;
+        let current = self.state.read(cx).path.clone();
+        let mut list = div().id("picker-list").flex().flex_col().p_2().overflow_y_scroll();
+        if p.entries.is_empty() {
+            list = list.child(
+                div()
+                    .px_3()
+                    .py_2()
+                    .text_sm()
+                    .text_color(rgb(theme::TEXT_MUTED))
+                    .child("No plays in the library yet. Start one from a template below."),
+            );
+        }
+        for (i, e) in p.entries.iter().enumerate() {
+            list = list.child(
+                library::play_row(i, e, Some(&e.path) == current.as_ref(), i == p.highlighted)
+                    .on_click(cx.listener(move |ws, _, _, cx| ws.pick(i, cx))),
+            );
+        }
+        list = list.child(div().mx_3().my_1().h(px(1.)).bg(rgb(theme::BORDER)));
+        for (j, (_, name)) in TEMPLATES.iter().enumerate() {
+            let row = p.entries.len() + j;
+            list = list.child(
+                library::template_row(j, name, row == p.highlighted)
+                    .on_click(cx.listener(move |ws, _, _, cx| ws.pick(row, cx))),
+            );
+        }
+        let backdrop = div()
+            .id("picker-backdrop")
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .occlude()
+            .flex()
+            .justify_center()
+            .pt(px(theme::TOOLBAR_HEIGHT + 24.))
+            .bg(gpui::rgba(0x0000_0066))
+            .on_click(cx.listener(|ws, _, _, cx| {
+                ws.picker = None;
+                cx.notify();
+            }))
+            .child(
+                library::panel(
+                    &io::library_dir(),
+                    div().flex().flex_col().flex_1().min_h_0().child(list.flex_1().min_h_0()),
+                )
+                .id("picker")
+                .on_click(|_, _, cx| cx.stop_propagation()),
+            );
+        Some(deferred(backdrop).with_priority(1))
+    }
+
+    fn jump_start(&mut self, _: &JumpStart, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.set_playhead(0);
+        });
+    }
+
+    fn jump_end(&mut self, _: &JumpEnd, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, |s| {
+            s.playing = false;
+            s.set_playhead(s.play.duration_ms);
+        });
     }
 
     /// Tell `rink current` what the window shows, when that changes.
@@ -340,12 +512,12 @@ impl Workspace {
 }
 
 /// Apply a request's moment and selection.
-fn focus(s: &mut PlayState, req: &OpenRequest) {
-    if let Some(t) = req.at_ms {
+fn focus(s: &mut PlayState, at_ms: Option<u32>, select: Option<&str>) {
+    if let Some(t) = at_ms {
         s.playing = false;
         s.set_playhead(t.min(s.play.duration_ms));
     }
-    if let Some(id) = req.select.as_deref().map(EntityId::from).filter(|id| s.play.entity(id).is_some()) {
+    if let Some(id) = select.map(EntityId::from).filter(|id| s.play.entity(id).is_some()) {
         s.selected = Some(id);
     }
 }
@@ -358,6 +530,7 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let picker = self.picker_overlay(cx);
         div()
             .key_context(CONTEXT)
             .track_focus(&self.focus_handle)
@@ -376,6 +549,14 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::reset_zoom))
             .on_action(cx.listener(Self::undo))
             .on_action(cx.listener(Self::redo))
+            .on_action(cx.listener(Self::jump_start))
+            .on_action(cx.listener(Self::jump_end))
+            .on_action(cx.listener(Self::open_library))
+            .on_action(cx.listener(Self::close_picker))
+            .on_action(cx.listener(Self::picker_up))
+            .on_action(cx.listener(Self::picker_down))
+            .on_action(cx.listener(Self::picker_confirm))
+            .relative()
             .flex()
             .flex_col()
             .size_full()
@@ -392,5 +573,6 @@ impl Render for Workspace {
                     .child(self.inspector.clone()),
             )
             .child(self.timeline.clone())
+            .children(picker)
     }
 }
