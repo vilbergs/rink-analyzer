@@ -38,9 +38,11 @@ pub enum RinkPreset {
     Nhl,
 }
 
-// Line distances follow commonly published IIHF figures (goal line 4.0 m and
-// blue line 22.86 m from the end boards). Still to be checked against the
-// current IIHF rulebook diagrams; see the plan's open questions.
+// IIHF figures checked against the 2026-27 rule book (rules 1.2, 1.5, 1.9):
+// 60 m long, corner radius 7.0-8.5 m, goal lines 4.0 m from the end boards,
+// 4.5 m circles, neutral-zone spots 1.5 m from the blue lines and 14 m apart.
+// The blue lines' 22.86 m from the end boards is quoted from the rule's text
+// by secondary sources; the online rule book page leaves it out.
 const IIHF_JSON: &str = include_str!("../../../rinks/iihf.json");
 const NHL_JSON: &str = include_str!("../../../rinks/nhl.json");
 

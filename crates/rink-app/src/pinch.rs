@@ -17,6 +17,10 @@ pub struct Pinch {
 /// Start forwarding pinch gestures on `window`. Returns `None` where pinch
 /// isn't supported. The app has one window, so the last caller gets the events.
 pub fn listen(window: &Window) -> Option<UnboundedReceiver<Pinch>> {
+    // Test windows have no native view to hook.
+    if cfg!(test) {
+        return None;
+    }
     imp::listen(window)
 }
 

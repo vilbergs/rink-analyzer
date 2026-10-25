@@ -160,8 +160,8 @@ full list.
 
 ## Known gaps
 
-- IIHF line distances (goal line 4.0 m and blue lines 22.86 m from the end boards) come from secondary sources.
-  They still need checking against the current IIHF rulebook.
+- The IIHF preset matches the 2026-27 rule book (60 m, 4.0 m goal lines, 4.5 m circles, neutral-zone spots). Only
+  the blue lines' 22.86 m from the end boards comes from secondary sources that quote the rule.
 - You can't answer a suggestion in the app yet, for example by dragging the ghost and asking "why not here?".
   Ask in Claude Code instead.
 - The timeline shows the selected entity's keyframes, plus the events and feedback above it. Events can be

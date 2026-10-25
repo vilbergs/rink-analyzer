@@ -20,8 +20,6 @@ pub struct InspectorView {
     notes_expanded: bool,
     editing_play: bool,
     adding_event: bool,
-    /// A field just got focus: its first change records one undo step.
-    fresh: bool,
     title: Entity<TextInput>,
     notes: Entity<TextInput>,
     home: Entity<TextInput>,
@@ -41,18 +39,14 @@ fn field(
     cx: &mut Context<InspectorView>,
 ) -> Entity<TextInput> {
     let input = cx.new(|cx| TextInput::new(placeholder, multiline, return_focus.clone(), window, cx));
-    cx.subscribe(&input, move |this, _, ev: &InputEvent, cx| match ev {
-        InputEvent::Focused => this.fresh = true,
-        InputEvent::Changed(text) => {
-            let first = std::mem::take(&mut this.fresh);
-            this.state.update(cx, |s, cx| {
-                if first {
-                    s.checkpoint(undo_label);
-                }
-                apply(s, text);
-                cx.notify();
-            });
-        }
+    cx.subscribe(&input, move |this, _, ev: &InputEvent, cx| {
+        this.state.update(cx, |s, cx| {
+            if ev.first {
+                s.checkpoint(undo_label);
+            }
+            apply(s, &ev.text);
+            cx.notify();
+        })
     })
     .detach();
     input
@@ -72,7 +66,6 @@ impl InspectorView {
             notes_expanded: false,
             editing_play: false,
             adding_event: false,
-            fresh: false,
             title: field("Title", false, "title edit", |s, t| s.set_title(t), f, window, cx),
             notes: field(
                 "What happened, and what you want judged",

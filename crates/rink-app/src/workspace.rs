@@ -881,3 +881,105 @@ impl Render for Workspace {
             .children(shortcuts)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::{TestAppContext, VisualTestContext};
+    use rink_core::templates::Template;
+    use rink_core::{EventKind, RinkSpec};
+
+    fn setup(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContext) {
+        // The workspace reads and writes session files in the library folder.
+        let dir = std::env::temp_dir().join(format!("rink-ui-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var(io::LIBRARY_ENV, &dir);
+        cx.update(|cx| {
+            bind_keys(cx);
+            crate::text_input::bind_keys(cx);
+        });
+        let state = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let (ws, cx) = cx.add_window_view(|window, cx| Workspace::new(state, window, cx));
+        cx.update(|window, cx| window.focus(&ws.read(cx).focus_handle));
+        (ws, cx)
+    }
+
+    fn play_state(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<PlayState> {
+        cx.update(|_, cx| ws.read(cx).state.clone())
+    }
+
+    #[gpui::test]
+    fn typing_in_a_field_types_instead_of_running_shortcuts(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+
+        // D: a decision point at the playhead, and its note takes the typing.
+        cx.simulate_keystrokes("d");
+        cx.simulate_input("fgn0");
+        let (note, flipped, ghosts) = cx.update(|_, cx| {
+            let s = state.read(cx);
+            let i = s.selected_event.unwrap();
+            assert_eq!(s.play.events[i].kind, EventKind::DecisionPoint);
+            (s.play.events[i].note.clone(), s.flipped, s.show_ghosts)
+        });
+        assert_eq!(note, "fgn0");
+        assert!(!flipped && ghosts, "F and G typed, not run");
+
+        // Cmd-Enter ends editing; then F is a shortcut again.
+        cx.simulate_keystrokes("cmd-enter f");
+        assert!(cx.update(|_, cx| state.read(cx).flipped));
+
+        // The note is one undo step, the new event another.
+        let before = cx.update(|_, cx| state.read(cx).play.events.len());
+        cx.simulate_keystrokes("cmd-z");
+        let notes = cx.update(|_, cx| {
+            let s = state.read(cx);
+            s.play.events.iter().filter(|e| e.kind == EventKind::DecisionPoint && e.note.is_empty()).count()
+        });
+        assert_eq!(cx.update(|_, cx| state.read(cx).play.events.len()), before, "the event stays");
+        assert!(notes >= 1, "its note is gone");
+        cx.simulate_keystrokes("cmd-z");
+        assert_eq!(cx.update(|_, cx| state.read(cx).play.events.len()), before - 1);
+    }
+
+    #[gpui::test]
+    fn escape_restores_the_field(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        cx.simulate_keystrokes("d");
+        cx.simulate_input("oops");
+        cx.simulate_keystrokes("escape");
+        let note = cx.update(|_, cx| {
+            let s = state.read(cx);
+            s.play.events[s.selected_event.unwrap()].note.clone()
+        });
+        assert_eq!(note, "");
+    }
+
+    #[gpui::test]
+    fn dialogs_open_and_close_from_the_keyboard(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        cx.simulate_keystrokes("cmd-o");
+        assert!(cx.update(|_, cx| ws.read(cx).picker.is_some()));
+        cx.simulate_keystrokes("escape");
+        assert!(cx.update(|_, cx| ws.read(cx).picker.is_none()));
+        cx.simulate_keystrokes("cmd-/");
+        assert!(cx.update(|_, cx| ws.read(cx).show_shortcuts));
+        cx.simulate_keystrokes("escape");
+        assert!(!cx.update(|_, cx| ws.read(cx).show_shortcuts));
+    }
+
+    #[gpui::test]
+    fn keyboard_editing_moves_the_selection(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        let me = cx.update(|_, cx| state.read(cx).play.me().unwrap().id.clone());
+        let at = |cx: &mut VisualTestContext| cx.update(|_, cx| state.read(cx).snapshot().entity(&me).unwrap().pos);
+        let before = at(cx);
+        cx.simulate_keystrokes("alt-right alt-up");
+        let moved = at(cx) - before;
+        assert!((moved - Vec2::new(NUDGE_M, NUDGE_M)).length() < 1e-3, "{moved}");
+        cx.simulate_keystrokes("tab");
+        assert_ne!(cx.update(|_, cx| state.read(cx).selected.clone()), Some(me));
+    }
+}

@@ -1,8 +1,8 @@
 //! A text field, single- or multi-line, adapted from GPUI's input example.
 //! GPUI 0.2 has no text input of its own.
 //!
-//! The field emits `InputEvent::Changed` on every edit so its owner can apply
-//! the text straight to the play. Enter (Cmd-Enter in a multi-line field) and
+//! The field emits an `InputEvent` on every edit so its owner can apply the
+//! text straight to the play. Enter (Cmd-Enter in a multi-line field) and
 //! Esc hand focus back to the workspace; Esc first restores the text the
 //! field had when it was focused.
 
@@ -108,11 +108,12 @@ pub fn bind_keys(cx: &mut App) {
     cx.bind_keys(TYPED_KEYS.map(|k| KeyBinding::new(k, NoAction, ctx)));
 }
 
-pub enum InputEvent {
-    /// The text changed; the payload is the whole new text.
-    Changed(String),
-    /// The field gained focus. Owners record an undo step on the first change.
-    Focused,
+pub struct InputEvent {
+    /// The whole new text.
+    pub text: String,
+    /// The first change since the field was entered: owners record an undo
+    /// step for it, so one visit to a field is one step.
+    pub first: bool,
 }
 
 pub struct TextInput {
@@ -122,8 +123,9 @@ pub struct TextInput {
     content: String,
     placeholder: SharedString,
     multiline: bool,
-    /// Text when the field was focused, restored by Esc.
-    original: String,
+    /// The text before the first change of this visit to the field,
+    /// restored by Esc. None until something changes.
+    original: Option<String>,
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
@@ -199,13 +201,8 @@ impl TextInput {
         cx: &mut Context<Self>,
     ) -> Self {
         let focus_handle = cx.focus_handle();
-        cx.on_focus(&focus_handle, window, |this, _, cx| {
-            this.original = this.content.clone();
-            cx.emit(InputEvent::Focused);
-            cx.notify();
-        })
-        .detach();
         cx.on_blur(&focus_handle, window, |this, _, cx| {
+            this.original = None;
             this.selected_range = this.content.len()..this.content.len();
             cx.notify();
         })
@@ -216,7 +213,7 @@ impl TextInput {
             content: String::new(),
             placeholder: placeholder.into(),
             multiline,
-            original: String::new(),
+            original: None,
             selected_range: 0..0,
             selection_reversed: false,
             marked_range: None,
@@ -239,12 +236,17 @@ impl TextInput {
     }
 
     fn set_content(&mut self, text: String, cx: &mut Context<Self>) {
+        let first = self.original.is_none();
+        if first {
+            self.original = Some(std::mem::take(&mut self.content));
+        }
         self.content = text;
-        cx.emit(InputEvent::Changed(self.content.clone()));
+        cx.emit(InputEvent { text: self.content.clone(), first });
         cx.notify();
     }
 
     fn finish(&mut self, window: &mut Window) {
+        self.original = None;
         window.focus(&self.return_focus);
     }
 
@@ -261,8 +263,8 @@ impl TextInput {
     }
 
     fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
-        if self.content != self.original {
-            self.set_content(self.original.clone(), cx);
+        if let Some(original) = self.original.clone().filter(|o| *o != self.content) {
+            self.set_content(original, cx);
         }
         self.finish(window);
     }

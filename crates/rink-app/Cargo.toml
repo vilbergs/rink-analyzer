@@ -18,6 +18,10 @@ log = "0.4"
 futures = "0.3"
 unicode-segmentation = "1"
 
+[dev-dependencies]
+# The headless test platform, for driving the workspace with keystrokes.
+gpui = { version = "=0.2.2", features = ["test-support"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 # Trackpad pinch: GPUI doesn't forward magnify gestures yet (see src/pinch.rs).
 cocoa = "=0.26.0"
