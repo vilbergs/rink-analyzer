@@ -79,11 +79,14 @@ repo.
 - **Rink.** It's drawn to scale (IIHF by default). Your player has an orange ring, and the selected one
   has a blue halo. The short line on each player shows where they face. The puck sits on the carrier's
   stick side.
+  The strip above it keeps the selected player and current time visible. Dragging edits their position
+  at that time; right-clicking replaces their movement from that time onward. When an order replaces
+  future movement, a notice explains the scope and offers **Undo**.
 - **Inspector** (the right-hand panel):
   - **Play:** the notes. Click Edit for the title, notes, team names and length.
   - **Selection:** the selected player's exact position (meters from center ice), speed, facing and
     keyframe count ("one here" means there's a keyframe at the playhead). Below that: their number,
-    *This is me*, and *Take off the ice*.
+    *This is me*, and *Remove from play* (removes their movement for the entire play).
   - **Off the ice:** roster spots with nobody on the ice. Click one to put them on.
   - **Position feedback:** one card per suggestion. Click a card to jump to its moment.
   - **Events:** passes, recoveries, decision points and so on. Click one to jump there and open it for
@@ -185,6 +188,8 @@ the app skate them there:
 The skating has limits like a real skater's: a top speed, pushing off, braking, and turns that get wider
 the faster they go. An order replaces everything that player did after its moment, including later
 orders. Scrub back and right-click to change a direction you already gave.
+The notice above the rink names the player and the time the replacement starts. Click **Undo** there
+to restore their previous movement, or **Dismiss** to keep the result and hide the notice.
 
 - **Shift-right-click** adds a stop to the player's current order: they skate through the earlier spot
   without stopping and stop at the new one.
@@ -222,8 +227,9 @@ see the [README](../README.md#model-in-brief) for the rules.
   the last keyframe or event.
 - **Numbers:** select a player and type in the number field under their stats.
 - **This is me:** marks the selected player as you. Reviews are about this player.
-- **Take off the ice / put on the ice:** taking a player off removes their keyframes; they can't be in
-  any events. *Off the ice* lists every empty roster spot, including roles a drafted play never had.
+- **Remove from play / put on the ice:** removing a player clears all their keyframes and skating orders
+  for the entire play, not just from the current moment. They can't be in any events. A notice offers
+  **Undo**. *Off the ice* lists every empty roster spot, including roles a drafted play never had.
   Click one to put that player on near the puck, then drag them where they were.
 
 ## Playback and navigation
@@ -254,6 +260,20 @@ up within a second; you don't need to reopen anything. Each suggestion shows as:
 
 Press N / Shift-N to step through suggestions, and G to hide or show the ghosts. The inspector card gives
 the principle, the reason, and how far off you were.
+
+The review controls above the rink stay visible while you scroll the inspector:
+
+- **Previous / Next** select each suggestion, including separate suggestions at the same time. The
+  counter shows which one you're reviewing. Selecting a suggestion isolates its ghost on the rink.
+- **Replay moment** (R) loops from half a second before the suggested route splits off to 0.75 seconds
+  after the decision, clipped to the play's bounds. It uses your chosen playback speed.
+- **Space** pauses or resumes the loop. **Exit loop** (Shift-R) stops it at the current moment.
+  Scrubbing, stepping, selecting an event or another suggestion, and editing also exit the loop.
+- **Actual / Compare** switches between the recorded play alone and the same play with the suggested
+  route overlaid. G switches these views too, including during a loop. Comparison never edits the play.
+
+Scrubbing clears the focused suggestion so you can see all suggestions active at that moment again.
+If the agent updates the review while a loop is running, playback stops so you can inspect the new result.
 
 If you edit the play after the review, the suggestions grey out and say "Play edited since". They're
 still drawn, but they were judged on the old motion. Ask for a fresh review.
@@ -331,6 +351,7 @@ would take many edits by hand.
 | Cmd-Z, Shift-Cmd-Z | Undo, redo |
 | ] | Playback speed |
 | N, Shift-N | Next / previous position suggestion |
+| R, Shift-R | Replay and loop a suggestion / exit its loop |
 | G | Show / hide ghosts |
 | F | Flip ends |
 | Pinch, wheel, Cmd-scroll | Zoom around the pointer |

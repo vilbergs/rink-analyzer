@@ -363,7 +363,7 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
             }
             body = body.child(order(this, s));
             actions = actions.child(
-                chip("off-ice", "Take off the ice", false)
+                chip("off-ice", "Remove from play", false)
                     .on_click(on_state(&this.state, move |s| s.take_off_ice(&id))),
             );
         }
@@ -377,7 +377,8 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
             }
         }
     }
-    section("Selection").child(body.child(actions))
+    section("Selection")
+        .child(body.child(actions).child(muted("Removing a player clears their movement for the entire play.")))
 }
 
 /// The skating order the selected player follows at the playhead, with its
@@ -385,7 +386,9 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
 fn order(this: &InspectorView, s: &PlayState) -> Div {
     let block = div().flex().flex_col().gap_1p5().pt_2().mt_2().border_t_1().border_color(rgb(theme::BORDER));
     let Some((_, o)) = s.current_order() else {
-        return block.child(muted("Right-click the ice to send them there; press Space to watch them skate it."));
+        return block.child(muted(
+            "Right-click to skate there from this moment. This replaces their later movement; Space plays it back.",
+        ));
     };
     let dest = o.to.last().copied().unwrap_or_default();
     let stops = match o.to.len() {
@@ -452,7 +455,10 @@ fn feedback(s: &PlayState, cx: &Context<InspectorView>) -> Option<Div> {
         out = out.child(muted("Ghosts are hidden. Press G to show them."));
     }
     for sug in suggestions {
-        let on = active.contains(&sug.id.as_str()) || s.focused_suggestion.as_deref() == Some(sug.id.as_str());
+        let on = match s.focused_suggestion.as_deref() {
+            Some(id) => id == sug.id,
+            None => active.contains(&sug.id.as_str()),
+        };
         let mut meta = format!("{} · {}", seconds(sug.t_ms), short_name(play, &sug.entity));
         if let Some(m) = sug.miss_distance(play) {
             meta.push_str(&format!(" · {m:.1} m off"));

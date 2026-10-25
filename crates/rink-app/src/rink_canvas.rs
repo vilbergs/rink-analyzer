@@ -112,6 +112,7 @@ impl RinkCanvas {
         let Some(t) = self.transform.get() else { return };
         let at = t.to_rink(ev.position);
         self.state.update(cx, |s, cx| {
+            s.stop_review_loop();
             s.playing = false;
             let hit = s.hit_test(at);
             s.selected = hit.clone();
@@ -170,7 +171,11 @@ impl Render for RinkCanvas {
         let selected = state.selected.clone();
         let playhead_ms = state.playhead_ms;
         let active: Vec<_> = if state.show_ghosts {
-            state.active_suggestions().map(|(s, g)| (s.clone(), g)).collect()
+            state
+                .active_suggestions()
+                .filter(|(s, _)| state.focused_suggestion.as_ref().is_none_or(|id| id == &s.id))
+                .map(|(s, g)| (s.clone(), g))
+                .collect()
         } else {
             Vec::new()
         };

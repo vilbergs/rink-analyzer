@@ -70,6 +70,10 @@ pub struct PlayState {
     pub show_ghosts: bool,
     /// The suggestion last jumped to; highlighted in the inspector.
     pub focused_suggestion: Option<String>,
+    /// The suggestion being looped. Kept while paused; scrubbing or editing exits it.
+    pub review_loop: Option<String>,
+    /// Explains an edit with effects beyond the current moment, until dismissed or another edit.
+    pub edit_notice: Option<String>,
     /// The event open for editing in the inspector, by index.
     pub selected_event: Option<usize>,
     /// A position copied with Cmd-C, to paste onto a player with Cmd-V.
@@ -137,6 +141,8 @@ impl PlayState {
             review_mtime: None,
             show_ghosts: true,
             focused_suggestion: None,
+            review_loop: None,
+            edit_notice: None,
             selected_event: None,
             copied: None,
         }
@@ -161,6 +167,11 @@ impl PlayState {
                     });
                 }
                 self.review = review;
+                // A new review may change or remove the route currently being replayed.
+                self.stop_review_loop();
+                if !self.suggestions().iter().any(|s| Some(&s.id) == self.focused_suggestion.as_ref()) {
+                    self.focused_suggestion = None;
+                }
             }
             Err(e) => self.set_error(format!("Couldn't read the review: {e}")),
         }
@@ -182,16 +193,77 @@ impl PlayState {
     pub fn jump_suggestion(&mut self, dir: i32) {
         let t = self.playhead_ms;
         let list = self.suggestions();
-        let found = if dir > 0 {
+        let focused = list.iter().position(|s| Some(&s.id) == self.focused_suggestion.as_ref());
+        let found = if let Some(i) = focused {
+            let next = (i as i64 + if dir > 0 { 1 } else { -1 }).rem_euclid(list.len() as i64) as usize;
+            list.get(next)
+        } else if dir > 0 {
             list.iter().find(|s| s.t_ms > t).or_else(|| list.first())
         } else {
             list.iter().rev().find(|s| s.t_ms < t).or_else(|| list.last())
         };
         if let Some(s) = found.cloned() {
-            self.playhead_ms = s.t_ms;
-            self.selected = Some(s.entity.clone());
-            self.focused_suggestion = Some(s.id);
+            self.focus_suggestion(&s.id);
         }
+    }
+
+    /// Include a little context before the branch and after the decision.
+    pub fn review_bounds(&self) -> Option<(u32, u32)> {
+        let id = self.review_loop.as_ref()?;
+        let s = self.suggestions().iter().find(|s| &s.id == id)?;
+        let start = s.branch_from_ms.saturating_sub(500);
+        let end = s.t_ms.saturating_add(750).min(self.play.duration_ms);
+        (start < end).then_some((start, end))
+    }
+
+    /// Prepare a loop without changing the play or the actual/compare view.
+    pub fn prepare_review_replay(&mut self) -> bool {
+        let suggestion = self
+            .suggestions()
+            .iter()
+            .find(|s| Some(&s.id) == self.focused_suggestion.as_ref())
+            .or_else(|| self.suggestions().iter().find(|s| s.t_ms >= self.playhead_ms))
+            .or_else(|| self.suggestions().first())
+            .cloned();
+        let Some(s) = suggestion else { return false };
+        self.focus_suggestion(&s.id);
+        self.review_loop = Some(s.id);
+        let Some((start, _)) = self.review_bounds() else {
+            self.review_loop = None;
+            return false;
+        };
+        self.playhead_ms = start;
+        true
+    }
+
+    pub fn stop_review_loop(&mut self) {
+        if self.review_loop.take().is_some() {
+            self.playing = false;
+        }
+    }
+
+    /// Advance ordinary playback or wrap within the current review loop.
+    pub fn advance_playback(&mut self, elapsed: Duration) -> bool {
+        if !self.playing {
+            return false;
+        }
+        let advance = (elapsed.as_secs_f64() * 1000.0 * self.speed as f64) as u64;
+        if let Some((start, end)) = self.review_bounds() {
+            let next = self.playhead_ms.max(start) as u64 + advance;
+            self.playhead_ms = if next >= end as u64 {
+                start + ((next - start as u64) % (end - start) as u64) as u32
+            } else {
+                next as u32
+            };
+        } else if self.review_loop.is_some() {
+            self.stop_review_loop();
+        } else {
+            self.playhead_ms = (self.playhead_ms as u64 + advance).min(self.play.duration_ms as u64) as u32;
+            if self.playhead_ms >= self.play.duration_ms {
+                self.playing = false;
+            }
+        }
+        self.playing
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -199,6 +271,7 @@ impl PlayState {
     }
 
     fn edited(&mut self) {
+        self.stop_review_loop();
         self.dirty = self.play != self.saved;
         self.last_edit = Some(Instant::now());
         self.issues = validate(&self.play);
@@ -242,6 +315,7 @@ impl PlayState {
     /// Remember the play as it is now, before an edit called `label`. A drag
     /// calls this once, on its first move, so the whole drag is one step.
     pub fn checkpoint(&mut self, label: impl Into<String>) {
+        self.edit_notice = None;
         self.undo.push(Step { label: label.into(), play: self.play.clone() });
         if self.undo.len() > UNDO_LIMIT {
             self.undo.remove(0);
@@ -268,6 +342,7 @@ impl PlayState {
     /// Step back (or forward) one edit. Steps that changed nothing, like a
     /// click that started a drag but never moved, are skipped.
     fn travel(&mut self, back: bool) -> bool {
+        self.edit_notice = None;
         let (from, to) = if back { (&mut self.undo, &mut self.redo) } else { (&mut self.redo, &mut self.undo) };
         while let Some(step) = from.pop() {
             if step.play == self.play {
@@ -284,12 +359,14 @@ impl PlayState {
     }
 
     pub fn set_playhead(&mut self, t_ms: u32) {
+        self.stop_review_loop();
+        self.focused_suggestion = None;
         self.playhead_ms = t_ms.min(self.play.duration_ms);
     }
 
     pub fn step(&mut self, delta_ms: i64) {
         let t = (snap(self.playhead_ms) as i64 + delta_ms).clamp(0, self.play.duration_ms as i64);
-        self.playhead_ms = t as u32;
+        self.set_playhead(t as u32);
     }
 
     /// Jump to the next (dir > 0) or previous keyframe or event time. Uses the
@@ -303,7 +380,7 @@ impl PlayState {
         let target =
             if dir > 0 { times.iter().copied().find(|&k| k > t) } else { times.iter().rev().copied().find(|&k| k < t) };
         if let Some(target) = target {
-            self.playhead_ms = target;
+            self.set_playhead(target);
         }
     }
 
@@ -395,7 +472,16 @@ impl PlayState {
     /// Apply `order` to `id` and say when they get there.
     fn give_order(&mut self, id: &EntityId, order: Order) {
         let duration = self.play.duration_ms;
+        let start = order.t_ms;
+        let replaces_future = self.play.track(id).iter().any(|k| k.t_ms > start);
         let Some(end) = apply_order(&mut self.play, id, order) else { return };
+        if replaces_future {
+            self.edit_notice = Some(format!(
+                "Replaced {}’s movement from {:.1}s onward, including later orders.",
+                short_name(&self.play, id),
+                start as f32 / 1000.0
+            ));
+        }
         let mut status = format!("{} stops at {:.1}s", short_name(&self.play, id), end as f32 / 1000.0);
         if self.play.duration_ms > duration {
             status.push_str(&format!("; the play now runs {:.0}s", self.play.duration_ms as f32 / 1000.0));
@@ -595,10 +681,10 @@ impl PlayState {
 
     /// Inspector click: go to event `index` and select who did it.
     pub fn jump_to_event(&mut self, index: usize) {
-        let Some(ev) = self.play.events.get(index) else { return };
+        let Some(ev) = self.play.events.get(index).cloned() else { return };
         self.playing = false;
         self.selected_event = Some(index);
-        self.playhead_ms = ev.t_ms;
+        self.set_playhead(ev.t_ms);
         if let Some(actor) = ev.actors.first() {
             self.selected = Some(actor.clone());
         }
@@ -607,6 +693,7 @@ impl PlayState {
     /// Inspector click: go to a suggestion's moment and select its player.
     pub fn focus_suggestion(&mut self, id: &str) {
         let Some(s) = self.suggestions().iter().find(|s| s.id == id).cloned() else { return };
+        self.stop_review_loop();
         self.playing = false;
         self.playhead_ms = s.t_ms;
         self.selected = Some(s.entity);
@@ -737,6 +824,8 @@ impl PlayState {
         self.checkpoint(format!("taking {} off the ice", short_name(&self.play, id)));
         self.play.tracks.remove(id);
         self.play.orders.remove(id);
+        self.edit_notice =
+            Some(format!("Removed {} from the entire play, including all their movement.", short_name(&self.play, id)));
         if self.selected.as_ref() == Some(id) {
             self.selected = None;
         }
@@ -953,6 +1042,139 @@ mod tests {
         PlayState::new(build(Template::Faceoff, RinkSpec::iihf()), None)
     }
 
+    fn reviewed_state() -> PlayState {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let entity = s.play.me().unwrap().id.clone();
+        let mut review = Review::new(&s.play);
+        for (branch, moment) in [(500, 1500), (500, 1500), (s.play.duration_ms - 1000, s.play.duration_ms)] {
+            let target = sample(&s.play, branch).entity(&entity).unwrap().pos;
+            review
+                .add(
+                    &s.play,
+                    Suggestion {
+                        id: String::new(),
+                        entity: entity.clone(),
+                        t_ms: moment,
+                        branch_from_ms: branch,
+                        target,
+                        facing: None,
+                        zone_radius_m: 2.0,
+                        principle: "Support the puck".into(),
+                        reason: "Keep a passing option open".into(),
+                        detail: String::new(),
+                        confidence: None,
+                        play_hash: String::new(),
+                    },
+                )
+                .unwrap();
+        }
+        s.review = Some(review);
+        s
+    }
+
+    #[test]
+    fn review_replay_wraps_at_speed_without_editing_the_play() {
+        let mut s = reviewed_state();
+        let original = s.play.clone();
+        s.show_ghosts = false;
+        assert!(s.prepare_review_replay());
+        assert_eq!(s.review_bounds(), Some((0, 2250)));
+        assert_eq!(s.playhead_ms, 0);
+        assert!(!s.show_ghosts, "replaying preserves the actual/compare choice");
+        s.playing = true;
+        s.speed = 0.5;
+        assert!(s.advance_playback(Duration::from_millis(1000)));
+        assert_eq!(s.playhead_ms, 500);
+        assert!(s.advance_playback(Duration::from_millis(3500)));
+        assert_eq!(s.playhead_ms, 0, "the exact endpoint wraps");
+        assert!(s.advance_playback(Duration::from_millis(9500)));
+        assert_eq!(s.playhead_ms, 250, "a delayed frame can cross several loops");
+        s.playing = false;
+        assert!(!s.advance_playback(Duration::from_secs(1)));
+        assert_eq!(s.playhead_ms, 250);
+        assert!(s.review_loop.is_some(), "pause keeps the loop for resuming");
+        assert_eq!(s.play, original);
+        assert!(!s.dirty && !s.can_undo(), "reviewing is never an edit");
+    }
+
+    #[test]
+    fn review_navigation_visits_suggestions_at_the_same_moment() {
+        let mut s = reviewed_state();
+        let ids: Vec<_> = s.suggestions().iter().map(|s| s.id.clone()).collect();
+        s.jump_suggestion(1);
+        assert_eq!(s.focused_suggestion.as_ref(), Some(&ids[0]));
+        s.prepare_review_replay();
+        s.playing = true;
+        s.jump_suggestion(1);
+        assert_eq!(s.focused_suggestion.as_ref(), Some(&ids[1]));
+        assert_eq!(s.playhead_ms, 1500);
+        assert!(!s.playing && s.review_loop.is_none());
+        s.jump_suggestion(1);
+        assert_eq!(s.focused_suggestion.as_ref(), Some(&ids[2]));
+        s.prepare_review_replay();
+        let (start, end) = s.review_bounds().unwrap();
+        assert_eq!(end, s.play.duration_ms, "the last suggestion's loop stays inside the play");
+        s.playing = true;
+        s.advance_playback(Duration::from_millis((end - start) as u64));
+        assert_eq!(s.playhead_ms, start);
+        s.jump_suggestion(1);
+        assert_eq!(s.focused_suggestion.as_ref(), Some(&ids[0]));
+        s.jump_suggestion(-1);
+        assert_eq!(s.focused_suggestion.as_ref(), Some(&ids[2]));
+    }
+
+    #[test]
+    fn navigating_editing_or_removing_review_exits_the_loop() {
+        let mut s = reviewed_state();
+        s.prepare_review_replay();
+        s.playing = true;
+        s.set_playhead(1200);
+        assert!(!s.playing && s.review_loop.is_none() && s.focused_suggestion.is_none());
+        assert_eq!(s.playhead_ms, 1200);
+
+        s.prepare_review_replay();
+        s.playing = true;
+        s.nudge(Vec2::new(0.5, 0.0));
+        assert!(!s.playing && s.review_loop.is_none());
+        assert!(s.suggestions()[0].is_stale(&s.play));
+
+        s.prepare_review_replay();
+        s.playing = true;
+        s.review = None;
+        assert!(!s.advance_playback(Duration::from_millis(16)));
+        assert!(s.review_loop.is_none());
+        assert!(!s.prepare_review_replay());
+    }
+
+    #[test]
+    fn ordinary_playback_stops_at_the_end() {
+        let mut s = state();
+        s.playhead_ms = s.play.duration_ms - 50;
+        s.playing = true;
+        assert!(!s.advance_playback(Duration::from_millis(100)));
+        assert_eq!(s.playhead_ms, s.play.duration_ms);
+    }
+
+    #[test]
+    fn broad_edits_explain_their_scope_and_undo_restores_everything() {
+        let mut s = reviewed_state();
+        let original = s.play.clone();
+        s.set_playhead(1000);
+        s.order_to(Vec2::new(0.0, 0.0), false);
+        assert!(s.edit_notice.as_deref().unwrap().contains("from 1.0s onward"));
+        assert!(s.undo());
+        assert_eq!(s.play, original);
+        assert!(s.edit_notice.is_none());
+
+        let opponent = EntityId::from("away_RD");
+        s.take_off_ice(&opponent);
+        assert!(s.play.track(&opponent).is_empty());
+        assert!(s.edit_notice.as_deref().unwrap().contains("entire play"));
+        assert!(s.undo());
+        assert_eq!(s.play, original);
+        assert!(s.edit_notice.is_none());
+    }
+
     #[test]
     fn snaps_to_grid() {
         assert_eq!(snap(149), 100);
@@ -1080,6 +1302,12 @@ mod tests {
         assert_eq!(s.playhead_ms, 4000);
         s.jump_suggestion(-1);
         assert_eq!(s.playhead_ms, 1500);
+        s.prepare_review_replay();
+        s.playing = true;
+        std::fs::remove_file(review_path(&path)).unwrap();
+        assert!(s.reload_review_if_changed());
+        assert!(!s.playing && s.review_loop.is_none() && s.focused_suggestion.is_none());
+        assert!(s.suggestions().is_empty());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

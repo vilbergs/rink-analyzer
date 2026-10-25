@@ -77,6 +77,7 @@ pub fn button(id: &'static str, label: impl Into<SharedString>, active: bool) ->
     let (bg, fg) = if active { (0x1f3354, 0xa9c7ff) } else { (RAISED, TEXT) };
     div()
         .id(id)
+        .debug_selector(|| id.to_string())
         .flex()
         .items_center()
         .gap_1p5()

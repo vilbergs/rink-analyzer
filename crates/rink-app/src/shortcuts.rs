@@ -48,7 +48,15 @@ const RIGHT: [Group; 4] = [
             ("]", "Playback speed"),
         ],
     ),
-    ("Feedback", &[("N  Shift-N", "Next / previous suggestion"), ("G", "Show / hide ghosts")]),
+    (
+        "Feedback",
+        &[
+            ("N  Shift-N", "Next / previous suggestion"),
+            ("R", "Replay and loop this suggestion"),
+            ("Shift-R", "Exit the suggestion loop"),
+            ("G", "Actual / compare with suggestion"),
+        ],
+    ),
     (
         "View",
         &[

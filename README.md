@@ -147,6 +147,7 @@ full list.
 | Drag a timeline ◆, A | Retime a keyframe or event; all players in the timeline |
 | Space, ← →, Shift ← →, Home / End | Play / pause, step 100 ms, previous / next keyframe, start / end |
 | N / Shift-N, G | Next / previous position suggestion, show / hide ghosts |
+| R / Shift-R | Loop the selected suggestion / exit the loop (Space pauses and resumes) |
 | Cmd-Z, Shift-Cmd-Z | Undo, redo |
 | Pinch, wheel, two-finger scroll, 0 | Zoom, pan, fit the rink |
 

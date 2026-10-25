@@ -38,6 +38,8 @@ actions!(
         NextFeedback,
         PrevFeedback,
         ToggleGhosts,
+        ReplaySuggestion,
+        StopReviewReplay,
         ResetZoom,
         Undo,
         Redo,
@@ -89,6 +91,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("n", NextFeedback, Some(CONTEXT)),
         KeyBinding::new("shift-n", PrevFeedback, Some(CONTEXT)),
         KeyBinding::new("g", ToggleGhosts, Some(CONTEXT)),
+        KeyBinding::new("r", ReplaySuggestion, Some(CONTEXT)),
+        KeyBinding::new("shift-r", StopReviewReplay, Some(CONTEXT)),
         KeyBinding::new("0", ResetZoom, Some(CONTEXT)),
         KeyBinding::new("cmd-z", Undo, Some(CONTEXT)),
         KeyBinding::new("ctrl-z", Undo, Some(CONTEXT)),
@@ -206,6 +210,8 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::separator(),
                 MenuItem::action("Previous Suggestion", PrevFeedback),
                 MenuItem::action("Next Suggestion", NextFeedback),
+                MenuItem::action("Loop Suggestion", ReplaySuggestion),
+                MenuItem::action("Exit Suggestion Loop", StopReviewReplay),
             ],
         },
         Menu { name: "Help".into(), items: vec![MenuItem::action("Keyboard Shortcuts", ToggleShortcuts)] },
@@ -245,6 +251,7 @@ impl Workspace {
             focus(&mut state, req.at_ms, req.select.as_deref());
         }
         let state = cx.new(|_| state);
+        cx.observe(&state, |_, _, cx| cx.notify()).detach();
         window.on_window_should_close(cx, {
             let this = cx.weak_entity();
             move |window, cx| this.update(cx, |ws, cx| ws.save_before_closing(window, cx, false)).unwrap_or(true)
@@ -665,7 +672,7 @@ impl Workspace {
                 s.playhead_ms = 0;
             }
             s.playing = !s.playing;
-            if !s.playing {
+            if !s.playing && s.review_loop.is_none() {
                 s.playhead_ms = snap(s.playhead_ms);
             }
             cx.notify();
@@ -685,16 +692,9 @@ impl Workspace {
                 let elapsed = now - last;
                 last = now;
                 let keep_going = state.update(cx, |s, cx| {
-                    if !s.playing {
-                        return false;
-                    }
-                    let advance = (elapsed.as_secs_f32() * 1000.0 * s.speed) as u32;
-                    s.playhead_ms = (s.playhead_ms + advance).min(s.play.duration_ms);
-                    if s.playhead_ms >= s.play.duration_ms {
-                        s.playing = false;
-                    }
+                    let playing = s.advance_playback(elapsed);
                     cx.notify();
-                    s.playing
+                    playing
                 });
                 if !matches!(keep_going, Ok(true)) {
                     break;
@@ -763,6 +763,162 @@ impl Workspace {
 
     fn toggle_ghosts(&mut self, _: &ToggleGhosts, _: &mut Window, cx: &mut Context<Self>) {
         self.edit(cx, |s| s.show_ghosts = !s.show_ghosts);
+    }
+
+    fn replay_suggestion(&mut self, _: &ReplaySuggestion, window: &mut Window, cx: &mut Context<Self>) {
+        let ready = self.state.update(cx, |s, cx| {
+            let ready = s.prepare_review_replay();
+            cx.notify();
+            ready
+        });
+        if ready {
+            self.toggle_play(&TogglePlay, window, cx);
+        }
+    }
+
+    fn stop_review_replay(&mut self, _: &StopReviewReplay, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, PlayState::stop_review_loop);
+    }
+
+    /// Editing context stays next to the rink, even when the inspector is scrolled.
+    fn rink_context(&self, cx: &Context<Self>) -> gpui::Div {
+        let s = self.state.read(cx);
+        let selected = s.selected.as_ref().map(|id| crate::theme::short_name(&s.play, id));
+        let heading = match selected {
+            Some(who) => format!(
+                "{} · {} · {}",
+                if s.playing { "Playing" } else { "Editing" },
+                who,
+                theme::seconds(s.playhead_ms)
+            ),
+            None => format!("{} · Select a player to edit", theme::seconds(s.playhead_ms)),
+        };
+        let mut out = div()
+            .flex()
+            .flex_col()
+            .flex_none()
+            .gap_1()
+            .px_4()
+            .py_2()
+            .bg(rgb(theme::PANEL))
+            .border_b_1()
+            .border_color(rgb(theme::BORDER))
+            .child(div().text_sm().child(heading));
+        if let Some(id) = &s.selected {
+            let hint = if s.play.entity(id).is_some_and(|e| e.is_puck()) {
+                "Drag to set a puck position here. Possession follows pass and recovery events."
+            } else {
+                "Drag: position here · Right-click: replace movement from here · Shift-right-click: extend current order"
+            };
+            out = out.child(div().text_xs().text_color(rgb(theme::TEXT_MUTED)).child(hint));
+        }
+        out
+    }
+
+    /// Persistent review transport: it never scrolls out of reach with the cards.
+    fn review_controls(&self, cx: &Context<Self>) -> Option<gpui::Div> {
+        let s = self.state.read(cx);
+        let list = s.suggestions();
+        if list.is_empty() {
+            return None;
+        }
+        let focused = list.iter().position(|sug| Some(&sug.id) == s.focused_suggestion.as_ref());
+        let label = focused.map_or_else(
+            || format!("{} suggestions", list.len()),
+            |i| format!("Suggestion {} of {}", i + 1, list.len()),
+        );
+        let mut controls = div()
+            .flex()
+            .items_center()
+            .flex_wrap()
+            .gap_2()
+            .child(div().text_sm().mr_2().child(label))
+            .child(
+                button("previous-suggestion", "← Previous", false)
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(PrevFeedback), cx)),
+            )
+            .child(
+                button("next-suggestion", "Next →", false)
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(NextFeedback), cx)),
+            )
+            .child(
+                button("replay-suggestion", "↻ Replay moment", false)
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(ReplaySuggestion), cx)),
+            );
+        if s.review_loop.is_some() {
+            controls = controls.child(
+                button("exit-review-loop", "Exit loop", true)
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(StopReviewReplay), cx)),
+            );
+        }
+        for (id, label, compare) in [("view-actual", "Actual", false), ("view-compare", "Compare", true)] {
+            let state = self.state.clone();
+            controls = controls.child(button(id, label, s.show_ghosts == compare).on_click(move |_, _, cx| {
+                state.update(cx, |s, cx| {
+                    s.show_ghosts = compare;
+                    cx.notify();
+                });
+            }));
+        }
+        let mut details = match s.review_bounds() {
+            Some((start, end)) => format!(
+                "{} {}–{} · Space to {} · ",
+                if s.playing { "Looping" } else { "Loop paused" },
+                theme::seconds(start),
+                theme::seconds(end),
+                if s.playing { "pause" } else { "resume" }
+            ),
+            None => String::new(),
+        };
+        details.push_str(if s.show_ghosts { "Actual play with suggested route overlaid" } else { "Actual play only" });
+        let stale = focused.is_some_and(|i| list[i].is_stale(&s.play));
+        if stale {
+            details.push_str(" · Play changed; ask your agent for a fresh review");
+        }
+        Some(
+            div()
+                .flex()
+                .flex_col()
+                .flex_none()
+                .gap_1p5()
+                .px_4()
+                .py_2()
+                .bg(rgb(theme::PANEL))
+                .border_b_1()
+                .border_color(rgb(theme::BORDER))
+                .child(controls)
+                .child(
+                    div().text_xs().text_color(rgb(if stale { theme::WARN } else { theme::TEXT_MUTED })).child(details),
+                ),
+        )
+    }
+
+    fn edit_notice(&self, cx: &Context<Self>) -> Option<gpui::Div> {
+        let text = self.state.read(cx).edit_notice.clone()?;
+        let state = self.state.clone();
+        Some(
+            div()
+                .flex()
+                .items_center()
+                .flex_none()
+                .gap_3()
+                .px_4()
+                .py_2()
+                .bg(rgb(theme::RAISED))
+                .border_b_1()
+                .border_color(rgb(theme::BORDER))
+                .child(div().flex_1().text_sm().child(text))
+                .child(
+                    button("undo-notice", "Undo", false)
+                        .on_click(|_, window, cx| window.dispatch_action(Box::new(Undo), cx)),
+                )
+                .child(button("dismiss-notice", "Dismiss", false).on_click(move |_, _, cx| {
+                    state.update(cx, |s, cx| {
+                        s.edit_notice = None;
+                        cx.notify();
+                    });
+                })),
+        )
     }
 
     fn undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
@@ -844,6 +1000,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::next_feedback))
             .on_action(cx.listener(Self::prev_feedback))
             .on_action(cx.listener(Self::toggle_ghosts))
+            .on_action(cx.listener(Self::replay_suggestion))
+            .on_action(cx.listener(Self::stop_review_replay))
             .on_action(cx.listener(Self::reset_zoom))
             .on_action(cx.listener(Self::undo))
             .on_action(cx.listener(Self::redo))
@@ -890,7 +1048,18 @@ impl Render for Workspace {
                     .flex_row()
                     .flex_1()
                     .min_h_0()
-                    .child(div().flex_1().h_full().child(self.canvas.clone()))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .child(self.rink_context(cx))
+                            .children(self.review_controls(cx))
+                            .children(self.edit_notice(cx))
+                            .child(div().flex_1().min_h_0().child(self.canvas.clone())),
+                    )
                     .child(self.inspector.clone()),
             )
             .child(self.timeline.clone())
@@ -923,6 +1092,112 @@ mod tests {
 
     fn play_state(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<PlayState> {
         cx.update(|_, cx| ws.read(cx).state.clone())
+    }
+
+    fn click_button(cx: &mut VisualTestContext, selector: &'static str) {
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds(selector).unwrap_or_else(|| panic!("missing button: {selector}"));
+        cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+    }
+
+    #[gpui::test]
+    fn review_buttons_and_shortcuts_control_playback_without_edits(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/breakout.rink.json");
+        let play = io::load(&path).unwrap();
+        let original = play.clone();
+        let review = rink_core::review::load_review(&path).unwrap();
+        cx.update(|_, cx| {
+            state.update(cx, |s, cx| {
+                *s = PlayState::new(play, None);
+                s.review = review;
+                cx.notify();
+            })
+        });
+        cx.simulate_resize(gpui::size(px(1280.), px(800.)));
+
+        click_button(cx, "next-suggestion");
+        let first = cx.update(|_, cx| state.read(cx).focused_suggestion.clone());
+        assert!(first.is_some());
+        click_button(cx, "replay-suggestion");
+        assert!(cx.update(|_, cx| {
+            let s = state.read(cx);
+            s.playing && s.review_loop == first
+        }));
+        // Keep every control reachable when the review bar wraps on a smaller window.
+        for width in [1024.0, 1280.0] {
+            cx.simulate_resize(gpui::size(px(width), px(800.)));
+            cx.run_until_parked();
+            for selector in [
+                "previous-suggestion",
+                "next-suggestion",
+                "replay-suggestion",
+                "exit-review-loop",
+                "view-actual",
+                "view-compare",
+            ] {
+                let bounds = cx.debug_bounds(selector).expect("review control rendered");
+                assert!(
+                    bounds.left() >= px(0.) && bounds.right() <= px(width - theme::INSPECTOR_WIDTH),
+                    "{selector} must fit beside the inspector at {width}px: {bounds:?}"
+                );
+            }
+        }
+        click_button(cx, "view-actual");
+        assert!(cx.update(|_, cx| {
+            let s = state.read(cx);
+            !s.show_ghosts && s.playing
+        }));
+        click_button(cx, "view-compare");
+        assert!(cx.update(|_, cx| state.read(cx).show_ghosts));
+
+        cx.simulate_keystrokes("space");
+        assert!(cx.update(|_, cx| {
+            let s = state.read(cx);
+            !s.playing && s.review_loop.is_some()
+        }));
+        cx.simulate_keystrokes("space");
+        assert!(cx.update(|_, cx| state.read(cx).playing));
+        click_button(cx, "exit-review-loop");
+        assert!(cx.update(|_, cx| {
+            let s = state.read(cx);
+            !s.playing && s.review_loop.is_none()
+        }));
+
+        cx.simulate_keystrokes("r");
+        assert!(cx.update(|_, cx| state.read(cx).playing));
+        cx.simulate_keystrokes("shift-r");
+        assert!(cx.update(|_, cx| state.read(cx).review_loop.is_none()));
+        click_button(cx, "next-suggestion");
+        assert_ne!(cx.update(|_, cx| state.read(cx).focused_suggestion.clone()), first);
+        click_button(cx, "previous-suggestion");
+        assert_eq!(cx.update(|_, cx| state.read(cx).focused_suggestion.clone()), first);
+        cx.update(|_, cx| {
+            let s = state.read(cx);
+            assert_eq!(s.play, original);
+            assert!(!s.dirty && !s.can_undo());
+        });
+    }
+
+    #[gpui::test]
+    fn route_replacement_notice_undoes_the_whole_order(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        let original = cx.update(|_, cx| state.read(cx).play.clone());
+        cx.update(|_, cx| {
+            state.update(cx, |s, cx| {
+                s.set_playhead(1000);
+                s.order_to(Vec2::new(10.0, 5.0), false);
+                cx.notify();
+            })
+        });
+        click_button(cx, "undo-notice");
+        cx.update(|_, cx| {
+            let s = state.read(cx);
+            assert_eq!(s.play, original);
+            assert!(s.edit_notice.is_none());
+        });
     }
 
     #[gpui::test]
