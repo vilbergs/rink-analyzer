@@ -4562,9 +4562,13 @@ name = "rink-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cocoa 0.26.0",
  "env_logger",
+ "futures",
  "gpui",
  "log",
+ "objc",
+ "raw-window-handle",
  "rink-core",
 ]
 

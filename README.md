@@ -120,6 +120,10 @@ because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` rele
 | F | Flip ends |
 | N / Shift-N | Next / previous position suggestion |
 | G | Show / hide ghosts |
+| Pinch | Zoom the rink around the pointer (macOS trackpad) |
+| Mouse wheel, Cmd/Ctrl-scroll | Zoom around the pointer |
+| Two-finger scroll | Pan while zoomed in |
+| 0 | Reset zoom |
 | Ctrl-S | Save |
 
 ## Known gaps
@@ -128,5 +132,10 @@ because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` rele
   They still need checking against the current IIHF rulebook.
 - You can't answer a suggestion in the app yet, for example by dragging the ghost and asking "why not here?".
   Ask in Claude Code instead.
+- **Undo / redo is missing.** A wrong drag, keyframe delete or Alt-click can only be fixed by hand, or by
+  reopening the last saved file. Planned for M2: Cmd/Ctrl-Z and Shift-Cmd/Ctrl-Z over every edit to the play.
 - The timeline shows one row: the selected entity's keyframes, plus the events above it. There's no event
-  editing, undo, pan/zoom, overlays or command palette yet.
+  editing, overlays or command palette yet.
+- Pinch zoom works only on macOS. GPUI 0.2 doesn't forward magnify gestures, so
+  `crates/rink-app/src/pinch.rs` adds a handler to its AppKit view. Elsewhere, zoom with the mouse wheel or
+  Ctrl-scroll.

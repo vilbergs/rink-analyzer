@@ -25,6 +25,7 @@ actions!(
         NextFeedback,
         PrevFeedback,
         ToggleGhosts,
+        ResetZoom,
         Quit
     ]
 );
@@ -46,6 +47,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("n", NextFeedback, Some(CONTEXT)),
         KeyBinding::new("shift-n", PrevFeedback, Some(CONTEXT)),
         KeyBinding::new("g", ToggleGhosts, Some(CONTEXT)),
+        KeyBinding::new("0", ResetZoom, Some(CONTEXT)),
+        KeyBinding::new("cmd-0", ResetZoom, Some(CONTEXT)),
         KeyBinding::new("ctrl-s", Save, Some(CONTEXT)),
         KeyBinding::new("cmd-s", Save, Some(CONTEXT)),
         KeyBinding::new("delete", DeleteKeyframe, Some(CONTEXT)),
@@ -67,7 +70,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(state: PlayState, cx: &mut Context<Self>) -> Self {
+    pub fn new(state: PlayState, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let state = cx.new(|_| state);
 
         // A Claude Code agent writes reviews with the `rink` CLI while the app
@@ -86,7 +89,7 @@ impl Workspace {
         });
 
         Workspace {
-            canvas: cx.new(|cx| RinkCanvas::new(state.clone(), cx)),
+            canvas: cx.new(|cx| RinkCanvas::new(state.clone(), window, cx)),
             timeline: cx.new(|cx| TimelineView::new(state.clone(), cx)),
             inspector: cx.new(|cx| InspectorView::new(state.clone(), cx)),
             state,
@@ -209,6 +212,10 @@ impl Workspace {
         self.edit(cx, |s| s.show_ghosts = !s.show_ghosts);
     }
 
+    fn reset_zoom(&mut self, _: &ResetZoom, _: &mut Window, cx: &mut Context<Self>) {
+        self.canvas.update(cx, |c, cx| c.reset_zoom(cx));
+    }
+
     fn save(&mut self, _: &Save, _: &mut Window, cx: &mut Context<Self>) {
         self.edit(cx, |s| {
             s.status = match s.save() {
@@ -242,6 +249,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::next_feedback))
             .on_action(cx.listener(Self::prev_feedback))
             .on_action(cx.listener(Self::toggle_ghosts))
+            .on_action(cx.listener(Self::reset_zoom))
             .flex()
             .flex_col()
             .size_full()

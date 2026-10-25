@@ -31,7 +31,7 @@ fn line(text: impl Into<SharedString>) -> gpui::Div {
     div().child(text.into())
 }
 
-const SHORTCUTS: [(&str, &str); 12] = [
+const SHORTCUTS: [(&str, &str); 14] = [
     ("Drag", "move (auto-keyframe)"),
     ("Shift-drag", "turn facing"),
     ("Alt-click", "give puck (pass / recovery)"),
@@ -43,6 +43,8 @@ const SHORTCUTS: [(&str, &str); 12] = [
     ("F", "flip ends"),
     ("N / Shift-N", "next / previous feedback"),
     ("G", "show / hide ghosts"),
+    ("Pinch / scroll", "zoom / pan"),
+    ("0", "reset zoom"),
     ("Ctrl-S", "save"),
 ];
 

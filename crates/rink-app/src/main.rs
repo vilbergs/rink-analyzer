@@ -6,6 +6,7 @@
 
 mod inspector;
 mod paint;
+mod pinch;
 mod rink_canvas;
 mod state;
 mod timeline;
@@ -58,7 +59,7 @@ fn main() -> Result<()> {
                     focus: true,
                     ..Default::default()
                 },
-                |_, cx| cx.new(|cx| Workspace::new(state, cx)),
+                |window, cx| cx.new(|cx| Workspace::new(state, window, cx)),
             )
             .expect("failed to open the main window");
         window
