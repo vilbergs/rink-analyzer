@@ -17,7 +17,7 @@ Plan: [Rink Replay — Hockey Play Animator (Plan)](https://claude.ai/artifact/9
 | --- | --- |
 | M0 · Spike: GPUI window, IIHF rink drawn to scale, drag a player | Done |
 | M1 · Core + playback: `rink-core` model, `sample()`, keyframes, scrub, play/pause | Done |
-| M2 · Editor: multi-row timeline, event editing, templates UI, undo, autosave | In progress: inspector, save, undo/redo, play picker with templates, retiming and deleting in the timeline are in |
+| M2 · Editor: multi-row timeline, event editing, templates UI, undo, autosave | Done: text fields, event and roster editing, all-players timeline, play picker, undo/redo, autosave with conflict handling |
 | Position feedback: facts, `rink` CLI, Claude Code skill, ghosts in the app | Done (replaces the planned MCP server for now) |
 
 ## Layout
@@ -59,7 +59,7 @@ was.
 
 ## Position feedback
 
-1. **Retrace the play.** Retrace it in the app, mark the decision points, and save it with Ctrl-S.
+1. **Retrace the play.** Retrace it in the app and mark the decision points (D). The app autosaves.
 2. **Ask Claude Code.** In this repo, ask: "review my positioning in <play>". The `review-positioning` skill:
    - reads the play through the `rink` CLI, as computed facts such as zone, strong or weak side, above or below
      the puck, gaps and open pass lanes;
@@ -104,22 +104,24 @@ rink open <play> --at 5500 --select home_LW    # show a play at a moment; reload
   every 0.75 s. If no window is running, `rink open` starts the app.
 - The window doesn't watch play files. It reloads only on `rink open`, so an agent runs it once when it's done
   editing.
-- Your unsaved edits are never dropped. Switching to another play saves them to the play you were on. Reloading
-  the same play saves them first to `<play>.your-edits-<time>.rink.json` next to it.
+- The window autosaves about a second after the last edit, and never overwrites a file that changed on disk since
+  it read it: then the edits go to `<play>.your-edits-<time>.rink.json` next to it and a banner asks which version
+  to keep.
 - The window writes what it shows to `.app-state.json` in the library folder, for `rink current`. With several
   windows open, they all follow every request; one window is the intended setup.
 
 ## Build and run
 
 ```sh
-cargo run -p rink-app --release                       # opens the breakout example
+scripts/install-mac.sh                                 # Rink Replay.app in ~/Applications, rink in ~/.local/bin
+cargo run -p rink-app --release                        # the play changed last, or a new breakout
 cargo run -p rink-app --release -- --template faceoff  # faceoff | dzone | breakout
 cargo run -p rink-app --release -- path/to/play.rink.json
-cargo test --workspace
+cargo test --workspace                                 # includes headless UI tests on GPUI's test platform
 ```
 
-Ctrl-S saves to the open file. A new play is saved to the library folder: `$RINK_REPLAY_LIBRARY` if set,
-otherwise `plays/` under the platform data directory.
+Plays live in the library folder: `$RINK_REPLAY_LIBRARY` if set, otherwise `plays/` under the platform data
+directory. `scripts/make-icon.sh` regenerates the app icon.
 
 On Linux, GPUI needs these packages (Debian/Ubuntu names): `libxkbcommon-dev libxkbcommon-x11-dev
 libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev`, plus a Vulkan
@@ -135,28 +137,16 @@ full list.
 
 | Input | Action |
 | --- | --- |
-| Cmd/Ctrl-O | Open a play from the library, or start one from a template |
-| Drag | Move; creates a keyframe at the playhead, snapped to 100 ms |
-| Shift-drag | Turn facing |
-| Alt-click | Give the puck to a player: a pass from a teammate, a turnover from an opponent, or a recovery. Alt-click again to undo |
-| Drag a timeline ◆ | Retime a keyframe or event; hover one to see what it is |
-| Click an event or feedback card | Jump there |
-| Space | Play / pause |
-| ← → | Step 100 ms |
-| Shift ← → | Jump to the previous or next keyframe of the selected entity |
-| Home / End | Jump to the start or end |
-| Delete | Remove the selected entity's keyframe at the playhead |
-| Cmd/Ctrl-Z | Undo the last edit (a whole drag is one step) |
-| Shift-Cmd/Ctrl-Z, Ctrl-Y | Redo |
-| ] | Cycle playback speed (0.25×, 0.5×, 1×, 2×) |
-| F | Flip ends |
-| N / Shift-N | Next / previous position suggestion |
-| G | Show / hide ghosts |
-| Pinch | Zoom the rink around the pointer (macOS trackpad) |
-| Mouse wheel, Cmd/Ctrl-scroll | Zoom around the pointer |
-| Two-finger scroll | Pan while zoomed in |
-| 0 | Reset zoom |
-| Ctrl-S | Save |
+| Cmd-O | Open a play from the library, or start one from a template |
+| Drag, Shift-drag | Move (a keyframe at the playhead, snapped to 100 ms), turn facing |
+| Alt-click | Give the puck: a pass from a teammate, a turnover from an opponent, or a recovery |
+| D | Decision point at the playhead; type its question |
+| Tab, Alt-arrows, Cmd-C / Cmd-V | Select the next player, nudge 0.5 m, copy / paste a position |
+| Drag a timeline ◆, A | Retime a keyframe or event; all players in the timeline |
+| Space, ← →, Shift ← →, Home / End | Play / pause, step 100 ms, previous / next keyframe, start / end |
+| N / Shift-N, G | Next / previous position suggestion, show / hide ghosts |
+| Cmd-Z, Shift-Cmd-Z | Undo, redo |
+| Pinch, wheel, two-finger scroll, 0 | Zoom, pan, fit the rink |
 
 ## Known gaps
 
@@ -164,9 +154,7 @@ full list.
   the blue lines' 22.86 m from the end boards comes from secondary sources that quote the rule.
 - You can't answer a suggestion in the app yet, for example by dragging the ghost and asking "why not here?".
   Ask in Claude Code instead.
-- The timeline shows the selected entity's keyframes, plus the events and feedback above it. Events can be
-  retimed and deleted, but new ones come only from Alt-click (pass, turnover, recovery) or from Claude. There
-  are no overlays or command palette yet, and no text editing: titles and notes are changed through Claude.
+- Team colors and the rink preset have no UI; ask Claude. There are no overlays or command palette yet.
 - Pinch zoom works only on macOS. GPUI 0.2 doesn't forward magnify gestures, so
   `crates/rink-app/src/pinch.rs` adds a handler to its AppKit view. Elsewhere, zoom with the mouse wheel or
   Ctrl-scroll.
