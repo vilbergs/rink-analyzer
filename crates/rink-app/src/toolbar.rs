@@ -1,7 +1,9 @@
 //! Top bar: the play's title and save state, the last status message, and
-//! buttons for the view toggles and Save.
+//! buttons for the view toggles and Save. On macOS it is also the title bar:
+//! the traffic lights sit at its left and dragging its empty part moves the
+//! window.
 
-use gpui::{div, prelude::*, px, rgb, Action, App, Context, Entity, FontWeight, SharedString, Window};
+use gpui::{div, prelude::*, px, rgb, Action, App, Context, Entity, FontWeight, MouseButton, SharedString, Window};
 
 use crate::state::PlayState;
 use crate::theme::{self, button, primary_button};
@@ -38,7 +40,8 @@ impl Render for ToolbarView {
             .items_center()
             .justify_between()
             .h(px(theme::TOOLBAR_HEIGHT))
-            .px_4()
+            .pl(px(if cfg!(target_os = "macos") { 84. } else { 16. }))
+            .pr_4()
             .bg(rgb(theme::PANEL))
             .border_b_1()
             .border_color(rgb(theme::BORDER))
@@ -47,7 +50,10 @@ impl Render for ToolbarView {
                     .flex()
                     .items_center()
                     .gap_3()
+                    .flex_1()
+                    .h_full()
                     .min_w_0()
+                    .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                     .child(
                         div()
                             .text_sm()

@@ -203,10 +203,11 @@ fn events(s: &PlayState) -> Div {
         let past = ev.t_ms <= s.playhead_ms;
         let dot = if ev.kind == EventKind::DecisionPoint { theme::WARN } else { theme::ACCENT };
         let actors: Vec<String> = ev.actors.iter().map(|a| short_name(play, a)).collect();
-        let mut text = div().flex().flex_col().flex_1().child(
+        let mut text = div().flex().flex_col().flex_1().min_w_0().child(
             div()
                 .flex()
-                .gap_1p5()
+                .flex_wrap()
+                .gap_x_1p5()
                 .text_sm()
                 .child(
                     div()

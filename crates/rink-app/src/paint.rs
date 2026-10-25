@@ -16,7 +16,7 @@ const BOARDS: u32 = 0x30343b;
 /// The boards' top edge, light against the dark window.
 const BOARD_EDGE: u32 = 0xc4ccd6;
 /// Soft shadows under the rink and the players.
-const RINK_SHADOW: u32 = 0x00000066;
+const RINK_SHADOW: u32 = 0x00000080;
 const PLAYER_SHADOW: u32 = 0x0000003a;
 const RED: u32 = 0xc8102e;
 const BLUE: u32 = 0x0033a0;
@@ -166,14 +166,13 @@ pub fn half_width_at(rink: &RinkSpec, x: f32) -> f32 {
 }
 
 pub fn paint_rink(window: &mut Window, t: &RinkTransform, rink: &RinkSpec) {
-    // A soft shadow: the outline grown by the board thickness, twice.
-    for grow in [1.4f32, 0.7] {
-        let mut shadow = rink.clone();
-        shadow.length_m += 2.0 * grow;
-        shadow.width_m += 2.0 * grow;
-        shadow.corner_radius_m += grow;
-        fill_translucent(window, t, &boards_outline(&shadow), RINK_SHADOW);
-    }
+    // A thin shadow just outside the boards.
+    let mut shadow = rink.clone();
+    let grow = 4.0 / t.scale();
+    shadow.length_m += 2.0 * grow;
+    shadow.width_m += 2.0 * grow;
+    shadow.corner_radius_m += grow;
+    fill_translucent(window, t, &boards_outline(&shadow), RINK_SHADOW);
     let outline = boards_outline(rink);
     fill(window, t, &outline, ICE);
 
@@ -260,11 +259,24 @@ pub fn paint_entities(window: &mut Window, cx: &mut App, t: &RinkTransform, p: E
     }
 
     let puck_r = PUCK_RADIUS_M.max(3.5 / t.scale());
-    fill(window, t, &circle(p.snapshot.puck.pos, puck_r + 1.5 / t.scale()), 0xffffff);
-    fill(window, t, &circle(p.snapshot.puck.pos, puck_r), PUCK);
+    let puck = puck_draw_pos(p.play, p.snapshot);
+    fill(window, t, &circle(puck, puck_r + 1.5 / t.scale()), 0xffffff);
+    fill(window, t, &circle(puck, puck_r), PUCK);
     if p.selected.is_some_and(|id| p.play.entity(id).is_some_and(|e| e.is_puck())) {
-        stroke(window, t, &circle(p.snapshot.puck.pos, puck_r + 0.4), true, 2.0, SELECTED_RING);
+        stroke(window, t, &circle(puck, puck_r + 0.4), true, 2.0, SELECTED_RING);
     }
+}
+
+/// Where the puck is drawn and grabbed. A carried puck sits on the rim of the
+/// carrier's disc, on the side it's sampled at (their stick side), so it
+/// doesn't cover their number.
+pub fn puck_draw_pos(play: &Play, snapshot: &Snapshot) -> Vec2 {
+    let puck = snapshot.puck.pos;
+    let Some(carrier) = snapshot.puck.carrier.as_ref().and_then(|id| snapshot.entity(id)) else { return puck };
+    let r = play.entity(&carrier.id).map(|e| entity_radius(e.kind)).unwrap_or(SKATER_RADIUS_M);
+    let offset = puck - carrier.pos;
+    let dir = if offset.length() > 0.05 { offset.normalize() } else { Vec2::from_angle(carrier.facing) };
+    carrier.pos + dir * (r + PUCK_RADIUS_M * 0.5)
 }
 
 /// Under the players: the acceptable zone around each active suggestion's

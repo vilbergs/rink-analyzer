@@ -18,7 +18,9 @@ mod workspace;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context as _, Result};
-use gpui::{prelude::*, px, size, App, Application, Bounds, Focusable, TitlebarOptions, WindowBounds, WindowOptions};
+use gpui::{
+    point, prelude::*, px, size, App, Application, Bounds, Focusable, TitlebarOptions, WindowBounds, WindowOptions,
+};
 use rink_core::templates::{build, Template};
 use rink_core::{io, RinkSpec};
 
@@ -57,7 +59,12 @@ fn main() -> Result<()> {
             .open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    titlebar: Some(TitlebarOptions { title: Some("Rink Replay".into()), ..Default::default() }),
+                    // The toolbar is the title bar; the traffic lights sit in it.
+                    titlebar: Some(TitlebarOptions {
+                        title: Some("Rink Replay".into()),
+                        appears_transparent: true,
+                        traffic_light_position: Some(point(px(14.), px(16.))),
+                    }),
                     focus: true,
                     ..Default::default()
                 },

@@ -193,7 +193,7 @@ impl Workspace {
     fn delete_keyframe(&mut self, _: &DeleteKeyframe, _: &mut Window, cx: &mut Context<Self>) {
         self.edit(cx, |s| {
             if !s.delete_keyframe() {
-                s.status = "No keyframe for the selection at the playhead.".into();
+                s.status = "No keyframe here for the selected player".into();
             }
         });
     }
@@ -223,7 +223,7 @@ impl Workspace {
     fn save(&mut self, _: &Save, _: &mut Window, cx: &mut Context<Self>) {
         self.edit(cx, |s| {
             s.status = match s.save() {
-                Ok(path) => format!("Saved {}", path.display()),
+                Ok(_) => "Saved".into(),
                 Err(e) => format!("Save failed: {e}"),
             };
         });

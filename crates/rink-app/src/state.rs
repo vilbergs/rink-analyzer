@@ -12,7 +12,8 @@ use rink_core::{
     Vec2,
 };
 
-use crate::paint::entity_radius;
+use crate::paint::{entity_radius, puck_draw_pos};
+use crate::theme::short_name;
 
 /// Playhead and keyframe times snap to this grid when editing.
 pub const SNAP_MS: u32 = 100;
@@ -98,7 +99,10 @@ impl PlayState {
             Ok(review) => {
                 let count = review.as_ref().map_or(0, |r| r.suggestions.len());
                 if review.is_some() {
-                    self.status = format!("Review loaded: {count} suggestion(s)");
+                    self.status = match count {
+                        1 => "1 position suggestion loaded".into(),
+                        n => format!("{n} position suggestions loaded"),
+                    };
                 }
                 self.review = review;
             }
@@ -170,7 +174,7 @@ impl PlayState {
     pub fn hit_test(&self, at: Vec2) -> Option<EntityId> {
         let snap = self.snapshot();
         if let Some(puck) = self.play.puck() {
-            if snap.puck.pos.distance(at) <= entity_radius(puck.kind) + HIT_SLOP_M {
+            if puck_draw_pos(&self.play, &snap).distance(at) <= entity_radius(puck.kind) + HIT_SLOP_M {
                 return Some(puck.id.clone());
             }
         }
@@ -256,9 +260,10 @@ impl PlayState {
             });
             if self.play.events.len() == before {
                 self.play.events.push(Event::new(t, EventKind::Turnover, &[id]));
-                self.status = format!("{id} loses the puck at {:.1} s", t as f32 / 1000.0);
+                self.status = format!("{} loses the puck at {:.1}s", short_name(&self.play, id), t as f32 / 1000.0);
             } else {
-                self.status = format!("Removed how {id} got the puck at {:.1} s", t as f32 / 1000.0);
+                self.status =
+                    format!("Removed how {} got the puck at {:.1}s", short_name(&self.play, id), t as f32 / 1000.0);
             }
         } else {
             let event = match carrier {
@@ -268,7 +273,8 @@ impl PlayState {
                 Some(c) => Event::new(t, EventKind::Turnover, &[&c, id]),
                 None => Event::new(t, EventKind::PuckRecovery, &[id]),
             };
-            self.status = format!("{} at {:.1} s", event.kind.label(), t as f32 / 1000.0);
+            let who: Vec<String> = event.actors.iter().map(|a| short_name(&self.play, a)).collect();
+            self.status = format!("{} {} at {:.1}s", event.kind.label(), who.join(" → "), t as f32 / 1000.0);
             self.play.events.push(event);
         }
         self.play.normalize();

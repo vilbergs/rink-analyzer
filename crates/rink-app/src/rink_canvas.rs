@@ -11,7 +11,7 @@ use gpui::{
 };
 use rink_core::{EntityId, Vec2};
 
-use crate::paint::{paint_entities, paint_ghosts, paint_rink, paint_suggestion_zones, EntityPaint};
+use crate::paint::{paint_entities, paint_ghosts, paint_rink, paint_suggestion_zones, puck_draw_pos, EntityPaint};
 use crate::pinch::{self, Pinch};
 use crate::state::PlayState;
 use crate::theme;
@@ -101,7 +101,7 @@ impl RinkCanvas {
                 } else {
                     let snap = s.snapshot();
                     let center = if s.play.entity(&id).is_some_and(|e| e.is_puck()) {
-                        snap.puck.pos
+                        puck_draw_pos(&s.play, &snap)
                     } else {
                         snap.entity(&id).map(|e| e.pos).unwrap_or(at)
                     };
