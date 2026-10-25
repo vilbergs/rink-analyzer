@@ -9,7 +9,9 @@ mod paint;
 mod pinch;
 mod rink_canvas;
 mod state;
+mod theme;
 mod timeline;
+mod toolbar;
 mod transform;
 mod workspace;
 

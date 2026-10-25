@@ -3,12 +3,14 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::{actions, div, prelude::*, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Task, Window};
+use gpui::{actions, div, prelude::*, rgb, App, Context, Entity, FocusHandle, Focusable, KeyBinding, Task, Window};
 
 use crate::inspector::InspectorView;
 use crate::rink_canvas::RinkCanvas;
 use crate::state::{snap, PlayState, SNAP_MS};
+use crate::theme;
 use crate::timeline::TimelineView;
+use crate::toolbar::ToolbarView;
 
 actions!(
     rink_replay,
@@ -62,6 +64,7 @@ pub fn bind_keys(cx: &mut App) {
 pub struct Workspace {
     state: Entity<PlayState>,
     canvas: Entity<RinkCanvas>,
+    toolbar: Entity<ToolbarView>,
     timeline: Entity<TimelineView>,
     inspector: Entity<InspectorView>,
     focus_handle: FocusHandle,
@@ -90,6 +93,7 @@ impl Workspace {
 
         Workspace {
             canvas: cx.new(|cx| RinkCanvas::new(state.clone(), window, cx)),
+            toolbar: cx.new(|cx| ToolbarView::new(state.clone(), cx)),
             timeline: cx.new(|cx| TimelineView::new(state.clone(), cx)),
             inspector: cx.new(|cx| InspectorView::new(state.clone(), cx)),
             state,
@@ -253,6 +257,9 @@ impl Render for Workspace {
             .flex()
             .flex_col()
             .size_full()
+            .bg(rgb(theme::APP_BG))
+            .text_color(rgb(theme::TEXT))
+            .child(self.toolbar.clone())
             .child(
                 div()
                     .flex()

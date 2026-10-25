@@ -14,9 +14,9 @@ use rink_core::{EntityId, Vec2};
 use crate::paint::{paint_entities, paint_ghosts, paint_rink, paint_suggestion_zones, EntityPaint};
 use crate::pinch::{self, Pinch};
 use crate::state::PlayState;
+use crate::theme;
 use crate::transform::{RinkTransform, ViewZoom};
 
-const BACKGROUND: u32 = 0x1b1e23;
 /// Zoom per line of a mouse wheel, and per pixel of Cmd/Ctrl-scroll.
 const WHEEL_ZOOM_PER_LINE: f32 = 1.15;
 const SCROLL_ZOOM_PER_PX: f32 = 1.01;
@@ -151,7 +151,7 @@ impl Render for RinkCanvas {
 
         div()
             .size_full()
-            .bg(rgb(BACKGROUND))
+            .bg(rgb(theme::APP_BG))
             .child(
                 canvas(
                     {

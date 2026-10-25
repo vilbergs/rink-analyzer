@@ -10,13 +10,19 @@ use rink_core::{EntityId, EntityKind, Play, RinkSpec, Snapshot, Suggestion, Vec2
 
 use crate::transform::RinkTransform;
 
-const ICE: u32 = 0xf4f8fb;
+const ICE: u32 = 0xf3f7fa;
+/// Goal frames.
 const BOARDS: u32 = 0x30343b;
+/// The boards' top edge, light against the dark window.
+const BOARD_EDGE: u32 = 0xc4ccd6;
+/// Soft shadows under the rink and the players.
+const RINK_SHADOW: u32 = 0x00000066;
+const PLAYER_SHADOW: u32 = 0x0000003a;
 const RED: u32 = 0xc8102e;
 const BLUE: u32 = 0x0033a0;
 const CREASE: u32 = 0x9fd3f5;
-const ME_RING: u32 = 0xffb300;
-const SELECTED_RING: u32 = 0x111111;
+const ME_RING: u32 = crate::theme::ME;
+const SELECTED_RING: u32 = crate::theme::ACCENT;
 const PUCK: u32 = 0x000000;
 /// Position feedback: zone fill (RGBA), ghost outline and arrow, label text.
 const ZONE_FILL: u32 = 0x22b35a40;
@@ -160,6 +166,14 @@ pub fn half_width_at(rink: &RinkSpec, x: f32) -> f32 {
 }
 
 pub fn paint_rink(window: &mut Window, t: &RinkTransform, rink: &RinkSpec) {
+    // A soft shadow: the outline grown by the board thickness, twice.
+    for grow in [1.4f32, 0.7] {
+        let mut shadow = rink.clone();
+        shadow.length_m += 2.0 * grow;
+        shadow.width_m += 2.0 * grow;
+        shadow.corner_radius_m += grow;
+        fill_translucent(window, t, &boards_outline(&shadow), RINK_SHADOW);
+    }
     let outline = boards_outline(rink);
     fill(window, t, &outline, ICE);
 
@@ -208,7 +222,7 @@ pub fn paint_rink(window: &mut Window, t: &RinkTransform, rink: &RinkSpec) {
         stroke(window, t, &frame, false, 2.0, BOARDS);
     }
 
-    stroke(window, t, &outline, true, 3.0, BOARDS);
+    stroke(window, t, &outline, true, 3.0, BOARD_EDGE);
 }
 
 pub struct EntityPaint<'a> {
@@ -223,17 +237,19 @@ pub fn paint_entities(window: &mut Window, cx: &mut App, t: &RinkTransform, p: E
         let r = entity_radius(entity.kind);
         let team_color = entity.team.map(|s| p.play.team(s).color_rgb()).unwrap_or(0x808080);
 
+        fill_translucent(window, t, &circle(state.pos + Vec2::new(0.12, -0.18), r * 1.05), PLAYER_SHADOW);
+        if p.selected == Some(&state.id) {
+            fill_translucent(window, t, &circle(state.pos, r + 0.9), (SELECTED_RING << 8) | 0x2e);
+            stroke(window, t, &circle(state.pos, r + 0.9), true, 2.0, SELECTED_RING);
+        }
         if entity.is_me {
             stroke(window, t, &circle(state.pos, r + 0.4), true, 3.0, ME_RING);
         }
-        if p.selected == Some(&state.id) {
-            stroke(window, t, &circle(state.pos, r + 0.75), true, 2.0, SELECTED_RING);
-        }
 
-        let tip = state.pos + Vec2::from_angle(state.facing) * (r + 0.7);
-        stroke(window, t, &[state.pos, tip], false, 3.0, team_color);
+        let tip = state.pos + Vec2::from_angle(state.facing) * (r + 0.75);
+        stroke(window, t, &[state.pos, tip], false, 3.5, team_color);
         fill(window, t, &circle(state.pos, r), team_color);
-        stroke(window, t, &circle(state.pos, r), true, 1.5, 0xffffff);
+        stroke(window, t, &circle(state.pos, r), true, 2.0, 0xffffff);
 
         let label = entity
             .number
@@ -243,7 +259,8 @@ pub fn paint_entities(window: &mut Window, cx: &mut App, t: &RinkTransform, p: E
         paint_centered_text(window, cx, t, state.pos, &label, r * 1.1);
     }
 
-    let puck_r = PUCK_RADIUS_M.max(3.0 / t.scale());
+    let puck_r = PUCK_RADIUS_M.max(3.5 / t.scale());
+    fill(window, t, &circle(p.snapshot.puck.pos, puck_r + 1.5 / t.scale()), 0xffffff);
     fill(window, t, &circle(p.snapshot.puck.pos, puck_r), PUCK);
     if p.selected.is_some_and(|id| p.play.entity(id).is_some_and(|e| e.is_puck())) {
         stroke(window, t, &circle(p.snapshot.puck.pos, puck_r + 0.4), true, 2.0, SELECTED_RING);
@@ -268,7 +285,7 @@ pub fn paint_suggestion_zones(
             None => s.id.clone(),
         };
         let below = s.target - Vec2::new(0.0, s.zone_radius_m + 0.8);
-        paint_text(window, cx, t.to_screen(below), &label, px(12.0), c.label);
+        paint_text(window, cx, t.to_screen(below), &label, px(11.0), c.label);
     }
 }
 

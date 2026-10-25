@@ -1,30 +1,32 @@
-//! The timeline strip: events on top, the selected entity's keyframes below,
-//! and a playhead you can scrub.
+//! The timeline: a transport bar (play, time, speed) over a strip with a
+//! ruler, the play's events, position feedback, and the selected entity's
+//! keyframes, plus a playhead you can scrub.
 
 use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{
-    canvas, div, point, prelude::*, px, quad, rgb, size, Bounds, Context, Entity, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, PathBuilder, Pixels, Point, Window,
+    canvas, div, point, prelude::*, px, quad, rgb, size, Bounds, Context, Entity, FontWeight, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PathBuilder, Pixels, Point, SharedString, Window,
 };
 use rink_core::{EventKind, Play};
 
 use crate::paint::paint_text;
 use crate::state::{snap, PlayState};
+use crate::theme::{self, button, seconds, short_name};
+use crate::workspace::{CycleSpeed, TogglePlay};
 
 const PAD_PX: f32 = 16.0;
-const STRIP_HEIGHT_PX: f32 = 72.0;
-const BG: u32 = 0x23272e;
-const TRACK: u32 = 0x343a43;
-const TICK: u32 = 0x5b6370;
-const LABEL: u32 = 0x9aa3b0;
+const GUTTER_PX: f32 = 96.0;
+const RULER_PX: f32 = 22.0;
+const LANE_PX: f32 = 22.0;
+const LANES: usize = 3;
+const STRIP_HEIGHT_PX: f32 = RULER_PX + LANE_PX * LANES as f32 + 8.0;
+
+const LANE_BG: u32 = 0x1a1e24;
+const TICK: u32 = 0x3a404b;
 const KEYFRAME: u32 = 0xe8ecf1;
-const POSSESSION: u32 = 0xc9d1d9;
-const PLAYHEAD: u32 = 0xff4d4d;
-const DECISION: u32 = 0xffb300;
-const EVENT: u32 = 0x5fb3ff;
-const FEEDBACK: u32 = 0x3ccf7a;
+const POSSESSION: u32 = 0x8f99a8;
 
 pub struct TimelineView {
     state: Entity<PlayState>,
@@ -93,9 +95,13 @@ impl TimelineView {
 }
 
 fn fill_rect(window: &mut Window, origin: Point<Pixels>, w: f32, h: f32, hex: u32) {
+    rounded_rect(window, origin, w, h, 0.0, hex);
+}
+
+fn rounded_rect(window: &mut Window, origin: Point<Pixels>, w: f32, h: f32, radius: f32, hex: u32) {
     window.paint_quad(quad(
         Bounds { origin, size: size(px(w), px(h)) },
-        px(0.),
+        px(radius),
         rgb(hex),
         px(0.),
         rgb(hex),
@@ -114,55 +120,66 @@ fn diamond(window: &mut Window, c: Point<Pixels>, r: f32, hex: u32) {
     }
 }
 
+fn lane_center(top: f32, lane: usize) -> f32 {
+    top + RULER_PX + LANE_PX * lane as f32 + LANE_PX / 2.0
+}
+
 fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, play: &Play, state: StripState) {
     let axis = TimeAxis::new(bounds, play.duration_ms);
     let top = f32::from(bounds.origin.y);
-    let events_y = top + 14.0;
-    let keys_y = top + 40.0;
-    let ticks_y = top + 60.0;
+    let width = f32::from(bounds.size.width);
 
-    fill_rect(window, bounds.origin, f32::from(bounds.size.width), f32::from(bounds.size.height), BG);
-    fill_rect(window, point(axis.x(0), px(keys_y - 1.0)), axis.width, 2.0, TRACK);
-
-    // One tick per second, labelled.
-    let mut s = 0;
-    while s * 1000 <= play.duration_ms {
-        let x = axis.x(s * 1000);
-        fill_rect(window, point(x, px(keys_y - 6.0)), 1.0, 12.0, TICK);
-        paint_text(window, cx, point(x, px(ticks_y)), &format!("{s}s"), px(10.0), LABEL);
-        s += 1;
+    for lane in 0..LANES {
+        let y = lane_center(top, lane) - LANE_PX / 2.0 + 2.0;
+        rounded_rect(window, point(bounds.origin.x + px(4.0), px(y)), width - 8.0, LANE_PX - 4.0, 4.0, LANE_BG);
     }
 
-    // Feedback: a bar from where the better route splits off to the moment
-    // it's about, with a dot on that moment.
-    let feedback_y = top + 27.0;
+    // Ruler: a tick every half second, labelled every second.
+    let mut t = 0;
+    while t <= play.duration_ms {
+        let x = axis.x(t);
+        let major = t % 1000 == 0;
+        let h = if major { 6.0 } else { 3.0 };
+        fill_rect(window, point(x, px(top + RULER_PX - h - 2.0)), 1.0, h, TICK);
+        if major {
+            paint_text(window, cx, point(x, px(top + 8.0)), &format!("{}s", t / 1000), px(10.0), theme::TEXT_FAINT);
+        }
+        t += 500;
+    }
+
+    // Lane 0: events.
+    for ev in &play.events {
+        let color = if ev.kind == EventKind::DecisionPoint { theme::WARN } else { theme::ACCENT };
+        diamond(window, point(axis.x(ev.t_ms), px(lane_center(top, 0))), 5.0, color);
+    }
+
+    // Lane 1: feedback, a bar from where the better route splits off to the
+    // moment it's about.
+    let y = lane_center(top, 1);
     for s in &state.suggestions {
         let x0 = axis.x(s.branch_from_ms);
         let x1 = axis.x(s.t_ms);
-        fill_rect(window, point(x0, px(feedback_y - 1.5)), f32::from(x1 - x0), 3.0, FEEDBACK);
-        diamond(window, point(x1, px(feedback_y)), 5.0, FEEDBACK);
+        rounded_rect(window, point(x0, px(y - 2.0)), f32::from(x1 - x0), 4.0, 2.0, theme::FEEDBACK);
+        diamond(window, point(x1, px(y)), 5.0, theme::FEEDBACK);
     }
 
-    for ev in &play.events {
-        let c = point(axis.x(ev.t_ms), px(events_y));
-        let color = if ev.kind == EventKind::DecisionPoint { DECISION } else { EVENT };
-        diamond(window, c, 5.0, color);
-    }
-
+    // Lane 2: the selection's keyframes, over a bar while they have the puck.
     if let Some(id) = &state.selected {
-        // A bar under the keyframes while the selected player has the puck.
+        let y = lane_center(top, 2);
         for p in rink_core::sample::possessions(play).iter().filter(|p| &p.entity == id) {
             let x0 = axis.x(p.start_ms);
             let x1 = axis.x(p.end_ms.unwrap_or(play.duration_ms));
-            fill_rect(window, point(x0, px(keys_y + 8.0)), f32::from(x1 - x0), 3.0, POSSESSION);
+            rounded_rect(window, point(x0, px(y - 2.0)), f32::from(x1 - x0), 4.0, 2.0, POSSESSION);
         }
         for k in play.track(id) {
-            diamond(window, point(axis.x(k.t_ms), px(keys_y)), 6.0, KEYFRAME);
+            diamond(window, point(axis.x(k.t_ms), px(y)), 5.0, KEYFRAME);
         }
     }
 
+    // Playhead: a line with a handle in the ruler.
     let x = axis.x(state.playhead_ms);
-    fill_rect(window, point(x - px(1.0), bounds.origin.y), 2.0, f32::from(bounds.size.height), PLAYHEAD);
+    fill_rect(window, point(x - px(1.0), px(top + 4.0)), 2.0, STRIP_HEIGHT_PX - 4.0, theme::ACCENT);
+    rounded_rect(window, point(x - px(6.0), px(top + 2.0)), 12.0, 12.0, 3.0, theme::ACCENT);
 }
 
 struct StripState {
@@ -171,8 +188,12 @@ struct StripState {
     suggestions: Vec<rink_core::Suggestion>,
 }
 
-fn fmt_s(ms: u32) -> String {
-    format!("{:.1}", ms as f32 / 1000.0)
+fn legend(label: &'static str, hex: u32) -> gpui::Div {
+    div().flex().items_center().gap_1p5().child(div().size(px(7.)).rounded_sm().bg(rgb(hex))).child(label)
+}
+
+fn lane_label(text: impl Into<SharedString>) -> gpui::Div {
+    div().h(px(LANE_PX)).flex().items_center().px_4().truncate().child(text.into())
 }
 
 impl Render for TimelineView {
@@ -184,41 +205,117 @@ impl Render for TimelineView {
             selected: s.selected.clone(),
             suggestions: s.suggestions().to_vec(),
         };
-        let header = format!(
-            "{}  {} / {} s   {}×   {}",
-            if s.playing { "▶" } else { "❚❚" },
-            fmt_s(s.playhead_ms),
-            fmt_s(s.play.duration_ms),
-            s.speed,
-            s.selected.as_ref().map(|id| format!("keyframes: {id}")).unwrap_or_else(|| "no selection".into()),
-        );
+        let selection = s.selected.as_ref().map(|id| short_name(&play, id)).unwrap_or_else(|| "Keyframes".into());
         let cell = self.bounds.clone();
+
+        let transport = div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .h(px(44.))
+            .px_4()
+            .border_b_1()
+            .border_color(rgb(theme::BORDER))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(
+                        div()
+                            .id("play")
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .size(px(30.))
+                            .rounded_full()
+                            .bg(rgb(theme::ACCENT))
+                            .text_color(rgb(0xffffff))
+                            .text_sm()
+                            .cursor_pointer()
+                            .hover(|st| st.bg(rgb(0x6a9fff)))
+                            .child(if s.playing { "❚❚" } else { "▶" })
+                            .on_click(|_, window, cx| window.dispatch_action(Box::new(TogglePlay), cx)),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_baseline()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_base()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(rgb(theme::TEXT))
+                                    .child(SharedString::from(seconds(s.playhead_ms))),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(rgb(theme::TEXT_FAINT))
+                                    .child(SharedString::from(format!("/ {}", seconds(play.duration_ms)))),
+                            ),
+                    )
+                    .child(
+                        button("speed", format!("{}×", s.speed), false)
+                            .on_click(|_, window, cx| window.dispatch_action(Box::new(CycleSpeed), cx)),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_4()
+                    .text_xs()
+                    .text_color(rgb(theme::TEXT_MUTED))
+                    .child(legend("Event", theme::ACCENT))
+                    .child(legend("Decision point", theme::WARN))
+                    .child(legend("Feedback", theme::FEEDBACK))
+                    .child(legend("Has the puck", POSSESSION)),
+            );
+
+        let labels = div()
+            .flex()
+            .flex_col()
+            .flex_none()
+            .w(px(GUTTER_PX))
+            .pt(px(RULER_PX))
+            .text_xs()
+            .text_color(rgb(theme::TEXT_MUTED))
+            .border_r_1()
+            .border_color(rgb(theme::BORDER))
+            .child(lane_label("Events"))
+            .child(lane_label("Feedback"))
+            .child(lane_label(selection));
 
         div()
             .flex()
             .flex_col()
             .w_full()
-            .bg(rgb(BG))
-            .text_color(rgb(LABEL))
-            .text_sm()
-            .child(div().px_4().py_1().child(header))
+            .bg(rgb(theme::PANEL))
+            .border_t_1()
+            .border_color(rgb(theme::BORDER))
+            .child(transport)
             .child(
-                div()
-                    .w_full()
-                    .h(px(STRIP_HEIGHT_PX))
-                    .child(
-                        canvas(
-                            move |bounds, _, _| {
-                                cell.set(Some(bounds));
-                                bounds
-                            },
-                            move |_, bounds, window, cx| paint_strip(window, cx, bounds, &play, strip),
+                div().flex().h(px(STRIP_HEIGHT_PX)).child(labels).child(
+                    div()
+                        .flex_1()
+                        .h_full()
+                        .cursor_pointer()
+                        .child(
+                            canvas(
+                                move |bounds, _, _| {
+                                    cell.set(Some(bounds));
+                                    bounds
+                                },
+                                move |_, bounds, window, cx| paint_strip(window, cx, bounds, &play, strip),
+                            )
+                            .size_full(),
                         )
-                        .size_full(),
-                    )
-                    .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
-                    .on_mouse_move(cx.listener(Self::mouse_move))
-                    .on_mouse_up(MouseButton::Left, cx.listener(Self::mouse_up)),
+                        .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
+                        .on_mouse_move(cx.listener(Self::mouse_move))
+                        .on_mouse_up(MouseButton::Left, cx.listener(Self::mouse_up)),
+                ),
             )
     }
 }
