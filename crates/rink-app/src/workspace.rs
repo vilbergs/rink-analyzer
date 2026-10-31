@@ -243,8 +243,9 @@ struct Picker {
 }
 
 impl Workspace {
-    pub fn new(mut state: PlayState, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let started = session::now_ms();
+    /// `started` is when the process started: requests made after it, such as
+    /// the `rink://` link that launched the app, are for this window.
+    pub fn new(mut state: PlayState, started: u64, window: &mut Window, cx: &mut Context<Self>) -> Self {
         if let Some(req) = session::read_request().filter(|r| {
             r.requested_at_ms + LAUNCH_REQUEST_MS >= started && state.path.as_deref() == Some(r.path.as_path())
         }) {
@@ -1085,7 +1086,7 @@ mod tests {
             crate::text_input::bind_keys(cx);
         });
         let state = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
-        let (ws, cx) = cx.add_window_view(|window, cx| Workspace::new(state, window, cx));
+        let (ws, cx) = cx.add_window_view(|window, cx| Workspace::new(state, session::now_ms(), window, cx));
         cx.update(|window, cx| window.focus(&ws.read(cx).focus_handle));
         (ws, cx)
     }

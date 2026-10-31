@@ -4,6 +4,8 @@
 //! Usage: `rink-replay [PLAY.rink.json]` or `rink-replay --template NAME`
 //! (faceoff, dzone, breakout). With no arguments it opens the most recently
 //! changed play in the library, or a new breakout play if there are none.
+//! The installed app also opens `rink://open?play=...` links (see
+//! `rink_core::session::parse_open_url`).
 
 mod activation;
 mod inspector;
@@ -26,6 +28,7 @@ use anyhow::{bail, Context as _, Result};
 use gpui::{
     point, prelude::*, px, size, App, Application, Bounds, Focusable, TitlebarOptions, WindowBounds, WindowOptions,
 };
+use rink_core::session;
 use rink_core::templates::{build, Template};
 use rink_core::{io, RinkSpec};
 
@@ -59,10 +62,26 @@ fn initial_state() -> Result<PlayState> {
     }
 }
 
+/// Hand a `rink://open` link to the window the way `rink open` does: as a
+/// request file the window's poll picks up.
+fn request_url(url: &str) {
+    let written = session::parse_open_url(url).map_err(anyhow::Error::from).and_then(|mut req| {
+        req.path = std::fs::canonicalize(&req.path).unwrap_or(req.path);
+        Ok(session::write_request(&req)?)
+    });
+    if let Err(e) = written {
+        log::warn!("ignoring {url}: {e}");
+    }
+}
+
 fn main() -> Result<()> {
+    let started = session::now_ms();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let state = initial_state()?;
-    Application::new().run(move |cx: &mut App| {
+    let app = Application::new();
+    // A link that launches the app can arrive before the window exists.
+    app.on_open_urls(|urls| urls.iter().for_each(|url| request_url(url)));
+    app.run(move |cx: &mut App| {
         workspace::bind_keys(cx);
         text_input::bind_keys(cx);
         cx.set_menus(workspace::menus());
@@ -80,7 +99,7 @@ fn main() -> Result<()> {
                     focus: true,
                     ..Default::default()
                 },
-                |window, cx| cx.new(|cx| Workspace::new(state, window, cx)),
+                |window, cx| cx.new(|cx| Workspace::new(state, started, window, cx)),
             )
             .expect("failed to open the main window");
         window
@@ -89,7 +108,7 @@ fn main() -> Result<()> {
             })
             .ok();
         cx.on_window_closed(|cx| {
-            rink_core::session::clear_state(std::process::id());
+            session::clear_state(std::process::id());
             cx.quit()
         })
         .detach();

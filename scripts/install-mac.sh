@@ -41,13 +41,20 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>net.vilbergs.rink-replay.open</string>
+      <key>CFBundleURLSchemes</key><array><string>rink</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>
 PLIST
 # Ad-hoc signature: enough to run on this Mac.
 codesign --force --deep --sign - "$APP" >/dev/null 2>&1
 ln -sf "$APP/Contents/MacOS/rink" "$BIN_DIR/rink"
-# Tell Finder and the Dock about the new icon.
+# Tell Finder and the Dock about the new icon, and macOS about rink:// links.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" >/dev/null 2>&1 || true
 
 echo "Installed $APP"

@@ -99,8 +99,15 @@ rink current                                   # what the window shows: play, pl
 rink open <play> --at 5500 --select home_LW    # show a play at a moment; reloads it if it's already open
 ```
 
+A link in a note does the same: `rink://open?play=<name>&at=<ms>&select=<entity id>`, where `<name>` is a library
+play's file name without `.rink.json` (or a percent-encoded absolute path), and `at` and `select` are optional.
+For example `rink://open?play=01-dzone-strong-side-wall&at=2500&select=home_LW`.
+
 - `rink open` writes a request to `.open-request.json` in the library folder. The window checks for new requests
   every 0.75 s. If no window is running, `rink open` starts the app.
+- A `rink://` link reaches the app as a macOS open-URL event, starting it if needed, and the app writes the same
+  request. `scripts/install-mac.sh` registers the scheme for the installed `Rink Replay.app`; a binary started with
+  `cargo run` doesn't receive links.
 - The window doesn't watch play files. It reloads only on `rink open`, so an agent runs it once when it's done
   editing.
 - The window autosaves about a second after the last edit, and never overwrites a file that changed on disk since

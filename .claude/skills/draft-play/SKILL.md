@@ -55,8 +55,12 @@ command prints JSON.
 5. **Show it in the app.** Run `rink open <play> --at <decision point ms> --select <me's id>`.
    The open window switches to the play, or the app starts if no window is running. Do this once,
    when the file is finished and `rink check` passes, not after every edit.
+   For the user's notes, the same moment as a link is
+   `rink://open?play=<file name without .rink.json>&at=<ms>&select=<me's id>` for a play in the library
+   folder. Elsewhere, `play` is the absolute path, percent-encoded (`%2F` for `/`, `%20` for a space).
 6. **Reply to the user.**
    - Give the path, a one-line summary of each beat, and your assumptions.
+   - Offer the `rink://` link from step 5 for their notes, as a Markdown link named after the moment.
    - Say it's in the app window, and ask them to fix positions by dragging, especially `me` and
      the key opponent around the decision point. The app autosaves their edits.
    - If they also asked a positioning question ("where should I have been?"), offer to run the

@@ -45,6 +45,10 @@ This builds **Rink Replay.app** into `~/Applications` and links `rink` into `~/.
 your PATH. Open the app from the Dock, Spotlight or Launchpad, or with `rink open <play>`. With no play
 given, it opens the play you changed last.
 
+The install also registers `rink://` links with macOS, so a link in an Obsidian note opens a play in the
+app (see [Working with Claude Code](#working-with-claude-code)). Only the installed app receives links; a
+copy started with `cargo run` doesn't.
+
 After pulling new code, quit the app (Cmd-Q) and run the script again. A running window keeps the old
 code.
 
@@ -299,6 +303,13 @@ Things that make this faster:
 - **Claude shows its result for you.** After editing, it runs
   `rink open <play> --at <ms> --select <id>`. The window switches to (or reloads) that play, at that
   moment, with that player selected. It does this once, when it's done.
+- **Links in your notes.** A link like
+  `[the strong-side wall at 2.5 s](rink://open?play=01-dzone-strong-side-wall&at=2500&select=home_LW)`
+  in an Obsidian note opens that play in your window, at that moment, with that player selected. The
+  window starts if it isn't running. `play` is the play's file name without `.rink.json`; `at` (ms) and
+  `select` (a player id) are optional. A play outside the library folder takes its absolute path,
+  percent-encoded (`%2F` for `/`, `%20` for a space). Ask Claude for the link when it drafts or shows a
+  play.
 - **Ask "why", or argue.** For example: "why not stay on the wall?" or "I couldn't get there, their F2
   was in the lane". Claude can check a spot without saving anything (`rink compare`), then update or
   drop a suggestion.
@@ -386,4 +397,7 @@ All of these are plain JSON or Markdown, so you can diff them, back them up, or 
 - **A shortcut doesn't work.** A text field probably has the focus; press Esc or click the rink.
 - **New features are missing.** The app is running an old build. Quit it with Cmd-Q, run
   `scripts/install-mac.sh` again, and reopen it.
+- **A `rink://` link does nothing.** macOS doesn't know the scheme yet. Run `scripts/install-mac.sh`
+  again, or register the app by hand with
+  `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f ~/Applications/Rink\ Replay.app`.
 - **`rink: command not found`.** Run `scripts/install-mac.sh`; it links `rink` into `~/.local/bin`.
