@@ -4,8 +4,10 @@
 //! - the selection: exact state at the playhead, number, "this is me", and
 //!   taking a player off or putting them on the ice;
 //! - position feedback;
-//! - events: click one to jump there and edit it (kind, players, note), or
-//!   add one at the playhead;
+//! - events: click one to jump there and edit it (kind, players, note, and a
+//!   decision point's answer), or add one at the playhead;
+//! - captions: click one to jump there and edit its text, or add one at the
+//!   playhead;
 //! - validation warnings.
 
 use gpui::{div, prelude::*, px, rgb, Context, Div, Entity, FocusHandle, Focusable, FontWeight, SharedString, Window};
@@ -26,6 +28,8 @@ pub struct InspectorView {
     away: Entity<TextInput>,
     number: Entity<TextInput>,
     event_note: Entity<TextInput>,
+    event_answer: Entity<TextInput>,
+    caption_text: Entity<TextInput>,
 }
 
 /// A text field whose changes go straight into the play through `apply`.
@@ -104,12 +108,43 @@ impl InspectorView {
                 window,
                 cx,
             ),
+            event_answer: field(
+                "Answer: what you should do here, and why",
+                true,
+                "answer edit",
+                |s, t| {
+                    if let Some(i) = s.selected_event {
+                        s.set_event_answer(i, t)
+                    }
+                },
+                f,
+                window,
+                cx,
+            ),
+            caption_text: field(
+                "What's going on from here",
+                true,
+                "caption edit",
+                |s, t| {
+                    if let Some(i) = s.selected_caption {
+                        s.set_caption_text(i, t)
+                    }
+                },
+                f,
+                window,
+                cx,
+            ),
         }
     }
 
     /// Start typing the selected event's note (after adding a decision point).
     pub fn focus_event_note(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         window.focus(&self.event_note.focus_handle(cx));
+    }
+
+    /// Start typing the selected caption's text (after adding one).
+    pub fn focus_caption(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.caption_text.focus_handle(cx));
     }
 
     /// Show the play's current values in fields the user isn't typing in.
@@ -126,7 +161,11 @@ impl InspectorView {
             .and_then(|e| e.number)
             .map(|n| n.to_string())
             .unwrap_or_default();
-        let note = s.selected_event.and_then(|i| s.play.events.get(i)).map(|e| e.note.clone()).unwrap_or_default();
+        let event = s.selected_event.and_then(|i| s.play.events.get(i));
+        let note = event.map(|e| e.note.clone()).unwrap_or_default();
+        let answer = event.and_then(|e| e.answer.clone()).unwrap_or_default();
+        let caption =
+            s.selected_caption.and_then(|i| s.play.captions.get(i)).map(|c| c.text.clone()).unwrap_or_default();
         for (input, text) in [
             (&self.title, title),
             (&self.notes, notes),
@@ -134,6 +173,8 @@ impl InspectorView {
             (&self.away, away),
             (&self.number, number),
             (&self.event_note, note),
+            (&self.event_answer, answer),
+            (&self.caption_text, caption),
         ] {
             input.update(cx, |i, _| i.sync(&text, window));
         }
@@ -635,6 +676,16 @@ fn events(this: &InspectorView, s: &PlayState, cx: &Context<InspectorView>) -> D
                     .child(SharedString::from(ev.note.clone())),
             );
         }
+        if let Some(answer) = ev.answer.as_ref().filter(|_| s.is_revealed(i)) {
+            item = item.child(
+                div()
+                    .w_full()
+                    .pl(px(52.))
+                    .text_xs()
+                    .text_color(rgb(theme::TEXT_MUTED))
+                    .child(SharedString::from(format!("Answer: {answer}"))),
+            );
+        }
         out = out.child(item);
     }
     out
@@ -685,7 +736,138 @@ fn event_editor(this: &InspectorView, s: &PlayState, i: usize) -> Div {
     if !order.is_empty() {
         out = out.child(muted(order));
     }
-    out.child(this.event_note.clone()).child(muted("Drag its ◆ in the timeline to change when it happens."))
+    out = out.child(this.event_note.clone());
+    if ev.kind == EventKind::DecisionPoint {
+        out = out.child(answer(this, s, i));
+    }
+    out.child(muted("Drag its ◆ in the timeline to change when it happens."))
+}
+
+/// A decision point's answer, behind Reveal so the question gets answered
+/// first. With no answer yet there's nothing to hide.
+fn answer(this: &InspectorView, s: &PlayState, i: usize) -> Div {
+    let revealed = s.is_revealed(i);
+    let has_answer = s.play.events[i].answer.is_some();
+    let toggle = chip("reveal-answer", if revealed { "Hide" } else { "Reveal  A" }, revealed)
+        .debug_selector(|| "reveal-answer".into())
+        .on_click(on_state(&this.state, move |s| s.toggle_answer(i)));
+    let head = div().flex().items_center().justify_between().child(theme::section_label("Answer"));
+    if !has_answer {
+        return div().flex().flex_col().gap_1().child(head).child(this.event_answer.clone());
+    }
+    let out = div().flex().flex_col().gap_1().child(head.child(toggle));
+    if revealed {
+        out.child(this.event_answer.clone())
+    } else {
+        out.child(muted("Answer the question yourself first."))
+    }
+}
+
+fn captions(this: &InspectorView, s: &PlayState, cx: &Context<InspectorView>) -> Div {
+    let play: &Play = &s.play;
+    let add = div()
+        .id("add-caption")
+        .debug_selector(|| "add-caption".into())
+        .text_xs()
+        .text_color(rgb(theme::ACCENT))
+        .cursor_pointer()
+        .child("+ Add")
+        .on_click(cx.listener(|this, _, window, cx| {
+            this.state.update(cx, |s, cx| {
+                s.playing = false;
+                s.add_caption();
+                cx.notify();
+            });
+            this.focus_caption(window, cx);
+        }));
+    let mut out = div()
+        .flex()
+        .flex_col()
+        .gap_2()
+        .px_4()
+        .py_3()
+        .border_b_1()
+        .border_color(rgb(theme::BORDER))
+        .child(div().flex().justify_between().child(theme::section_label("Captions")).child(add));
+    if play.captions.is_empty() {
+        return out.child(muted("No captions yet. Add one to explain what's going on from the playhead."));
+    }
+    let showing = play.caption_at(s.playhead_ms).map(|c| c.t_ms);
+    for (i, c) in play.captions.iter().enumerate() {
+        let here = showing == Some(c.t_ms);
+        let delete = div()
+            .id(("delete-caption", i))
+            .flex_none()
+            .px_1()
+            .rounded_sm()
+            .text_xs()
+            .text_color(rgb(theme::TEXT_FAINT))
+            .cursor_pointer()
+            .hover(|st| st.text_color(rgb(theme::DANGER)).bg(rgb(theme::RAISED)))
+            .child("✕")
+            .on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.state.update(cx, |s, cx| {
+                    s.delete_caption(i);
+                    cx.notify();
+                })
+            }));
+        let open = s.selected_caption == Some(i);
+        let text = if c.text.trim().is_empty() { "(empty)".to_string() } else { c.text.clone() };
+        let item = div()
+            .id(("caption", i))
+            .flex()
+            .items_start()
+            .gap_2()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .text_sm()
+            .cursor_pointer()
+            .when(here, |d| d.bg(rgb(theme::RAISED)))
+            .hover(|st| st.bg(rgb(theme::HOVER)))
+            .when(open, |d| d.bg(rgb(theme::RAISED)).border_1().border_color(rgb(theme::BORDER_STRONG)))
+            .on_click(on_state(&this.state, move |s| {
+                if s.selected_caption == Some(i) {
+                    s.selected_caption = None;
+                } else {
+                    s.jump_to_caption(i);
+                }
+            }))
+            .child(
+                div()
+                    .flex_none()
+                    .w(px(30.))
+                    .text_xs()
+                    .text_color(rgb(theme::TEXT_FAINT))
+                    .child(SharedString::from(seconds(c.t_ms))),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .when(!open, |d| d.truncate())
+                    .text_color(rgb(if here { theme::TEXT } else { theme::TEXT_MUTED }))
+                    .child(SharedString::from(text)),
+            )
+            .child(delete);
+        out = out.child(item);
+        if open {
+            out = out.child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .ml_2()
+                    .pl_3()
+                    .border_l_2()
+                    .border_color(rgb(theme::BORDER_STRONG))
+                    .child(this.caption_text.clone())
+                    .child(muted("It shows under the rink until the next caption.")),
+            );
+        }
+    }
+    out
 }
 
 fn warnings(s: &PlayState) -> Option<Div> {
@@ -740,7 +922,7 @@ impl Render for InspectorView {
         if let Some(f) = feedback(s, cx) {
             panel = panel.child(f);
         }
-        panel = panel.child(events(self, s, cx));
+        panel = panel.child(events(self, s, cx)).child(captions(self, s, cx));
         if let Some(w) = warnings(s) {
             panel = panel.child(w);
         }

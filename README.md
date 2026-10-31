@@ -51,6 +51,9 @@ was.
   A loose puck moves in a straight line from its release point to the next pickup, through any puck keyframes on
   the way. In the app, Alt-click a player to give them the puck: it adds a pass from a teammate, a turnover from
   an opponent, or a recovery of a loose puck.
+- A play can carry a transcript: `captions`, each a `t_ms` and a text that shows under the rink until the next
+  one. A decision point can carry an `answer` that stays hidden until you press A. `rink transcript <play> --md`
+  prints both as a Markdown table, so lesson notes embed the play's own text instead of a copy.
 - Each play is saved as one `.rink.json` file with a `schema_version`. Older files are upgraded when loaded, and
   `rink upgrade <play>` rewrites one in the current format. Snapshots are always derived and never saved.
 - Each suggestion records a fingerprint of the play's motion. If you edit the play afterwards, the app greys out
@@ -150,7 +153,8 @@ full list.
 | Alt-click | Give the puck: a pass from a teammate, a turnover from an opponent, or a recovery |
 | D | Decision point at the playhead; type its question |
 | Tab, Alt-arrows, Cmd-C / Cmd-V | Select the next player, nudge 0.5 m, copy / paste a position |
-| Drag a timeline ◆, A | Retime a keyframe or event; all players in the timeline |
+| Drag a timeline ◆, L | Retime a keyframe or event; all players in the timeline |
+| A | Reveal / hide the answer at a decision point |
 | Space, ← →, Shift ← →, Home / End | Play / pause, step 100 ms, previous / next keyframe, start / end |
 | N / Shift-N, G | Next / previous position suggestion, show / hide ghosts |
 | R / Shift-R | Loop the selected suggestion / exit the loop (Space pauses and resumes) |

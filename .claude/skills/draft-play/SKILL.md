@@ -38,6 +38,8 @@ command prints JSON.
    - title and notes;
    - `is_me` on the user's role;
    - keyframes, events and a `decision_point` with the user's question as its note;
+   - an `answer` on each decision point: what to do there and why, in a sentence or two;
+   - `captions`, one per beat: what's going on, where `me` is and why, in hockey language;
    - `duration_ms`.
 
    Keyframe only the players who matter, at each beat (every 1–2 s). Everyone else gets one
@@ -147,11 +149,21 @@ command prints JSON.
     { "t_ms": 0, "kind": "puck_recovery", "actors": ["home_LD"], "note": "" },
     { "t_ms": 1500, "kind": "pass", "actors": ["home_LD", "home_LW"], "arrive_ms": 2000, "note": "" },
     { "t_ms": 3000, "kind": "decision_point", "actors": ["home_LW"],
-      "note": "Chip it past the pinching D or carry it out?" }
+      "note": "Chip it past the pinching D or carry it out?",
+      "answer": "Chip it. Their RD is already pinching, so the wall behind him is empty." }
+  ],
+  "captions": [ // sorted by t_ms; each shows until the next one
+    { "t_ms": 0, "text": "Our LD wins it behind the net. I'm on the wall at the hash marks, facing him." },
+    { "t_ms": 1500, "text": "He goes up my wall. Their RD sees it and pinches." }
   ],
   "notes": "What happened, in the user's words."
 }
 ```
+
+Captions are the transcript the user studies from, so write them as the play's story, not as a list of
+coordinates. Start one at 0 and one at each beat, and check them with `rink transcript <play> --md`. An
+`answer` belongs only on a `decision_point`; `rink check` warns about one anywhere else. The CLI writes
+both too: `rink caption <play> --t MS --text "..."` and `rink answer <play> --t MS --text "..."`.
 
 Plays the user built in the app may also have `"orders"` (entity id → `{ "t_ms", "to": [[x, y], ...],
 "pace", "backward" }`) and keyframes with `"vel": [vx, vy]` (m/s). The app made those keyframes by

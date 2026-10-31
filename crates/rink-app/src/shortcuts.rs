@@ -46,6 +46,7 @@ const RIGHT: [Group; 4] = [
             ("Shift-← →", "Previous / next keyframe"),
             ("Home  End", "Start / end"),
             ("]", "Playback speed"),
+            ("A", "Reveal the answer at a decision point"),
         ],
     ),
     (
@@ -64,7 +65,7 @@ const RIGHT: [Group; 4] = [
             ("Two-finger scroll", "Pan"),
             ("0", "Fit the rink"),
             ("F", "Flip ends"),
-            ("A", "All players in the timeline"),
+            ("L", "All players in the timeline"),
         ],
     ),
 ];

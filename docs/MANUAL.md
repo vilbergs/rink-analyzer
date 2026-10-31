@@ -64,8 +64,9 @@ repo.
 │        (drag players, Alt-click for the puck)       │ Off the ice               │
 │                                                     │ Position feedback         │
 │                                                     │ Events          + Add     │
+│ Caption at the playhead                             │ Captions        + Add     │
 ├─ ▶ 2.2s / 3.6s  1×  All players ────── legend · ? Shortcuts ────────────────────┤
-│ Events    ◆        ◆   (blue: events, orange: decision points)                  │
+│ Events    ◆  |     ◆   (blue: events, orange: decision points, purple: captions)│
 │ Feedback  ━━━━━━━━━◆   (green: where the better route splits off → the moment)  │
 │ #17 LW    ◆   ▬▬▬▬ ◆   (keyframes; grey bar: has the puck)                       │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -86,6 +87,7 @@ repo.
   The strip above it keeps the selected player and current time visible. Dragging edits their position
   at that time; right-clicking replaces their movement from that time onward. When an order replaces
   future movement, a notice explains the scope and offers **Undo**.
+  The strip under it shows the play's caption at the playhead, when the play has captions.
 - **Inspector** (the right-hand panel):
   - **Play:** the notes. Click Edit for the title, notes, team names and length.
   - **Selection:** the selected player's exact position (meters from center ice), speed, facing and
@@ -95,9 +97,11 @@ repo.
   - **Position feedback:** one card per suggestion. Click a card to jump to its moment.
   - **Events:** passes, recoveries, decision points and so on. Click one to jump there and open it for
     editing. *+ Add* adds one at the playhead.
+  - **Captions:** the play's transcript. Click one to jump there and edit it. *+ Add* adds one at the
+    playhead.
   - **Warnings:** problems `rink check` would also report, for example a pass with no receiver.
 - **Timeline.** A transport bar (play, time, speed, *All players*) over the lanes. Click or drag in empty
-  space to scrub. Hover a marker to see what it is. Drag a ◆ to retime it. *All players* (or A) gives
+  space to scrub. Hover a marker to see what it is. Drag a ◆ to retime it. *All players* (or L) gives
   every player on the ice a lane; click a lane's name to select that player.
 
 Text fields work like any Mac text field. Changes apply as you type, and one visit to a field is one undo
@@ -160,7 +164,7 @@ Faster by keyboard:
 - **Cmd-C / Cmd-V** copy where the selected player is at the playhead, and paste that spot onto the
   selected player. Use it to hold someone in place ("he stood there until 3 s") or to line two players
   up.
-- **All players** (A) in the timeline shows everyone's keyframes, so you can see who moves when.
+- **All players** (L) in the timeline shows everyone's keyframes, so you can see who moves when.
 
 Fixing things:
 
@@ -223,6 +227,21 @@ see the [README](../README.md#model-in-brief) for the rules.
   Click the event again to close it.
 - **Decision points** are your questions to the reviewer ("was I too deep when their D pinched?"). They
   show in orange on the timeline, and a review judges your positioning at each of them.
+- **Answers.** A decision point can carry an answer: what you should do there, and why. It stays hidden
+  so you answer the question yourself first. Press A at the decision point, or click *Reveal* in its
+  card, to show it; press A again to hide it. To write one, open the decision point and type in
+  *Answer*. A play drafted for study comes with its answers.
+
+### Captions
+
+Captions are the play's transcript: what's going on, beat by beat. Each one starts at a moment and shows
+in the strip under the rink until the next one. Purple marks in the Events lane show where they start.
+
+- **Add one:** move the playhead to the moment and click *+ Add* in Captions, then type. At a moment that
+  already has one, *+ Add* opens it.
+- **Edit one:** click it to jump there and open it. Click its ✕ to delete it.
+- From the command line, `rink transcript <play> --md` prints the captions, with the decision points and
+  their answers, as a Markdown table to paste into notes.
 
 ## The play, the roster and who you are
 
@@ -246,6 +265,8 @@ see the [README](../README.md#model-in-brief) for the rules.
 | Start / end | Home / End (or Cmd-← / Cmd-→) |
 | Jump to an event | Click it in the inspector, or click its ◆ in the timeline |
 | Jump to a suggestion | N / Shift-N, or click its card or its ◆ |
+| Jump to a caption | Click it in the inspector, or click its mark in the timeline |
+| Reveal or hide the answer at a decision point | A |
 | Playback speed | ] cycles 0.25×, 0.5×, 1×, 2× |
 | Zoom | Pinch, mouse wheel, or Cmd-scroll, around the pointer |
 | Pan while zoomed | Two-finger scroll |
@@ -325,7 +346,7 @@ would take many edits by hand.
 | --- | --- |
 | Moving and turning players, timing of keyframes | Drafting a play from a description |
 | Who has the puck, and any other event | Reviews, "why" questions, the ideal version |
-| Decision points and their questions | Moving many players at once, replaying a variant |
+| Decision points, their questions and answers; captions | Moving many players at once, replaying a variant |
 | Title, notes, team names, numbers, length | Team colors, a different rink (NHL) |
 | Who you are; players on and off the ice | Comparing two plays side by side |
 | Opening plays, starting from a template | Deleting plays or edits copies from the library |
@@ -352,7 +373,8 @@ would take many edits by hand.
 | Drag a timeline ◆ | Retime a keyframe or event |
 | Hover a timeline ◆ | See what it is |
 | Click a lane name | Select that player |
-| A | All players in the timeline |
+| L | All players in the timeline |
+| A | Reveal / hide the answer at a decision point |
 | Space | Play / pause |
 | ← → | Step 100 ms |
 | Shift-← Shift-→ | Previous / next keyframe of the selected player |
@@ -379,7 +401,7 @@ The library folder holds your plays. It's `$RINK_REPLAY_LIBRARY` if set, otherwi
 
 | File | What it is |
 | --- | --- |
-| `<name>.rink.json` | A play: players, keyframes, events, notes |
+| `<name>.rink.json` | A play: players, keyframes, events, captions, notes |
 | `<name>.review.json` | Position suggestions for that play |
 | `<name>.your-edits-<time>.rink.json` | Your edits, kept aside when the file changed under you |
 | `.app-state.json`, `.open-request.json` | How Claude and the window talk; leave them alone |

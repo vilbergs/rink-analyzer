@@ -115,6 +115,19 @@ mod tests {
     }
 
     #[test]
+    fn captions_and_answers_are_written_only_when_present() {
+        let mut play = build(Template::Breakout, RinkSpec::iihf());
+        let plain = to_json(&play);
+        assert!(!plain.contains("\"captions\"") && !plain.contains("\"answer\""));
+
+        play.set_caption(0, "Their C has it.");
+        let dp = play.events.iter_mut().find(|e| e.kind == crate::model::EventKind::DecisionPoint).unwrap();
+        dp.answer = Some("Chip it out.".into());
+        let back = from_json(&to_json(&play)).unwrap();
+        assert_eq!(play, back);
+    }
+
+    #[test]
     fn file_name_is_slugged() {
         let mut play = Play::new("D-zone breakout: 2nd period!", RinkSpec::iihf());
         play.id = uuid::Uuid::nil();

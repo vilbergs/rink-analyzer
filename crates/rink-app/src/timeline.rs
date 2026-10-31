@@ -1,5 +1,5 @@
 //! The timeline: a transport bar (play, time, speed) over a strip with a
-//! ruler, the play's events, position feedback, and keyframe lanes (the
+//! ruler, the play's events and captions, position feedback, and keyframe lanes (the
 //! selected player's, or everyone's), plus a playhead you can scrub.
 //! Hovering a marker names it; dragging a keyframe or event marker retimes
 //! it; clicking a lane's name selects that player.
@@ -31,6 +31,10 @@ const TICK: u32 = 0x3a404b;
 const KEYFRAME: u32 = 0xe8ecf1;
 const BAKED_KEYFRAME: u32 = 0x8f99a8;
 const POSSESSION: u32 = 0x8f99a8;
+/// Caption marks: thin bars behind the event ◆, so the two never read alike.
+const CAPTION: u32 = 0xb48cff;
+/// Hover labels cut a caption's text off here.
+const CAPTION_LABEL_CHARS: usize = 60;
 /// How close (in px) the pointer must be to a marker to hover or grab it.
 const MARKER_HIT_PX: f32 = 7.0;
 
@@ -112,6 +116,7 @@ enum Drag {
 #[derive(Clone, PartialEq)]
 enum Target {
     Event(usize),
+    Caption(usize),
     Suggestion(String),
     Keyframe(EntityId, u32),
 }
@@ -138,6 +143,14 @@ fn markers(play: &Play, lanes: &Lanes, suggestions: &[Suggestion]) -> Vec<Marker
             Marker { lane: 0, t_ms: ev.t_ms, label, target: Target::Event(i) }
         })
         .collect();
+    // After the events, so an event at the same moment wins the hover.
+    out.extend(play.captions.iter().enumerate().map(|(i, c)| {
+        let mut text: String = c.text.chars().take(CAPTION_LABEL_CHARS).collect();
+        if c.text.chars().count() > CAPTION_LABEL_CHARS {
+            text = format!("{}…", text.trim_end());
+        }
+        Marker { lane: 0, t_ms: c.t_ms, label: format!("{} · {text}", seconds(c.t_ms)), target: Target::Caption(i) }
+    }));
     out.extend(suggestions.iter().map(|s| Marker {
         lane: 1,
         t_ms: s.t_ms,
@@ -257,6 +270,13 @@ impl TimelineView {
             Some(Target::Suggestion(id)) => {
                 self.state.update(cx, |s, cx| {
                     s.focus_suggestion(&id);
+                    cx.notify();
+                });
+                return;
+            }
+            Some(Target::Caption(index)) => {
+                self.state.update(cx, |s, cx| {
+                    s.jump_to_caption(index);
                     cx.notify();
                 });
                 return;
@@ -395,7 +415,11 @@ fn paint_strip(window: &mut Window, cx: &mut gpui::App, bounds: Bounds<Pixels>, 
         t += 500;
     }
 
-    // Lane 0: events.
+    // Lane 0: captions as thin bars, then events over them.
+    let center = lanes.center(top, 0);
+    for c in &play.captions {
+        rounded_rect(window, point(axis.x(c.t_ms) - px(1.5), px(center - 7.0)), 3.0, 14.0, 1.5, CAPTION);
+    }
     for ev in &play.events {
         let color = if ev.kind == EventKind::DecisionPoint { theme::WARN } else { theme::ACCENT };
         diamond(window, point(axis.x(ev.t_ms), px(lanes.center(top, 0))), 5.0, color);
@@ -472,6 +496,7 @@ impl Render for TimelineView {
             None => hovered.as_ref().map(|(target, label)| {
                 let t = match target {
                     Target::Event(i) => play.events.get(*i).map_or(0, |e| e.t_ms),
+                    Target::Caption(i) => play.captions.get(*i).map_or(0, |c| c.t_ms),
                     Target::Suggestion(id) => s.suggestions().iter().find(|x| &x.id == id).map_or(0, |x| x.t_ms),
                     Target::Keyframe(_, t) => *t,
                 };
@@ -557,6 +582,7 @@ impl Render for TimelineView {
                     .text_color(rgb(theme::TEXT_MUTED))
                     .child(legend("Event", theme::ACCENT))
                     .child(legend("Decision point", theme::WARN))
+                    .child(legend("Caption", CAPTION))
                     .child(legend("Feedback", theme::FEEDBACK))
                     .child(legend("Has the puck", POSSESSION))
                     .child(
