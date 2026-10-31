@@ -280,7 +280,7 @@ still drawn, but they were judged on the old motion. Ask for a fresh review.
 
 ## Working with Claude Code
 
-Open Claude Code in this repo. Three skills do the hockey work:
+Open Claude Code in this repo. Two skills do the hockey work:
 
 | You want | Say something like | What happens |
 | --- | --- | --- |
@@ -288,7 +288,6 @@ Open Claude Code in this repo. Three skills do the hockey work:
 | A bigger change to a play | "move their whole D-zone setup 2 m toward the slot", "replay it with our D pinching" | Claude edits the file and reloads the window |
 | A review | "review my positioning in this play" | `review-positioning` writes suggestions; ghosts appear |
 | The ideal version | "show me the ideal version of this play" | a new `-ideal` play that you can compare with yours in the picker |
-| Your team's way of playing | "set up my team's system" | `team-system` interviews you and writes `system.md`, which reviews then follow |
 
 Things that make this faster:
 
@@ -317,7 +316,7 @@ would take many edits by hand.
 | Who has the puck, and any other event | Reviews, "why" questions, the ideal version |
 | Decision points and their questions | Moving many players at once, replaying a variant |
 | Title, notes, team names, numbers, length | Team colors, a different rink (NHL) |
-| Who you are; players on and off the ice | Your team's system |
+| Who you are; players on and off the ice | Comparing two plays side by side |
 | Opening plays, starting from a template | Deleting plays or edits copies from the library |
 
 ## Keyboard and mouse reference
@@ -372,7 +371,6 @@ The library folder holds your plays. It's `$RINK_REPLAY_LIBRARY` if set, otherwi
 | `<name>.rink.json` | A play: players, keyframes, events, notes |
 | `<name>.review.json` | Position suggestions for that play |
 | `<name>.your-edits-<time>.rink.json` | Your edits, kept aside when the file changed under you |
-| `system.md` | Your team's system, read by reviews |
 | `.app-state.json`, `.open-request.json` | How Claude and the window talk; leave them alone |
 
 All of these are plain JSON or Markdown, so you can diff them, back them up, or put them in git.

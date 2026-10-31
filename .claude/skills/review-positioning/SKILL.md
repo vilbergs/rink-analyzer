@@ -28,19 +28,14 @@ command prints JSON. `rink help` lists them all.
    - the play notes;
    - `coordinates`: the axes and the landmarks (dots, hash marks, slot, points). Use the landmarks
      to place spots.
-3. **Read the team's system.** Look for `system.md` in the library folder (`rink list` prints the
-   folder). Positioning depends on the system: a box-plus-one and a low-zone collapse put the
-   weak-side winger in different places.
-   - With no profile, use the common principles below, and say so in your reply.
-   - When a call depends on the system, ask about it, or offer the `team-system` skill.
-4. **Get the shape of the play.**
+3. **Get the shape of the play.**
    - Run `rink timeline <play> --compact --interval 500`. Each snapshot has full facts for `me`
      and the carrier (`focus`) and positions for everyone else (`others`).
    - Then run `rink snapshot <play> <t_ms>` (all players) or
      `rink snapshot <play> <t_ms> --entity <id>` (one player) at each decision point, each event,
      and any moment where `me` looks badly placed.
-5. **Judge `me`'s positioning** at those moments. For each moment, answer: where was the puck,
-   who had it, what was `me`'s job, and where does the system want `me`? Use the facts:
+4. **Judge `me`'s positioning** at those moments. For each moment, answer: where was the puck,
+   who had it, what was `me`'s job, and where do the principles below want `me`? Use the facts:
    - zone (from each player's own team's view);
    - strong or weak side;
    - above or below the puck;
@@ -49,7 +44,7 @@ command prints JSON. `rink help` lists them all.
 
    Focus on `me`. Comment on teammates only when the user asks, or when their spot explains
    `me`'s options.
-6. **Try spots before writing them.** `rink compare` is a dry run. It saves nothing and shows
+5. **Try spots before writing them.** `rink compare` is a dry run. It saves nothing and shows
    `actual` and `suggested` facts side by side, plus whether the spot is valid:
 
    ```sh
@@ -62,7 +57,7 @@ command prints JSON. `rink help` lists them all.
    - Keep a spot only if it changes something concrete: a lane opens, the gap grows, the side or
      the relation to the puck changes. If nothing changes, the issue may not be where you
      thought.
-7. **Write the keepers.** One good suggestion is a fine review. So is none, if their positioning
+6. **Write the keepers.** One good suggestion is a fine review. So is none, if their positioning
    was sound. At most 3–4, most important first.
 
    ```sh
@@ -83,12 +78,12 @@ command prints JSON. `rink help` lists them all.
      under them.
    - If the CLI rejects a spot as unreachable, branch earlier or pick a closer spot. Don't drop
      the reachability rule; a suggestion you couldn't have skated to isn't useful.
-8. **Puck decisions** ("chip it, carry it or bump it?") are about the choice, not the position.
+7. **Puck decisions** ("chip it, carry it or bump it?") are about the choice, not the position.
    Answer them in your reply, using the facts at that moment: pressure on the carrier, open
    lanes, and where support was. Add a ghost only when position is part of the answer: a better
    carry route (the puck moves with the carrier), or where `me` should have been to make the
    better option possible.
-9. **Reply to the user.**
+8. **Reply to the user.**
    - List each suggestion with its time, the principle, and why, using numbers from the
      comparison ("the lane from your D opens; their RW is 7 m away instead of 4.5").
    - Answer the decision points.
@@ -114,7 +109,7 @@ command prints JSON. `rink help` lists them all.
 - The puck usually has no keyframes of its own; its position comes from the carrier and the
   events. That's normal. Don't invent positions for players who have no keyframes; if a key
   player is missing, say so.
-- Common principles when there's no system profile:
+- Principles. This is recreational hockey with no set team system, so judge against these:
   - **D-zone:** weak-side forwards stay above the puck and between their point man and the slot;
     the strong-side winger takes the wall and the point; the center supports low.
   - **Breakout:** wingers get to the wall at the hash marks and are stopped, back to the boards,
