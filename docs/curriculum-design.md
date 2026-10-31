@@ -14,7 +14,7 @@ from the play once it's edited.
 
 ## Proposals, in the order I'd build them
 
-### 1. Captions in the play, shown while it plays
+### 1. Captions in the play, shown while it plays (done 2026-10-31)
 
 The transcript belongs in the play file, not beside it.
 
@@ -37,13 +37,13 @@ The transcript belongs in the play file, not beside it.
 
 This is the "transcript for each sequence" feature. It's cheap because every input exists already.
 
-### 2. Decision points carry an answer
+### 2. Decision points carry an answer (done 2026-10-31)
 
 A decision point has a question (`note`) and no answer. Add `answer: String` (default empty). The app hides it
 until the user presses a key at that moment, then shows it. A lesson becomes self-contained in the file:
 question, reveal, caption. `rink summary` prints both.
 
-### 3. Open a play from a vault link
+### 3. Open a play from a vault link (done 2026-10-31)
 
 Obsidian links to custom URL schemes. `rink://open?play=<name>&at=2500&select=home_LW` from a lesson note
 should land in the running window at that moment.
@@ -91,6 +91,12 @@ makes the vault notes readable on the phone, where the app isn't.
   vault is the syllabus.
 - Automatic review of the curriculum plays. They are drafted as the right answer; reviews are for the user's
   own retraced plays.
+
+## Status
+
+1 to 3 landed on 2026-10-31: `captions` and `answer` in the file, `rink caption`, `rink answer`,
+`rink transcript --md`, the caption strip and the `A` reveal in the app, and `rink://open` links for the
+installed app. `rink narrate` (the mechanical draft from facts) is still open. 4 to 7 are proposals.
 
 ## Order and size
 
