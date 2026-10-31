@@ -73,6 +73,26 @@ pub enum Issue {
     SkaterWithoutTeam {
         entity: EntityId,
     },
+    /// Two captions at the same moment, or out of order.
+    CaptionsNotSorted,
+    CaptionAfterEnd {
+        t_ms: u32,
+    },
+    EmptyCaption {
+        t_ms: u32,
+    },
+    /// Only a decision point shows its answer.
+    AnswerOnNonDecision {
+        t_ms: u32,
+        event: EventKind,
+    },
+}
+
+impl Issue {
+    /// Worth a look, but the play is still correct: `rink check` stays ok.
+    pub fn is_warning(&self) -> bool {
+        matches!(self, Issue::AnswerOnNonDecision { .. })
+    }
 }
 
 impl fmt::Display for Issue {
@@ -115,6 +135,14 @@ impl fmt::Display for Issue {
                 write!(f, "more than one entity is marked as me: {}", names.join(", "))
             }
             Issue::SkaterWithoutTeam { entity } => write!(f, "{entity} has no team"),
+            Issue::CaptionsNotSorted => write!(f, "captions are not sorted by time, or two share a moment"),
+            Issue::CaptionAfterEnd { t_ms } => write!(f, "caption at {t_ms} ms is after the play ends"),
+            Issue::EmptyCaption { t_ms } => write!(f, "caption at {t_ms} ms has no text"),
+            Issue::AnswerOnNonDecision { t_ms, event } => write!(
+                f,
+                "{} at {t_ms} ms has an answer, but only decision points show one",
+                event.label()
+            ),
         }
     }
 }
@@ -203,6 +231,21 @@ pub fn validate(play: &Play) -> Vec<Issue> {
         if let Some(arrive_ms) = ev.arrive_ms.filter(|&a| a < ev.t_ms) {
             issues.push(Issue::ArrivalBeforeRelease { t_ms: ev.t_ms, arrive_ms });
         }
+        if ev.answer.is_some() && ev.kind != EventKind::DecisionPoint {
+            issues.push(Issue::AnswerOnNonDecision { t_ms: ev.t_ms, event: ev.kind });
+        }
+    }
+
+    if play.captions.windows(2).any(|w| w[0].t_ms >= w[1].t_ms) {
+        issues.push(Issue::CaptionsNotSorted);
+    }
+    for c in &play.captions {
+        if c.t_ms > play.duration_ms {
+            issues.push(Issue::CaptionAfterEnd { t_ms: c.t_ms });
+        }
+        if c.text.trim().is_empty() {
+            issues.push(Issue::EmptyCaption { t_ms: c.t_ms });
+        }
     }
 
     issues
@@ -238,5 +281,25 @@ mod tests {
         assert!(issues.iter().any(|i| matches!(i, Issue::ReleaseWithoutPuck { t_ms: 1000, carrier: None, .. })));
         assert!(issues.iter().any(|i| matches!(i, Issue::MissingActor { t_ms: 1200, .. })));
         assert!(issues.iter().any(|i| matches!(i, Issue::ArrivalBeforeRelease { t_ms: 1500, .. })));
+    }
+
+    #[test]
+    fn flags_bad_captions_and_misplaced_answers() {
+        use crate::model::{Caption, Event};
+        let mut play = templates::build(templates::Template::Faceoff, crate::rink::RinkSpec::iihf());
+        play.captions = vec![
+            Caption { t_ms: 500, text: "a".into() },
+            Caption { t_ms: 500, text: " ".into() },
+            Caption { t_ms: play.duration_ms + 1, text: "late".into() },
+        ];
+        play.events.push(Event { answer: Some("x".into()), ..Event::new(0, EventKind::Hit, &[]) });
+        play.events.push(Event { answer: Some("y".into()), ..Event::new(0, EventKind::DecisionPoint, &[]) });
+        let issues = validate(&play);
+        assert!(issues.contains(&Issue::CaptionsNotSorted));
+        assert!(issues.contains(&Issue::EmptyCaption { t_ms: 500 }));
+        assert!(issues.contains(&Issue::CaptionAfterEnd { t_ms: play.duration_ms + 1 }));
+        let answers: Vec<&Issue> = issues.iter().filter(|i| matches!(i, Issue::AnswerOnNonDecision { .. })).collect();
+        assert_eq!(answers, vec![&Issue::AnswerOnNonDecision { t_ms: 0, event: EventKind::Hit }]);
+        assert!(answers[0].is_warning() && !Issue::CaptionsNotSorted.is_warning());
     }
 }

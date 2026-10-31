@@ -299,6 +299,9 @@ pub struct Event {
     pub arrive_ms: Option<u32>,
     #[serde(default)]
     pub note: String,
+    /// For a decision point: what to do there, hidden until the user asks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
 }
 
 impl Event {
@@ -311,8 +314,17 @@ impl Event {
             to: None,
             arrive_ms: None,
             note: String::new(),
+            answer: None,
         }
     }
+}
+
+/// One line of the play's transcript: what's going on from `t_ms` until the
+/// next caption.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Caption {
+    pub t_ms: u32,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -334,6 +346,9 @@ pub struct Play {
     pub orders: BTreeMap<EntityId, Vec<Order>>,
     #[serde(default)]
     pub events: Vec<Event>,
+    /// The transcript, sorted by time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub captions: Vec<Caption>,
     #[serde(default)]
     pub notes: String,
 }
@@ -354,6 +369,7 @@ impl Play {
             tracks: BTreeMap::new(),
             orders: BTreeMap::new(),
             events: Vec::new(),
+            captions: Vec::new(),
             notes: String::new(),
         }
     }
@@ -403,7 +419,34 @@ impl Play {
         Some(track.remove(i))
     }
 
-    /// Sort keyframes and events by time. Loading and editing call this so the
+    /// The caption showing at `t_ms`: the last one at or before it.
+    pub fn caption_at(&self, t_ms: u32) -> Option<&Caption> {
+        let after = self.captions.partition_point(|c| c.t_ms <= t_ms);
+        after.checked_sub(1).map(|i| &self.captions[i])
+    }
+
+    /// Insert or replace the caption at `t_ms`, keeping them sorted. Returns its index.
+    pub fn set_caption(&mut self, t_ms: u32, text: impl Into<String>) -> usize {
+        let caption = Caption { t_ms, text: text.into() };
+        match self.captions.binary_search_by_key(&t_ms, |c| c.t_ms) {
+            Ok(i) => {
+                self.captions[i] = caption;
+                i
+            }
+            Err(i) => {
+                self.captions.insert(i, caption);
+                i
+            }
+        }
+    }
+
+    /// Remove the caption at exactly `t_ms`. Returns it if there was one.
+    pub fn remove_caption(&mut self, t_ms: u32) -> Option<Caption> {
+        let i = self.captions.binary_search_by_key(&t_ms, |c| c.t_ms).ok()?;
+        Some(self.captions.remove(i))
+    }
+
+    /// Sort keyframes, events and captions by time. Loading and editing call this so the
     /// rest of the code can assume sorted input.
     pub fn normalize(&mut self) {
         for track in self.tracks.values_mut() {
@@ -416,6 +459,7 @@ impl Play {
         }
         self.orders.retain(|_, orders| !orders.is_empty());
         self.events.sort_by_key(|e| e.t_ms);
+        self.captions.sort_by_key(|c| c.t_ms);
     }
 
     /// All keyframe and event times, sorted and deduplicated.
@@ -425,5 +469,33 @@ impl Play {
         times.sort_unstable();
         times.dedup();
         times
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn caption_at_is_the_latest_at_or_before() {
+        let mut play = Play::new("t", RinkSpec::iihf());
+        play.set_caption(2500, "second");
+        play.set_caption(1000, "first");
+        let at = |t| play.caption_at(t).map(|c| c.text.as_str());
+        assert_eq!(at(0), None, "before the first");
+        assert_eq!(at(1000), Some("first"), "exact hit");
+        assert_eq!(at(2499), Some("first"), "between");
+        assert_eq!(at(2500), Some("second"));
+        assert_eq!(at(9000), Some("second"), "after the last");
+    }
+
+    #[test]
+    fn set_caption_replaces_at_the_same_time() {
+        let mut play = Play::new("t", RinkSpec::iihf());
+        play.set_caption(1000, "a");
+        assert_eq!(play.set_caption(1000, "b"), 0);
+        assert_eq!(play.captions, vec![Caption { t_ms: 1000, text: "b".into() }]);
+        assert!(play.remove_caption(1000).is_some());
+        assert!(play.remove_caption(1000).is_none());
     }
 }

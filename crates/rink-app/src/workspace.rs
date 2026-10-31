@@ -53,6 +53,7 @@ actions!(
         ToggleShortcuts,
         AddDecisionPoint,
         ToggleAllLanes,
+        ToggleAnswer,
         CopyPosition,
         PastePosition,
         NextPlayer,
@@ -117,7 +118,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("d", AddDecisionPoint, Some(CONTEXT)),
         KeyBinding::new("b", ToggleBackward, Some(CONTEXT)),
         KeyBinding::new("p", CyclePace, Some(CONTEXT)),
-        KeyBinding::new("a", ToggleAllLanes, Some(CONTEXT)),
+        KeyBinding::new("a", ToggleAnswer, Some(CONTEXT)),
+        KeyBinding::new("l", ToggleAllLanes, Some(CONTEXT)),
         KeyBinding::new("cmd-c", CopyPosition, Some(CONTEXT)),
         KeyBinding::new("ctrl-c", CopyPosition, Some(CONTEXT)),
         KeyBinding::new("cmd-v", PastePosition, Some(CONTEXT)),
@@ -212,6 +214,8 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::action("Next Suggestion", NextFeedback),
                 MenuItem::action("Loop Suggestion", ReplaySuggestion),
                 MenuItem::action("Exit Suggestion Loop", StopReviewReplay),
+                MenuItem::separator(),
+                MenuItem::action("Reveal or Hide Answer", ToggleAnswer),
             ],
         },
         Menu { name: "Help".into(), items: vec![MenuItem::action("Keyboard Shortcuts", ToggleShortcuts)] },
@@ -497,6 +501,11 @@ impl Workspace {
             t.all_players = !t.all_players;
             cx.notify();
         });
+    }
+
+    /// A: show or hide the answer to the decision point at the playhead.
+    fn toggle_answer(&mut self, _: &ToggleAnswer, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit(cx, PlayState::toggle_answer_here);
     }
 
     fn copy_position(&mut self, _: &CopyPosition, _: &mut Window, cx: &mut Context<Self>) {
@@ -815,6 +824,33 @@ impl Workspace {
         out
     }
 
+    /// The caption at the playhead, under the rink. Plays without captions
+    /// don't get the strip; between captions it stays, empty, so the rink
+    /// doesn't jump.
+    fn caption_strip(&self, cx: &Context<Self>) -> Option<gpui::Div> {
+        let play = &self.state.read(cx).play;
+        if play.captions.is_empty() {
+            return None;
+        }
+        let text = play.caption_at(self.state.read(cx).playhead_ms).map(|c| c.text.clone()).unwrap_or_default();
+        Some(
+            div()
+                .flex()
+                .items_center()
+                .flex_none()
+                .min_h(px(52.))
+                .px_5()
+                .py_2()
+                .bg(rgb(theme::PANEL))
+                .border_t_1()
+                .border_color(rgb(theme::BORDER))
+                .text_base()
+                .text_color(rgb(theme::TEXT))
+                .debug_selector(|| "caption-strip".into())
+                .child(SharedString::from(text)),
+        )
+    }
+
     /// Persistent review transport: it never scrolls out of reach with the cards.
     fn review_controls(&self, cx: &Context<Self>) -> Option<gpui::Div> {
         let s = self.state.read(cx);
@@ -1014,6 +1050,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_backward))
             .on_action(cx.listener(Self::cycle_pace))
             .on_action(cx.listener(Self::toggle_all_lanes))
+            .on_action(cx.listener(Self::toggle_answer))
             .on_action(cx.listener(Self::copy_position))
             .on_action(cx.listener(Self::paste_position))
             .on_action(cx.listener(Self::next_player))
@@ -1058,7 +1095,8 @@ impl Render for Workspace {
                             .child(self.rink_context(cx))
                             .children(self.review_controls(cx))
                             .children(self.edit_notice(cx))
-                            .child(div().flex_1().min_h_0().child(self.canvas.clone())),
+                            .child(div().flex_1().min_h_0().child(self.canvas.clone()))
+                            .children(self.caption_strip(cx)),
                     )
                     .child(self.inspector.clone()),
             )
@@ -1098,6 +1136,15 @@ mod tests {
         cx.run_until_parked();
         let bounds = cx.debug_bounds(selector).unwrap_or_else(|| panic!("missing button: {selector}"));
         cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+    }
+
+    /// A click right after a state change can miss the button; pointing at
+    /// it first, as a real pointer does, makes it land.
+    fn point_and_click(cx: &mut VisualTestContext, selector: &'static str) {
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds(selector).unwrap_or_else(|| panic!("missing button: {selector}"));
+        cx.simulate_mouse_move(bounds.center(), None, gpui::Modifiers::none());
+        click_button(cx, selector);
     }
 
     #[gpui::test]
@@ -1275,6 +1322,46 @@ mod tests {
         cx.simulate_keystrokes("p b");
         let changed = order(cx).unwrap();
         assert_eq!((changed.pace, changed.backward), (rink_core::Pace::Sprint, true));
+    }
+
+    #[gpui::test]
+    fn captions_show_under_the_rink_and_a_reveals_the_answer(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        // Tall enough that the inspector's Captions section needs no scrolling.
+        cx.simulate_resize(gpui::size(px(1280.), px(1400.)));
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("caption-strip").is_none(), "no strip without captions");
+
+        // + Add puts a caption at the playhead and takes the typing; A types.
+        cx.update(|_, cx| state.update(cx, |s, _| s.set_playhead(2500)));
+        point_and_click(cx, "add-caption");
+        cx.simulate_input("A pass");
+        cx.simulate_keystrokes("cmd-enter");
+        cx.run_until_parked();
+        let caption = cx.update(|_, cx| state.read(cx).play.caption_at(2900).cloned());
+        assert_eq!(caption.map(|c| (c.t_ms, c.text)), Some((2500, "A pass".to_string())));
+        assert!(cx.debug_bounds("caption-strip").is_some());
+
+        let dp = cx.update(|_, cx| {
+            state.update(cx, |s, _| {
+                let i = s.play.events.iter().position(|e| e.kind == EventKind::DecisionPoint).unwrap();
+                s.set_event_answer(i, "Chip it out.");
+                s.jump_to_event(i);
+                i
+            })
+        });
+        cx.simulate_mouse_move(gpui::point(px(0.), px(0.)), None, gpui::Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("reveal-answer").is_some(), "the answer hides behind Reveal");
+        assert!(!cx.update(|_, cx| state.read(cx).is_revealed(dp)));
+        cx.simulate_keystrokes("a");
+        assert!(cx.update(|_, cx| state.read(cx).is_revealed(dp)));
+        point_and_click(cx, "reveal-answer");
+        assert!(!cx.update(|_, cx| state.read(cx).is_revealed(dp)));
+
+        cx.simulate_keystrokes("l");
+        assert!(cx.update(|_, cx| ws.read(cx).timeline.read(cx).all_players));
     }
 
     #[gpui::test]

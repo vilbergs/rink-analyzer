@@ -22,7 +22,12 @@ USAGE:
   rink list                                  plays in the library folder
   rink new <faceoff|dzone|breakout> [--out FILE]
   rink check <play>                          validation issues
-  rink summary <play>                        roster, events, decision points, notes
+  rink summary <play>                        roster, events, decision points and answers, notes
+  rink caption <play> --t MS --text TEXT     add a caption, or replace the one at MS
+  rink caption <play> --remove MS            delete the caption at MS
+  rink transcript <play> [--md]              captions in order; --md: a Markdown table with the
+                                             decision points and their answers
+  rink answer <play> --t MS --text TEXT      set the answer to the decision point at MS
   rink timeline <play> [--interval MS] [--from MS] [--to MS] [--compact]
                                              samples every MS, plus each event and puck pickup
   rink snapshot <play> <t_ms> [--entity ID]  facts at one moment (all players, or one)
@@ -48,6 +53,7 @@ fn main() {
     match run(std::env::args().skip(1).collect()) {
         Ok((out, Format::Pretty)) => println!("{}", serde_json::to_string_pretty(&out).expect("JSON values serialize")),
         Ok((out, Format::Compact)) => println!("{}", serde_json::to_string(&out).expect("JSON values serialize")),
+        Ok((out, Format::Text)) => println!("{}", out.as_str().unwrap_or_default()),
         Err(e) => {
             eprintln!("error: {e:#}");
             std::process::exit(1);
@@ -58,6 +64,8 @@ fn main() {
 enum Format {
     Pretty,
     Compact,
+    /// A string value, printed as is.
+    Text,
 }
 
 fn run(raw: Vec<String>) -> Result<(Value, Format)> {
@@ -78,6 +86,9 @@ fn run(raw: Vec<String>) -> Result<(Value, Format)> {
             let path = play_path(&args)?;
             summary(&io::load(&path)?, &path)
         }
+        "caption" => caption(&args),
+        "transcript" => transcript(&load(&args)?, &args),
+        "answer" => answer(&args),
         "timeline" => timeline(&load(&args)?, &mut args),
         "snapshot" => snapshot(&load(&args)?, &args),
         "compare" => compare(&load(&args)?, &args),
@@ -94,7 +105,11 @@ fn run(raw: Vec<String>) -> Result<(Value, Format)> {
         other => bail!("unknown command {other:?}\n\n{USAGE}"),
     }?;
     args.finish()?;
-    let format = if command == "timeline" && args.switch("compact") { Format::Compact } else { Format::Pretty };
+    let format = match command.as_str() {
+        "timeline" if args.switch("compact") => Format::Compact,
+        "transcript" if args.switch("md") => Format::Text,
+        _ => Format::Pretty,
+    };
     Ok((result, format))
 }
 
@@ -214,8 +229,84 @@ fn new_play(args: &mut Args) -> Result<Value> {
 }
 
 fn check(play: &Play) -> Result<Value> {
-    let issues: Vec<String> = validate(play).iter().map(ToString::to_string).collect();
-    Ok(json!({ "ok": issues.is_empty(), "issues": issues }))
+    let (warnings, issues): (Vec<_>, Vec<_>) = validate(play).into_iter().partition(|i| i.is_warning());
+    let text = |list: Vec<rink_core::Issue>| list.iter().map(ToString::to_string).collect::<Vec<_>>();
+    Ok(json!({ "ok": issues.is_empty(), "issues": text(issues), "warnings": text(warnings) }))
+}
+
+fn caption(args: &Args) -> Result<Value> {
+    let path = play_path(args)?;
+    let mut play = io::load(&path)?;
+    match args.parsed::<u32>("remove")? {
+        Some(t_ms) => {
+            if play.remove_caption(t_ms).is_none() {
+                bail!("no caption at {t_ms} ms");
+            }
+        }
+        None => {
+            let t_ms: u32 = args.parsed("t")?.ok_or_else(|| anyhow!("--t is required (or --remove MS)"))?;
+            let text = args.flag("text").ok_or_else(|| anyhow!("--text is required"))?;
+            if t_ms > play.duration_ms {
+                bail!("--t {t_ms} is after the play ends ({} ms)", play.duration_ms);
+            }
+            if text.trim().is_empty() {
+                bail!("--text is empty; use --remove {t_ms} to delete a caption");
+            }
+            play.set_caption(t_ms, text);
+        }
+    }
+    io::save(&play, &path)?;
+    Ok(json!({ "path": path, "captions": play.captions }))
+}
+
+fn answer(args: &Args) -> Result<Value> {
+    let path = play_path(args)?;
+    let mut play = io::load(&path)?;
+    let t_ms: u32 = args.parsed("t")?.ok_or_else(|| anyhow!("--t is required"))?;
+    let text = args.flag("text").ok_or_else(|| anyhow!("--text is required"))?;
+    let Some(ev) = play.events.iter_mut().find(|e| e.t_ms == t_ms && e.kind == rink_core::EventKind::DecisionPoint)
+    else {
+        bail!("no decision point at {t_ms} ms");
+    };
+    ev.answer = Some(text).filter(|t| !t.trim().is_empty());
+    let out = json!({ "path": path, "decision_point": ev });
+    io::save(&play, &path)?;
+    Ok(out)
+}
+
+/// The captions as JSON, or with `--md` as a Markdown table that also has a
+/// row for each decision point, its question and its answer.
+fn transcript(play: &Play, args: &Args) -> Result<Value> {
+    if !args.switch("md") {
+        return Ok(json!({ "title": play.title, "captions": play.captions }));
+    }
+    let cell = |text: &str| text.trim().replace('|', "\\|").replace("\r\n", "\n").replace('\n', "<br>");
+    let mut rows: Vec<(u32, String)> = play.captions.iter().map(|c| (c.t_ms, cell(&c.text))).collect();
+    for ev in play.events.iter().filter(|e| e.kind == rink_core::EventKind::DecisionPoint) {
+        let mut text = format!("**Decision point.** {}", cell(&ev.note));
+        if let Some(answer) = &ev.answer {
+            text.push_str(&format!("<br>**Answer.** {}", cell(answer)));
+        }
+        rows.push((ev.t_ms, text));
+    }
+    // Stable, so a caption comes before the decision point at its moment.
+    rows.sort_by_key(|(t, _)| *t);
+    let mut md = String::from("\n| Time | Caption |\n| --- | --- |\n");
+    for (t, text) in rows {
+        md.push_str(&format!("| {} | {text} |\n", seconds(t)));
+    }
+    Ok(Value::String(md.trim_end().to_string()))
+}
+
+/// Seconds without trailing zeros, keeping one decimal: 2.5, 3.0, 2.25.
+fn seconds(t_ms: u32) -> String {
+    let s = format!("{:.3}", t_ms as f64 / 1000.0);
+    let s = s.trim_end_matches('0');
+    if s.ends_with('.') {
+        format!("{s}0")
+    } else {
+        s.to_string()
+    }
 }
 
 /// Round to centimeters so JSON doesn't show f32 noise like 7.1399993.
@@ -277,6 +368,7 @@ fn summary(play: &Play, path: &Path) -> Result<Value> {
         "roster": roster,
         "events": play.events,
         "decision_points": play.events.iter().filter(|e| e.kind == rink_core::EventKind::DecisionPoint).collect::<Vec<_>>(),
+        "captions": play.captions.len(),
         "notes": play.notes,
         "review": review_path(path),
     }))
@@ -461,4 +553,38 @@ fn upgrade(args: &Args) -> Result<Value> {
     let play = io::load(&path)?;
     io::save(&play, &path)?;
     Ok(json!({ "path": path, "from_version": old_version, "to_version": play.schema_version }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rink_core::{Event, EventKind};
+
+    #[test]
+    fn markdown_transcript_is_one_table_with_decision_points() {
+        let mut play = build(Template::Breakout, RinkSpec::iihf());
+        play.events.retain(|e| e.kind != EventKind::DecisionPoint);
+        play.set_caption(0, "Their C has it | low.");
+        play.set_caption(2500, "Pass to the point.\nI push now.");
+        play.events.push(Event {
+            note: "Push or hold?".into(),
+            answer: Some("Push.".into()),
+            ..Event::new(2500, EventKind::DecisionPoint, &[])
+        });
+        play.normalize();
+        let args = Args::parse(vec!["transcript".into(), "p".into(), "--md".into()]).unwrap();
+        let md = transcript(&play, &args).unwrap();
+        assert_eq!(
+            md.as_str().unwrap(),
+            "\n| Time | Caption |\n| --- | --- |\n\
+             | 0.0 | Their C has it \\| low. |\n\
+             | 2.5 | Pass to the point.<br>I push now. |\n\
+             | 2.5 | **Decision point.** Push or hold?<br>**Answer.** Push. |"
+        );
+    }
+
+    #[test]
+    fn seconds_keep_one_decimal() {
+        assert_eq!([seconds(0), seconds(2500), seconds(2250)], ["0.0", "2.5", "2.25"]);
+    }
 }

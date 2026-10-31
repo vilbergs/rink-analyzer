@@ -2,6 +2,7 @@
 //! observe one `Entity<PlayState>`; everything here is plain Rust so it can be
 //! tested without a window.
 
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
@@ -76,6 +77,11 @@ pub struct PlayState {
     pub edit_notice: Option<String>,
     /// The event open for editing in the inspector, by index.
     pub selected_event: Option<usize>,
+    /// The caption open for editing in the inspector, by index.
+    pub selected_caption: Option<usize>,
+    /// Decision points whose answer is showing, by time. Hidden until asked,
+    /// so the user answers the question first.
+    pub revealed: BTreeSet<u32>,
     /// A position copied with Cmd-C, to paste onto a player with Cmd-V.
     copied: Option<(Vec2, Option<f32>)>,
 }
@@ -144,6 +150,8 @@ impl PlayState {
             review_loop: None,
             edit_notice: None,
             selected_event: None,
+            selected_caption: None,
+            revealed: BTreeSet::new(),
             copied: None,
         }
     }
@@ -868,6 +876,97 @@ impl PlayState {
         }
     }
 
+    pub fn set_event_answer(&mut self, index: usize, answer: &str) {
+        if let Some(ev) = self.play.events.get_mut(index) {
+            let answer = Some(answer.to_string()).filter(|a| !a.is_empty());
+            if ev.answer != answer {
+                ev.answer = answer;
+                self.edited();
+            }
+        }
+    }
+
+    /// The decision point at the playhead, by index.
+    pub fn decision_point_here(&self) -> Option<usize> {
+        let t = snap(self.playhead_ms);
+        self.play.events.iter().position(|e| e.kind == EventKind::DecisionPoint && e.t_ms == t)
+    }
+
+    pub fn is_revealed(&self, index: usize) -> bool {
+        self.play.events.get(index).is_some_and(|e| self.revealed.contains(&e.t_ms))
+    }
+
+    /// Show or hide the answer to decision point `index`.
+    pub fn toggle_answer(&mut self, index: usize) {
+        let Some(t) = self.play.events.get(index).map(|e| e.t_ms) else { return };
+        if !self.revealed.remove(&t) {
+            self.revealed.insert(t);
+        }
+    }
+
+    /// A: show or hide the answer to the decision point at the playhead.
+    pub fn toggle_answer_here(&mut self) {
+        match self.decision_point_here() {
+            Some(i) => {
+                self.toggle_answer(i);
+                if self.is_revealed(i) && self.play.events[i].answer.is_none() {
+                    self.set_status("This decision point has no answer yet");
+                }
+            }
+            None => self.set_status(format!("No decision point at {:.1}s", self.playhead_ms as f32 / 1000.0)),
+        }
+    }
+
+    /// Add a caption at the playhead, or open the one already there, for
+    /// editing. Returns its index.
+    pub fn add_caption(&mut self) -> usize {
+        let t = snap(self.playhead_ms).min(self.play.duration_ms);
+        self.playhead_ms = t;
+        let i = match self.play.captions.binary_search_by_key(&t, |c| c.t_ms) {
+            Ok(i) => i,
+            Err(_) => {
+                self.checkpoint("new caption");
+                let i = self.play.set_caption(t, "");
+                self.set_status(format!("Added a caption at {:.1}s", t as f32 / 1000.0));
+                self.edited();
+                i
+            }
+        };
+        self.selected_caption = Some(i);
+        i
+    }
+
+    pub fn set_caption_text(&mut self, index: usize, text: &str) {
+        if let Some(c) = self.play.captions.get_mut(index) {
+            if c.text != text {
+                c.text = text.to_string();
+                self.edited();
+            }
+        }
+    }
+
+    pub fn delete_caption(&mut self, index: usize) {
+        let Some(c) = self.play.captions.get(index) else { return };
+        let t = c.t_ms;
+        self.checkpoint("delete of a caption");
+        self.play.captions.remove(index);
+        self.selected_caption = match self.selected_caption {
+            Some(i) if i == index => None,
+            Some(i) if i > index => Some(i - 1),
+            other => other,
+        };
+        self.set_status(format!("Deleted the caption at {:.1}s", t as f32 / 1000.0));
+        self.edited();
+    }
+
+    /// Inspector or timeline click: go to caption `index` and open it.
+    pub fn jump_to_caption(&mut self, index: usize) {
+        let Some(t) = self.play.captions.get(index).map(|c| c.t_ms) else { return };
+        self.playing = false;
+        self.selected_caption = Some(index);
+        self.set_playhead(t);
+    }
+
     pub fn add_event_actor(&mut self, index: usize, id: &EntityId) {
         let Some(ev) = self.play.events.get(index) else { return };
         if ev.actors.contains(id) {
@@ -987,6 +1086,7 @@ impl PlayState {
         next.speed = self.speed;
         next.show_ghosts = self.show_ghosts;
         if reload {
+            next.revealed = std::mem::take(&mut self.revealed);
             next.playhead_ms = self.playhead_ms.min(next.play.duration_ms);
             if let Some(id) = self.selected.take().filter(|id| next.play.entity(id).is_some()) {
                 next.selected = Some(id);
@@ -1545,6 +1645,46 @@ mod tests {
 
         s.delete_event(i);
         assert_eq!(s.selected_event, None);
+    }
+
+    #[test]
+    fn adds_edits_and_deletes_captions() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        s.set_playhead(2450);
+        let i = s.add_caption();
+        assert_eq!((s.selected_caption, s.play.captions[i].t_ms), (Some(i), 2500));
+        s.set_caption_text(i, "Pass to the point.");
+        assert_eq!(s.add_caption(), i, "a second add at the same moment opens the same caption");
+        assert_eq!(s.play.captions.len(), 1);
+        s.set_playhead(500);
+        let first = s.add_caption();
+        assert_eq!(first, 0);
+        assert_eq!(s.play.caption_at(3000).map(|c| c.text.as_str()), Some("Pass to the point."));
+        s.jump_to_caption(1);
+        assert_eq!((s.playhead_ms, s.selected_caption), (2500, Some(1)));
+        s.delete_caption(0);
+        assert_eq!((s.play.captions.len(), s.selected_caption), (1, Some(0)));
+        s.undo();
+        assert_eq!(s.play.captions.len(), 2);
+    }
+
+    #[test]
+    fn answers_stay_hidden_until_revealed_at_their_moment() {
+        let mut s = PlayState::new(build(Template::Breakout, RinkSpec::iihf()), None);
+        let i = s.play.events.iter().position(|e| e.kind == EventKind::DecisionPoint).unwrap();
+        s.set_event_answer(i, "Chip it out.");
+        assert_eq!(s.play.events[i].answer.as_deref(), Some("Chip it out."));
+        assert!(!s.is_revealed(i));
+        s.set_playhead(s.play.events[i].t_ms - 400);
+        s.toggle_answer_here();
+        assert!(!s.is_revealed(i), "not at the decision point");
+        s.jump_to_event(i);
+        s.toggle_answer_here();
+        assert!(s.is_revealed(i));
+        s.toggle_answer_here();
+        assert!(!s.is_revealed(i));
+        s.set_event_answer(i, "");
+        assert_eq!(s.play.events[i].answer, None);
     }
 
     #[test]

@@ -8,7 +8,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, bail, Result};
 
 /// Flags that take no value.
-const SWITCHES: [&str; 2] = ["compact", "help"];
+const SWITCHES: [&str; 3] = ["compact", "help", "md"];
 
 pub struct Args {
     positionals: Vec<String>,
