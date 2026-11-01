@@ -26,8 +26,9 @@ command prints JSON.
 
    Ask for at most two things that are missing and would change the shape. Assume the rest and
    list your assumptions in your reply.
-2. **Start from a template.** Use the closest one; it has the full roster, and the home LW is
-   marked as `me`.
+2. **Start from a template.** Use the closest one; it has the full roster. The template marks the
+   home LW as `me`, but the user plays **right wing**: move `is_me` to `home_RW` unless they say
+   otherwise. Their wall in the D-zone is y = −12 to −14 (home's right is −y).
 
    ```sh
    rink new breakout --out <library>/<slug>.rink.json   # faceoff | dzone | breakout
