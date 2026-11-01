@@ -1,10 +1,19 @@
 <script lang="ts">
-  import type { PlayerState, View } from "../player.svelte";
-  import { paint, type Scene } from "./paint";
+  import { FIT, paint, type Mark, type Scene, type SceneOpts, type View } from "./paint";
 
   const MAX_ZOOM = 8;
 
-  let { player }: { player: PlayerState } = $props();
+  type Props = {
+    t: number;
+    scene: (t: number, opts: SceneOpts) => Scene;
+    /** Given, the wheel zooms and a middle-button drag pans it. */
+    view?: View;
+    hidden?: string[];
+    marks?: Mark[];
+    onTap?: (xPx: number, yPx: number, opts: SceneOpts) => void;
+  };
+
+  let { t, scene, view = $bindable(), hidden = [], marks = [], onTap }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let width = $state(0);
@@ -13,50 +22,50 @@
   let drag: { x: number; y: number } | null = null;
 
   $effect(() => {
-    const { t, selected, reviewJson, view } = player;
     const ctx = canvas.getContext("2d");
     if (!ctx || width === 0 || height === 0) return;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
-    const scene: Scene = player.handle.scene(Math.round(t), { ...viewOpts(view), selected, review: reviewJson });
+    const shapes = scene(Math.round(t), opts());
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paint(ctx, scene);
+    paint(ctx, shapes);
   });
 
-  function viewOpts({ zoom, pan, flipped }: View) {
-    return { width, height, zoom, pan: [pan.x, pan.y], flipped };
+  function opts(): SceneOpts {
+    const { zoom, pan, flipped } = view ?? FIT;
+    return { width, height, zoom, pan: [pan.x, pan.y], flipped, hidden, marks };
   }
 
   function onclick(e: MouseEvent) {
-    const t = Math.round(player.t);
-    player.selected = player.handle.hit_test(t, e.offsetX, e.offsetY, viewOpts(player.view)) ?? null;
+    onTap?.(e.offsetX, e.offsetY, opts());
   }
 
   function onwheel(e: WheelEvent) {
+    if (!view) return;
     e.preventDefault();
-    const { zoom, pan } = player.view;
     if (e.shiftKey) {
       panBy(-e.deltaX, -e.deltaY);
       return;
     }
+    const { zoom, pan } = view;
     const next = Math.min(Math.max(zoom * Math.exp(-e.deltaY * 0.002), 1), MAX_ZOOM);
     if (next === 1) {
-      player.fitView();
+      view = { ...FIT, flipped: view.flipped };
       return;
     }
     const k = next / zoom;
     const ax = e.offsetX - width / 2;
     const ay = e.offsetY - height / 2;
-    player.view = { ...player.view, zoom: next, pan: { x: ax - (ax - pan.x) * k, y: ay - (ay - pan.y) * k } };
+    view = { ...view, zoom: next, pan: { x: ax - (ax - pan.x) * k, y: ay - (ay - pan.y) * k } };
   }
 
   function panBy(dx: number, dy: number) {
-    const { pan } = player.view;
-    player.view = { ...player.view, pan: { x: pan.x + dx, y: pan.y + dy } };
+    if (!view) return;
+    view = { ...view, pan: { x: view.pan.x + dx, y: view.pan.y + dy } };
   }
 
   function onpointerdown(e: PointerEvent) {
-    if (e.button !== 1) return;
+    if (!view || e.button !== 1) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
     drag = { x: e.clientX, y: e.clientY };

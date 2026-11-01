@@ -1,10 +1,8 @@
 <script lang="ts">
-  import type { PlayerState } from "./player.svelte";
-
-  let { player }: { player: PlayerState } = $props();
+  let { text }: { text: string | null } = $props();
 </script>
 
-<p class="caption">{player.caption?.text ?? ""}</p>
+<p class="caption">{text ?? ""}</p>
 
 <style>
   .caption {

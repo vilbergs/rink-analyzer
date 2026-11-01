@@ -1,4 +1,4 @@
-type Point = [number, number];
+export type Point = [number, number];
 
 export type Shape =
   | { kind: "fill"; pts: Point[]; color: number }
@@ -6,6 +6,27 @@ export type Shape =
   | { kind: "text"; at: Point; text: string; size_px: number; color: number };
 
 export type Scene = { shapes: Shape[] };
+
+/** An annotation drawn over the play, in rink meters. */
+export type Mark =
+  | { kind: "zone"; at: Point; r_m: number; color: number }
+  | { kind: "dot"; at: Point; label: string; color: number }
+  | { kind: "arrow"; from: Point; to: Point; color: number };
+
+export type View = { zoom: number; pan: { x: number; y: number }; flipped: boolean };
+
+export const FIT: View = { zoom: 1, pan: { x: 0, y: 0 }, flipped: false };
+
+/** The view options every wasm `scene`, `hit_test` and `to_rink` call takes. */
+export type SceneOpts = {
+  width: number;
+  height: number;
+  zoom: number;
+  pan: Point;
+  flipped: boolean;
+  hidden: string[];
+  marks: Mark[];
+};
 
 /** A 0xRRGGBBAA color as CSS. */
 export function css(color: number): string {

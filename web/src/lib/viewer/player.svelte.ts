@@ -1,6 +1,6 @@
-import type { PlayHandle } from "./wasm/rink_wasm.js";
+import { FIT, type View } from "../rink/paint";
+import type { PlayHandle } from "../wasm/rink_wasm.js";
 
-export type View = { zoom: number; pan: { x: number; y: number }; flipped: boolean };
 export type Caption = { t_ms: number; text: string };
 export type PlayEvent = { t_ms: number; kind: string; actors: string[]; note?: string };
 
@@ -19,7 +19,7 @@ export class PlayerState {
   playing = $state(false);
   speed = $state<Speed>(1);
   selected = $state<string | null>(null);
-  view = $state<View>({ zoom: 1, pan: { x: 0, y: 0 }, flipped: false });
+  view = $state<View>(FIT);
   caption = $derived.by(() => this.captions.findLast((c) => c.t_ms <= this.t) ?? null);
 
   #frame = 0;
@@ -62,7 +62,7 @@ export class PlayerState {
   }
 
   fitView() {
-    this.view = { zoom: 1, pan: { x: 0, y: 0 }, flipped: this.view.flipped };
+    this.view = { ...FIT, flipped: this.view.flipped };
   }
 
   cycleSpeed() {
