@@ -58,7 +58,7 @@ repo.
 ## The window
 
 ```text
-┌ Title ▾ · file · Saved ──────────── status · Undo Redo · Ghosts Flip Fit · Save ┐
+┌ Title ▾ · Saved ───────── status · Undo Redo · Ghosts Flip Fit Inspector · Save ┐
 │                                                     │ Play            Edit      │
 │                    Rink                             │ Selection                 │
 │        (drag players, Alt-click for the puck)       │ Off the ice               │
@@ -72,9 +72,10 @@ repo.
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Toolbar.** Click the play's title to open another play (same as Cmd-O). Next to it is the file name
-  and the save state: *Saving…* while you edit, *Saved* a moment later. The last status message ("Undid
-  move of #17 LW", "Opened …") sits on the right. Drag an empty part of the toolbar to move the window.
+- **Toolbar.** Click the play's title to open another play (same as Cmd-O); the list there shows each
+  play's file name. Next to the title is the save state: *Saving…* while you edit, *Saved* a moment later.
+  The last status message ("Undid move of #17 LW", "Opened …") sits on the right. In a narrow window
+  it is cut short, or hidden, so the title stays readable. Drag an empty part of the toolbar to move the window.
 - **Red banner.** Errors, and a play that changed on disk while you were editing it, show here until you
   deal with them (see [saving](#opening-creating-and-saving-plays)).
 - **Shortcut sheet.** Press ? (or Cmd-/), click "? Shortcuts" at the right of the timeline bar, or choose
@@ -88,7 +89,9 @@ repo.
   at that time; right-clicking replaces their movement from that time onward. When an order replaces
   future movement, a notice explains the scope and offers **Undo**.
   The strip under it shows the play's caption at the playhead, when the play has captions.
-- **Inspector** (the right-hand panel):
+- **Inspector** (the right-hand panel). Press I, click *Inspector* in the toolbar, or choose View → Show
+  or Hide Inspector to hide it and give the rink the whole width, for example in a narrow window next to
+  your notes. D shows it again so you can type the decision point's question. Its sections:
   - **Play:** the notes. Click Edit for the title, notes, team names and length.
   - **Selection:** the selected player's exact position (meters from center ice), speed, facing and
     keyframe count ("one here" means there's a keyframe at the playhead). Below that: their number,
@@ -374,6 +377,7 @@ would take many edits by hand.
 | Hover a timeline ◆ | See what it is |
 | Click a lane name | Select that player |
 | L | All players in the timeline |
+| I | Show / hide the inspector |
 | A | Reveal / hide the answer at a decision point |
 | Space | Play / pause |
 | ← → | Step 100 ms |

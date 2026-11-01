@@ -66,6 +66,7 @@ const RIGHT: [Group; 4] = [
             ("0", "Fit the rink"),
             ("F", "Flip ends"),
             ("L", "All players in the timeline"),
+            ("I", "Show / hide the inspector"),
         ],
     ),
 ];

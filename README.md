@@ -154,6 +154,7 @@ full list.
 | D | Decision point at the playhead; type its question |
 | Tab, Alt-arrows, Cmd-C / Cmd-V | Select the next player, nudge 0.5 m, copy / paste a position |
 | Drag a timeline ◆, L | Retime a keyframe or event; all players in the timeline |
+| I | Show / hide the inspector, so the rink gets the window's width |
 | A | Reveal / hide the answer at a decision point |
 | Space, ← →, Shift ← →, Home / End | Play / pause, step 100 ms, previous / next keyframe, start / end |
 | N / Shift-N, G | Next / previous position suggestion, show / hide ghosts |

@@ -3,20 +3,23 @@
 //! the traffic lights sit at its left and dragging its empty part moves the
 //! window.
 
-use gpui::{div, prelude::*, px, rgb, Action, App, Context, Entity, FontWeight, MouseButton, SharedString, Window};
+use gpui::{
+    div, prelude::*, px, rgb, Action, App, Context, Entity, FontWeight, MouseButton, SharedString, WeakEntity, Window,
+};
 
 use crate::state::PlayState;
 use crate::theme::{self, button, primary_button};
-use crate::workspace::{FlipEnds, OpenLibrary, Redo, ResetZoom, Save, ToggleGhosts, Undo};
+use crate::workspace::{FlipEnds, OpenLibrary, Redo, ResetZoom, Save, ToggleGhosts, ToggleInspector, Undo, Workspace};
 
 pub struct ToolbarView {
     state: Entity<PlayState>,
+    workspace: WeakEntity<Workspace>,
 }
 
 impl ToolbarView {
-    pub fn new(state: Entity<PlayState>, cx: &mut Context<Self>) -> Self {
+    pub fn new(state: Entity<PlayState>, workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         cx.observe(&state, |_, _, cx| cx.notify()).detach();
-        ToolbarView { state }
+        ToolbarView { state, workspace }
     }
 }
 
@@ -26,13 +29,8 @@ fn dispatch(action: impl Action) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut
 
 impl Render for ToolbarView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let inspector_shown = self.workspace.upgrade().is_some_and(|ws| ws.read(cx).show_inspector);
         let s = self.state.read(cx);
-        let file = s
-            .path
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|f| f.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "Not saved yet".into());
         let save_state = if s.conflict.is_some() {
             ("Conflict", theme::DANGER)
         } else if s.dirty {
@@ -50,6 +48,7 @@ impl Render for ToolbarView {
             .h(px(theme::TOOLBAR_HEIGHT))
             .pl(px(if cfg!(target_os = "macos") { 76. } else { 8. }))
             .pr_4()
+            .gap_3()
             .bg(rgb(theme::PANEL))
             .border_b_1()
             .border_color(rgb(theme::BORDER))
@@ -58,7 +57,6 @@ impl Render for ToolbarView {
                     .flex()
                     .items_center()
                     .gap_3()
-                    .flex_1()
                     .h_full()
                     .min_w_0()
                     .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
@@ -81,12 +79,13 @@ impl Render for ToolbarView {
                                     .text_sm()
                                     .font_weight(FontWeight::SEMIBOLD)
                                     .text_color(rgb(theme::TEXT))
+                                    .min_w_0()
                                     .truncate()
+                                    .debug_selector(|| "title".into())
                                     .child(SharedString::from(s.play.title.clone())),
                             )
                             .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child("▾")),
                     )
-                    .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child(SharedString::from(file)))
                     .child(
                         div()
                             .flex()
@@ -98,21 +97,33 @@ impl Render for ToolbarView {
                             .child(save_state.0),
                     ),
             )
+            // The status takes only the room the title and buttons leave, so it's cut short first.
             .child(
                 div()
                     .flex()
+                    .flex_1()
                     .items_center()
-                    .gap_2()
+                    .justify_end()
+                    .h_full()
+                    .min_w_0()
+                    .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
                     .child(
                         div()
-                            .ml_3()
-                            .mr_2()
+                            .min_w_0()
+                            .debug_selector(|| "status".into())
                             .max_w(px(360.))
-                            .overflow_hidden()
+                            .truncate()
                             .text_xs()
                             .text_color(rgb(theme::TEXT_MUTED))
                             .when(!s.status.is_error(), |d| d.child(SharedString::from(s.status.text().to_string()))),
-                    )
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .gap_2()
                     .child(
                         button("undo", "Undo", false).when(!s.can_undo(), |b| b.opacity(0.4)).on_click(dispatch(Undo)),
                     )
@@ -125,6 +136,7 @@ impl Render for ToolbarView {
                     .child(button("ghosts", "Ghosts", s.show_ghosts).on_click(dispatch(ToggleGhosts)))
                     .child(button("flip", "Flip ends", s.flipped).on_click(dispatch(FlipEnds)))
                     .child(button("fit", "Fit rink", false).on_click(dispatch(ResetZoom)))
+                    .child(button("inspector", "Inspector", inspector_shown).on_click(dispatch(ToggleInspector)))
                     .child(primary_button("save", "Save").on_click(dispatch(Save))),
             )
     }

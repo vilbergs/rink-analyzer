@@ -38,6 +38,7 @@ actions!(
         NextFeedback,
         PrevFeedback,
         ToggleGhosts,
+        ToggleInspector,
         ReplaySuggestion,
         StopReviewReplay,
         ResetZoom,
@@ -92,6 +93,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("n", NextFeedback, Some(CONTEXT)),
         KeyBinding::new("shift-n", PrevFeedback, Some(CONTEXT)),
         KeyBinding::new("g", ToggleGhosts, Some(CONTEXT)),
+        KeyBinding::new("i", ToggleInspector, Some(CONTEXT)),
         KeyBinding::new("r", ReplaySuggestion, Some(CONTEXT)),
         KeyBinding::new("shift-r", StopReviewReplay, Some(CONTEXT)),
         KeyBinding::new("0", ResetZoom, Some(CONTEXT)),
@@ -197,6 +199,7 @@ pub fn menus() -> Vec<Menu> {
                 MenuItem::action("Flip Ends", FlipEnds),
                 MenuItem::action("Fit Rink", ResetZoom),
                 MenuItem::action("All Players in Timeline", ToggleAllLanes),
+                MenuItem::action("Show or Hide Inspector", ToggleInspector),
             ],
         },
         Menu {
@@ -239,6 +242,8 @@ pub struct Workspace {
     picker: Option<Picker>,
     /// The keyboard shortcut sheet is showing.
     show_shortcuts: bool,
+    /// The inspector panel is showing; hidden, the rink takes its width.
+    pub show_inspector: bool,
 }
 
 struct Picker {
@@ -272,9 +277,10 @@ impl Workspace {
         });
 
         let focus_handle = cx.focus_handle();
+        let workspace = cx.weak_entity();
         Workspace {
             canvas: cx.new(|cx| RinkCanvas::new(state.clone(), window, cx)),
-            toolbar: cx.new(|cx| ToolbarView::new(state.clone(), cx)),
+            toolbar: cx.new(|cx| ToolbarView::new(state.clone(), workspace, cx)),
             timeline: cx.new(|cx| TimelineView::new(state.clone(), cx)),
             inspector: cx.new(|cx| InspectorView::new(state.clone(), focus_handle.clone(), window, cx)),
             state,
@@ -285,6 +291,7 @@ impl Workspace {
             published: None,
             picker: None,
             show_shortcuts: false,
+            show_inspector: true,
         }
     }
 
@@ -486,7 +493,13 @@ impl Workspace {
             s.playing = false;
             s.add_event(rink_core::EventKind::DecisionPoint);
         });
+        self.show_inspector = true;
         self.inspector.update(cx, |i, cx| i.focus_event_note(window, cx));
+    }
+
+    fn toggle_inspector(&mut self, _: &ToggleInspector, _: &mut Window, cx: &mut Context<Self>) {
+        self.show_inspector = !self.show_inspector;
+        cx.notify();
     }
 
     fn toggle_backward(&mut self, _: &ToggleBackward, _: &mut Window, cx: &mut Context<Self>) {
@@ -1051,6 +1064,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_backward))
             .on_action(cx.listener(Self::cycle_pace))
             .on_action(cx.listener(Self::toggle_all_lanes))
+            .on_action(cx.listener(Self::toggle_inspector))
             .on_action(cx.listener(Self::toggle_answer))
             .on_action(cx.listener(Self::copy_position))
             .on_action(cx.listener(Self::paste_position))
@@ -1096,10 +1110,10 @@ impl Render for Workspace {
                             .child(self.rink_context(cx))
                             .children(self.review_controls(cx))
                             .children(self.edit_notice(cx))
-                            .child(div().flex_1().min_h_0().child(self.canvas.clone()))
+                            .child(div().flex_1().min_h_0().debug_selector(|| "rink".into()).child(self.canvas.clone()))
                             .children(self.caption_strip(cx)),
                     )
-                    .child(self.inspector.clone()),
+                    .when(self.show_inspector, |row| row.child(self.inspector.clone())),
             )
             .child(self.timeline.clone())
             .children(picker)
@@ -1363,6 +1377,61 @@ mod tests {
 
         cx.simulate_keystrokes("l");
         assert!(cx.update(|_, cx| ws.read(cx).timeline.read(cx).all_players));
+    }
+
+    #[gpui::test]
+    fn hiding_the_inspector_gives_the_rink_its_width(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        cx.simulate_resize(gpui::size(px(1000.), px(800.)));
+        let rink_width = |cx: &mut VisualTestContext| {
+            cx.run_until_parked();
+            cx.debug_bounds("rink").expect("rink rendered").size.width
+        };
+        let shown = rink_width(cx);
+
+        cx.simulate_keystrokes("i");
+        let hidden = rink_width(cx);
+        assert_eq!(hidden - shown, px(theme::INSPECTOR_WIDTH), "I hides the inspector and the rink takes its width");
+
+        point_and_click(cx, "inspector");
+        assert_eq!(rink_width(cx), shown, "the toolbar button shows it again");
+        cx.simulate_keystrokes("i");
+        assert_eq!(rink_width(cx), hidden);
+
+        // D while hidden: the inspector comes back and the new decision point's note takes the typing.
+        cx.simulate_keystrokes("d");
+        cx.simulate_input("ice");
+        assert_eq!(rink_width(cx), shown);
+        let note = cx.update(|_, cx| {
+            let s = state.read(cx);
+            s.play.events[s.selected_event.unwrap()].note.clone()
+        });
+        assert_eq!(note, "ice", "I typed, not run");
+        assert!(cx.update(|_, cx| ws.read(cx).show_inspector));
+    }
+
+    #[gpui::test]
+    fn a_long_status_is_cut_short_beside_the_title(cx: &mut TestAppContext) {
+        let (ws, cx) = setup(cx);
+        let state = play_state(&ws, cx);
+        cx.update(|_, cx| {
+            state.update(cx, |s, cx| {
+                s.play.title = "D-zone 1: puck in my corner (strong side)".into();
+                s.set_status(format!("Opened \"{}\".", s.play.title));
+                cx.notify();
+            })
+        });
+        for width in [1000.0, 1280.0] {
+            cx.simulate_resize(gpui::size(px(width), px(800.)));
+            cx.run_until_parked();
+            let title = cx.debug_bounds("title").expect("title rendered");
+            let status = cx.debug_bounds("status").expect("status rendered");
+            let undo = cx.debug_bounds("undo").expect("undo rendered");
+            assert!(status.left() >= title.right(), "status clears the title at {width}px: {status:?} {title:?}");
+            assert!(status.right() <= undo.left(), "status clears Undo at {width}px: {status:?} {undo:?}");
+            assert!(status.size.height < px(30.), "one line at {width}px: {status:?}");
+        }
     }
 
     #[gpui::test]
