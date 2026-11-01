@@ -19,7 +19,7 @@ Plan: [Rink Replay — Hockey Play Animator (Plan)](https://claude.ai/artifact/9
 | M1 · Core + playback: `rink-core` model, `sample()`, keyframes, scrub, play/pause | Done |
 | M2 · Editor: multi-row timeline, event editing, templates UI, undo, autosave | Done: text fields, event and roster editing, all-players timeline, play picker, undo/redo, autosave with conflict handling |
 | Position feedback: facts, `rink` CLI, Claude Code skill, ghosts in the app | Done (replaces the planned MCP server for now) |
-| Web viewer: the rink through WebAssembly in a Svelte app ([design](docs/web-app-design.md)) | In progress: rink, playback, captions, event lane, selection |
+| Web app: the rink through WebAssembly in a Svelte app ([design](docs/web-app-design.md), [experience](docs/web-app-experience.md)) | In progress: lesson player (Phase 1) for L1 to L4, progress in the browser, installable and offline; play viewer |
 
 ## Layout
 
@@ -30,7 +30,7 @@ crates/
   rink-app/    # GPUI binary: rink-replay
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
   rink-wasm/   # rink-core and rink-lesson for the browser: play and lesson handles, scene, hit test, grading
-web/           # Svelte viewer (Vite); paints rink-wasm's scene on a canvas
+web/           # Svelte app (Vite): lesson player and play viewer over rink-wasm
 rinks/         # rink presets (IIHF 60x30, NHL 61x26) as JSON
 examples/      # breakout play with an example review
 .claude/skills/   # Claude Code skills: review-positioning, draft-play
@@ -143,10 +143,10 @@ driver.
 `gpui` is pinned to `=0.2.2` from crates.io instead of a Zed git revision. `Cargo.lock` pins `libc` to 0.2.188
 because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` releases.
 
-### Web viewer
+### Web app
 
-The viewer in `web/` loads the breakout example and plays it back in the browser. It needs the
-`wasm32-unknown-unknown` target and the `wasm-bindgen` CLI at the version in `Cargo.lock`.
+The app in `web/` is a mobile-first lesson player over `curriculum/`, with the play viewer beside it. It
+needs the `wasm32-unknown-unknown` target and the `wasm-bindgen` CLI at the version in `Cargo.lock`.
 
 ```sh
 scripts/build-wasm.sh       # rink-wasm and its JS bindings, into web/src/lib/wasm/
@@ -154,9 +154,20 @@ cd web && npm ci
 npm run dev                 # http://localhost:5173
 ```
 
-`npm run build` type-checks and writes the static site to `web/dist/`. `web/public/plays` links to `examples/`.
-In the viewer, Space plays and pauses, ← → step 100 ms, Home / End jump, a click selects a player, the wheel
-zooms, Shift-wheel or a middle-button drag pans, and 0 fits the rink.
+`npm run build` type-checks and writes the static site to `web/dist/`, with a web app manifest and a
+service worker so a phone can add it to the home screen and run it offline. `web/public/curriculum` links
+to `curriculum/` and `web/public/plays` to `examples/`; both are served as static files.
+
+- `#/` lists the course from `curriculum/course.json`, each lesson with its principle and a Studied mark.
+  "Export progress" downloads attempts and studied lessons as JSON.
+- `#/lesson/<id>` runs a lesson: the rink on top, the step in a bottom sheet. A card reads a Markdown
+  section, a watch step plays a segment and stops on the beat, a choice grades on tap and can play on in
+  the variant the option leads to, a spot hides your player until you tap the rink and then draws the
+  target zones with the facts for your tap and the target, and a contrast flips between the play and its
+  wrong variant with the playhead kept. The result shows the cue and the graded steps below 2.
+- Progress (append-only attempts, studied lessons) lives in IndexedDB behind a `ProgressStore` interface.
+- `#/viewer` plays the breakout example. Space plays and pauses, ← → step 100 ms, Home / End jump, a click
+  selects a player, the wheel zooms, Shift-wheel or a middle-button drag pans, and 0 fits the rink.
 
 ## Controls
 
