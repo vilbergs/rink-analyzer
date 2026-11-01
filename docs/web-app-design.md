@@ -87,36 +87,16 @@ transport bar plus the event lane.
 
 ### Curriculum inside the app
 
-A lesson is what the study-tool note describes: a principle, one play with a decision point, the
-transcript (the play's captions), a contrast variant, and a cue for the ice. The play file already holds
-the captions and the answer. The lesson adds what is not about one play:
-
-```jsonc
-// curriculum/lessons/01-dzone-strong-side-wall.json
-{
-  "id": "01-dzone-strong-side-wall",
-  "order": 1,
-  "title": "Strong-side wall in the D-zone",
-  "principle": "Stay above the puck and inside their D.",
-  "play": "01-dzone-strong-side-wall",          // a .rink.json in curriculum/plays/
-  "wrong": "01-dzone-strong-side-wall-wrong",   // the contrast variant
-  "cue": "Puck goes to the point: I push now.",
-  "tags": ["dzone", "strong-side"]
-}
-```
-
-Progress is per lesson: not started, watched, quizzed with a distance, and when. It lives in browser
-storage first and exports as JSON, so nothing is lost when a server arrives. The study-tool note said
-progress tracking in the app was not worth building because the vault had it. With the app as the
-study surface that reverses: the lesson page shows the progress, and the Saturday log can import the
-export.
-
-Quiz mode (proposal 5) is the first web-only feature worth building, because the scene already knows how
-to draw a suggestion: the drafted position is the suggestion and the user's marker is the actual.
+The lessons, the step types, progress and the screens are specified in
+[web-app-experience.md](web-app-experience.md). In short: a lesson is a Markdown file for the prose and
+a `.steps.json` for the interaction under `curriculum/`, over a play and its "wrong" variant. Grading
+lives in the `rink-lesson` crate and reaches the browser through `rink-wasm`'s `LessonHandle`. Progress
+is append-only attempt rows in browser storage behind one `ProgressStore` interface.
 
 ### Where plays live
 
-- Curriculum plays ship with the app as static JSON. They change through git, like the lessons.
+- Curriculum plays ship with the app as static files from `curriculum/plays/`. They change through git,
+  like the lessons.
 - The user's own retraced plays are saved in the browser (IndexedDB) and exportable as `.rink.json`, so
   the desktop app and the `rink` CLI can read them.
 - Reviews are read-only on the web for now. A later backend runs `rink` and the review skill and returns
