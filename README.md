@@ -26,9 +26,10 @@ Plan: [Rink Replay — Hockey Play Animator (Plan)](https://claude.ai/artifact/9
 ```text
 crates/
   rink-core/   # model, rink geometry, interpolation (sample), validation, file format, templates
+  rink-lesson/ # lessons over plays: the lesson and step model, grading, content checks
   rink-app/    # GPUI binary: rink-replay
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
-  rink-wasm/   # rink-core for the browser: a play handle, its scene and hit test
+  rink-wasm/   # rink-core and rink-lesson for the browser: play and lesson handles, scene, hit test, grading
 web/           # Svelte viewer (Vite); paints rink-wasm's scene on a canvas
 rinks/         # rink presets (IIHF 60x30, NHL 61x26) as JSON
 examples/      # breakout play with an example review
