@@ -14,17 +14,17 @@ what the user sees and does.
 A lesson is ten minutes on a phone: watch a play beat by beat, get stopped at the decision point and
 asked what you would do, see what it costs to be wrong, and leave with one cue for Saturday. The path
 shows where you are, practice brings back what you missed, and the Saturday check-in closes the loop
-with the ice.
+with the ice. No streaks, points or badges: retention is not a goal, understanding is.
 
 ## What each source contributes
 
 | Source | Take | Leave |
 | --- | --- | --- |
-| The vault lessons | The lesson anatomy: principle, one play, decision point, transcript, "what wrong looks like", cue, Saturday log. The module order. | The Obsidian link hopping and the hand-kept progress table. |
+| The vault lessons | The lesson anatomy: principle, one play, decision point, transcript, "what wrong looks like", cue, Saturday log. The module order. The prose itself moves into the repo. | The vault as a source. After the move it can embed or link the app's content, not the other way around. |
 | Rink Replay | Plays as keyframed, to-scale motion with captions and answers. `sample()`, facts, the suggestion check and the ghost rendering, which already draw "where you were" against "where you should be". | The editor as the primary surface. Editing stays a later phase. |
 | chalktalk | Questions as a registry of types with pure grading, grade 0/1/2, feedback that explains the cost, model answers played as plans, situations as data with permanent ids, the bottom sheet over the rink, mirroring for left wing later. | Static boards. Every chalktalk situation becomes a moment in a moving play. |
-| Brilliant | One concept per lesson. Interact before you read. Short explanations that pause for a question. | Long courses. Cosmetic streaks. |
-| Duolingo | The path. Locked until ready. Mixed practice of what you got wrong. A small daily or weekly commitment. | Hearts, lives, leagues, XP as a number to chase. One adult learner does not need them. |
+| Brilliant | One concept per lesson. Interact before you read. Short explanations that pause for a question. | Long courses. Streaks. |
+| Duolingo | The path. Locked until ready. Mixed practice of what you got wrong. | Everything built for retention: hearts, lives, leagues, XP, daily goals, reminders. |
 
 ## Structure
 
@@ -71,8 +71,8 @@ L1, "Puck in my corner", as it would run:
 9. **Cue card.** "When the puck goes into my corner, look up at my point man." A Done button, and the
    lesson is marked studied.
 
-Steps 3, 5 and 6 are graded. A lesson's score is the sum, shown as a small ring on the node, not a
-number to chase. Anything graded below 2 feeds the module's practice node.
+Steps 3, 5 and 6 are graded. There is no lesson score. The node shows studied or not, and which
+graded steps are still below 2. Those feed the module's practice node.
 
 ## Step types
 
@@ -108,28 +108,26 @@ nearest opponent, open lanes), for your answer and the model answer side by side
 
 ## Progress and coming back
 
-- **Lesson state**: locked, open, studied (done once), strong (every graded step at 2 on the latest
-  attempt).
+- **Lesson state**: locked, open, studied. Nothing else.
 - **Attempts**: one row per graded step answered, with the grade and when. Permanent step ids, so
-  content can be reworded without losing history. This is chalktalk's `attempts` table.
+  content can be reworded without losing history. This is chalktalk's `attempts` table. Attempts
+  exist for practice selection and for your own review, not for a score.
 - **Practice**: a module's practice node draws 6 to 8 questions, favoring steps with a recent grade
   below 2, then the oldest attempts. Practice can draw from the whole course once Module 2 is done.
 - **Saturday check-in**: one screen per cue studied so far: "Did you catch yourself doing it?" with
-  yes, no and a one-line note. It writes the same `· L1 ✓` line the session log uses and exports it,
-  so the vault's log and the app agree.
-- **Rhythm**: the path shows the current week's lesson and whether the check-in is done. A streak is
-  weeks with both. There is no daily pressure; the curriculum is one lesson a week by design.
+  yes, no and a one-line note. It is a log, not a score, and it exports as the `· L1 ✓` line the
+  session log in the vault uses, for as long as that log lives there.
 - **Storage**: browser storage first, exported as JSON. Accounts and sync are a later phase.
 
 ## Screens
 
-- **Path** (home): modules top to bottom, nodes with state rings, the current lesson pulled out as a
-  card with its principle and "10 min".
+- **Path** (home): modules top to bottom, nodes marked locked, open or studied, the next lesson
+  pulled out as a card with its principle and "10 min".
 - **Lesson**: the rink fills the top of the screen. On a phone a bottom sheet holds the step (caption,
   question, options, feedback) at about half height, collapsible, scrolling behind. On a desktop the
   same sheet is a right panel. A thin step progress bar sits on top. The event lane sits under the
   rink only in `watch` and `freeze` steps.
-- **Result**: at the end of a lesson, the cue, the ring, and the steps to revisit.
+- **Result**: at the end of a lesson, the cue and the steps worth revisiting.
 - **Practice**: the same lesson screen, with mixed steps.
 - **Check-in**: a short form over the week's cues.
 - **Library** (later): own plays from the desktop app, viewed and eventually edited here.
@@ -139,28 +137,51 @@ app wasn't on the phone. Desktop gets the same layout with more room.
 
 ## Content model
 
-Lessons are data, as in chalktalk. The curriculum ships with the app.
+The repo is the source. The vault is not. Each lesson is a Markdown file for the prose and a JSON
+file for the interaction, with the same stem, under `curriculum/`. The curriculum ships with the app.
 
 ```text
 curriculum/
-  course.json                      module order, lesson order, the Saturday check-in text
-  lessons/01-dzone-strong-side-wall.json
+  course.json                                  module order, lesson order, the check-in text
+  lessons/01-dzone-strong-side-wall.md         frontmatter + prose: principle, cue, what wrong looks like, self-check
+  lessons/01-dzone-strong-side-wall.steps.json the steps
   plays/01-dzone-strong-side-wall.rink.json
   plays/01-dzone-strong-side-wall.wrong.rink.json
 ```
 
+Markdown holds what a person reads and edits in sentences. JSON holds what the player executes and
+the tests check. A `card` step points at a Markdown section by heading, so the prose is written once.
+The transcript is not written at all: it is the play's captions, rendered by the app, as the vault
+tables already were through `rink transcript --md`.
+
+```markdown
+---
+id: l1-dzone-strong-side-wall
+module: dzone
+title: Puck in my corner (strong side)
+play: 01-dzone-strong-side-wall
+wrong: 01-dzone-strong-side-wall.wrong
+---
+## Principle
+The strong-side winger owns the point. Be inside their D before the pass goes there.
+
+## Cue
+When the puck goes into my corner, look up at my point man, not at the battle.
+
+## What wrong looks like
+Drag yourself to the wall below the puck, next to our RD, as if helping in the corner. ...
+
+## Self-check
+At 2.5 s, were you between the puck and their LD, or below the puck? ...
+```
+
 ```jsonc
-// curriculum/lessons/01-dzone-strong-side-wall.json
+// curriculum/lessons/01-dzone-strong-side-wall.steps.json
 {
-  "id": "l1-dzone-strong-side-wall",
-  "module": "dzone",
-  "title": "Puck in my corner (strong side)",
-  "principle": "The strong-side winger owns the point. Be inside their D before the pass goes there.",
-  "cue": "When the puck goes into my corner, look up at my point man, not at the battle.",
-  "play": "01-dzone-strong-side-wall",
-  "wrong": "01-dzone-strong-side-wall.wrong",
+  "schema": 1,
+  "lesson": "l1-dzone-strong-side-wall",
   "steps": [
-    { "id": "l1-principle", "type": "card", "text": "..." },
+    { "id": "l1-principle", "type": "card", "section": "Principle" },
     { "id": "l1-watch-1", "type": "watch", "from_ms": 0, "to_ms": 2000 },
     { "id": "l1-pick-man", "type": "pick", "at_ms": 2000, "prompt": "Who is your man right now?",
       "answer": "away_LD", "partial": ["away_C"],
@@ -171,20 +192,22 @@ curriculum/
     { "id": "l1-spot-dp", "type": "spot", "at_ms": 2500, "prompt": "Where should you be?",
       "target": [-22.0, -11.5], "r1_m": 2.0, "r2_m": 4.0, "fb": { "right": "...", "close": "...", "wrong": "..." } },
     { "id": "l1-watch-3", "type": "watch", "from_ms": 2500, "to_ms": 4500 },
-    { "id": "l1-contrast", "type": "contrast", "at_ms": 2500, "text": "..." },
-    { "id": "l1-cue", "type": "card", "text": "..." }
+    { "id": "l1-contrast", "type": "contrast", "at_ms": 2500, "section": "What wrong looks like" },
+    { "id": "l1-cue", "type": "card", "section": "Cue" }
   ]
 }
 ```
 
 Rules carried over from chalktalk: ids are permanent and kebab-case; anything filtered on is a field,
-everything read whole is nested; a `schema` version on every file; a test builds every lesson and
-checks every reference (play exists, `at_ms` is within the play, a `spot` target is on the ice and
-reachable from the real position, as the suggestion check already enforces). The vault's transcript
-tables become an export of the play's captions, which they already are.
+everything read whole is nested; a `schema` version on every JSON file; a test builds every lesson
+and checks every reference (play exists, `at_ms` is within the play, every `section` exists in the
+Markdown, a `spot` target is on the ice and reachable from the real position, as the suggestion check
+already enforces).
 
-Authoring: a `draft-lesson` skill beside `draft-play`, which writes the lesson file and the wrong
-variant from the vault note and the play, then runs the check.
+Moving in: the four existing vault notes split into eight lesson Markdown files, the steps are written
+by hand for L1 to L4 to find the right rhythm, and from L5 on a `draft-lesson` skill beside
+`draft-play` writes both files and the wrong variant from a description, then runs the check. The
+vault's `Theory` notes become a pointer to the app, or go.
 
 ## Where the logic lives
 
@@ -226,17 +249,19 @@ component. Nothing else changes.
 5. **Later types** (`route`, `predict`, `recall`), left wing by mirroring, the library of own plays.
 6. **Accounts and sync**, if a second user ever appears.
 
-Phase 1 is the one to feel in the hand before anything else. If a lesson is not fun on a phone with
+Phase 1 is the one to feel in the hand before anything else. If a lesson is not clear on a phone with
 L1, the path will not fix it.
+
+## Decided
+
+- **No gamification.** No streaks, scores, rings, XP or reminders. Progress is studied or not, plus the
+  attempts that drive practice. Retention is not a goal of this app right now.
+- **The repo is the content source.** Markdown for prose, JSON for steps, plays as `.rink.json`. The
+  vault is not a source.
 
 ## Open decisions
 
-- **Gamification level.** The plan has a weekly streak and rings, no XP, no hearts. Say if you want
-  more or less.
 - **Strictness.** `spot` radii of 2 m and 4 m are a guess from the desktop's default zone radius; tune
   after L1 is playable.
-- **Who authors.** Lessons as JSON written by a skill from the vault, or the vault retired and the
-  JSON made the source with the app as the reader. The plan assumes the vault keeps the prose and the
-  app holds the interaction, with captions and cues shared through the play files.
 - **Left wing.** chalktalk mirrors; Rink Replay plays are drafted for the right wing. Mirroring a play
   is a transform on the file (negate y, swap L and R roles), cheap in `rink-core` when wanted.
