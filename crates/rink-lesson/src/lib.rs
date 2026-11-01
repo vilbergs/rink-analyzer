@@ -4,10 +4,12 @@
 
 mod check;
 mod course;
+mod grade;
 mod lesson;
 
 pub use check::{check, Issue};
 pub use course::{Course, Module};
+pub use grade::{grade, Answer, Graded, SpotFacts, WatchOn};
 pub use lesson::{Choice, ChoiceOption, Grade, Lesson, LessonMeta, Spot, SpotFeedback, Step, SCHEMA};
 
 use rink_core::Play;
@@ -60,4 +62,10 @@ pub enum LessonError {
     LessonMismatch { steps: String, md: String },
     #[error("no step `{0}`")]
     UnknownStep(String),
+    #[error("step `{0}` does not take that kind of answer")]
+    AnswerMismatch(String),
+    #[error("step `{step}` has no option {index}")]
+    NoOption { step: String, index: usize },
+    #[error("step `{0}` needs a player marked as me in the main play")]
+    NoMe(String),
 }
