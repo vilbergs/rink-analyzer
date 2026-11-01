@@ -7,8 +7,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
-use rink_core::review::{load_review, review_path};
+use rink_core::review::{active_suggestions, load_review, review_path};
 use rink_core::sample::{facing_at, is_baked_at, pass_arrival_ms, velocity_at};
+use rink_core::scene;
 use rink_core::skate::{apply_order, order_end_ms};
 use rink_core::templates::{standard_entity, standard_slots};
 use rink_core::{
@@ -16,13 +17,10 @@ use rink_core::{
     Snapshot, Suggestion, TeamSide, Vec2,
 };
 
-use crate::paint::{entity_radius, puck_draw_pos};
 use crate::theme::short_name;
 
 /// Playhead and keyframe times snap to this grid when editing.
 pub const SNAP_MS: u32 = 100;
-/// Extra grab distance around an entity, in meters.
-const HIT_SLOP_M: f32 = 0.3;
 /// How far inside the boards a dragged entity is kept, in meters.
 const BOARDS_CLEARANCE_M: f32 = 0.5;
 
@@ -192,8 +190,7 @@ impl PlayState {
 
     /// Suggestions whose ghost is on the ice at the playhead.
     pub fn active_suggestions(&self) -> impl Iterator<Item = (&Suggestion, Vec2)> {
-        let t = self.playhead_ms;
-        self.suggestions().iter().filter_map(move |s| s.ghost_pos(&self.play, t).map(|g| (s, g)))
+        active_suggestions(self.suggestions(), &self.play, self.playhead_ms)
     }
 
     /// Jump the playhead to the next (dir > 0) or previous suggestion's moment
@@ -393,21 +390,7 @@ impl PlayState {
     }
 
     pub fn hit_test(&self, at: Vec2) -> Option<EntityId> {
-        let snap = self.snapshot();
-        if let Some(puck) = self.play.puck() {
-            if puck_draw_pos(&self.play, &snap).distance(at) <= entity_radius(puck.kind) + HIT_SLOP_M {
-                return Some(puck.id.clone());
-            }
-        }
-        snap.entities
-            .iter()
-            .filter_map(|s| {
-                let e = self.play.entity(&s.id)?;
-                let d = s.pos.distance(at);
-                (d <= entity_radius(e.kind) + HIT_SLOP_M).then_some((d, s.id.clone()))
-            })
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-            .map(|(_, id)| id)
+        scene::hit_test(&self.play, &self.snapshot(), at)
     }
 
     /// The keyframe at the snapped playhead, or a new one at the entity's

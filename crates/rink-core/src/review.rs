@@ -188,6 +188,15 @@ impl Suggestion {
     }
 }
 
+/// The suggestions whose ghost is on the ice at `t_ms`, with where it is.
+pub fn active_suggestions<'a>(
+    suggestions: &'a [Suggestion],
+    play: &'a Play,
+    t_ms: u32,
+) -> impl Iterator<Item = (&'a Suggestion, Vec2)> + 'a {
+    suggestions.iter().filter_map(move |s| s.ghost_pos(play, t_ms).map(|g| (s, g)))
+}
+
 impl Review {
     pub fn new(play: &Play) -> Self {
         Review { schema_version: REVIEW_SCHEMA_VERSION, play_id: play.id, suggestions: Vec::new(), next_id: 1 }

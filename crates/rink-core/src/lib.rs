@@ -10,6 +10,7 @@ pub mod model;
 pub mod review;
 pub mod rink;
 pub mod sample;
+pub mod scene;
 pub mod session;
 pub mod skate;
 pub mod spline;

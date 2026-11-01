@@ -19,7 +19,7 @@ pub const TEXT_MUTED: u32 = 0x9ba3b0;
 pub const TEXT_FAINT: u32 = 0x666e7b;
 
 /// Selection, playhead, primary actions.
-pub const ACCENT: u32 = 0x4c8dff;
+pub const ACCENT: u32 = rink_core::scene::SELECTED_RING;
 /// Position feedback and ghosts.
 pub const FEEDBACK: u32 = 0x35c47c;
 /// Decision points and warnings.
@@ -27,7 +27,7 @@ pub const WARN: u32 = 0xf2a93b;
 /// Destructive actions.
 pub const DANGER: u32 = 0xff6b6b;
 /// The user's own player.
-pub const ME: u32 = 0xf2a93b;
+pub const ME: u32 = rink_core::scene::ME_RING;
 
 pub const TOOLBAR_HEIGHT: f32 = 44.0;
 pub const INSPECTOR_WIDTH: f32 = 320.0;

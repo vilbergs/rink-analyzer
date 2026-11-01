@@ -10,12 +10,11 @@ use gpui::{
     canvas, div, prelude::*, rgb, Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
     Point, ScrollDelta, ScrollWheelEvent, Task, Window,
 };
+use rink_core::scene::{self, puck_draw_pos, Frame};
 use rink_core::transform::{RinkTransform, ViewZoom};
 use rink_core::{EntityId, Vec2};
 
-use crate::paint::{
-    paint_entities, paint_ghosts, paint_orders, paint_rink, paint_suggestion_zones, puck_draw_pos, EntityPaint,
-};
+use crate::paint::paint_scene;
 use crate::pinch::{self, Pinch};
 use crate::state::PlayState;
 use crate::theme::{self, short_name};
@@ -202,16 +201,14 @@ impl Render for RinkCanvas {
                         }
                     },
                     move |_, t, window, cx| {
-                        paint_rink(window, &t, &play.rink);
-                        paint_suggestion_zones(window, cx, &t, &play, &active);
-                        paint_orders(window, &t, &play, playhead_ms, selected.as_ref());
-                        paint_entities(
-                            window,
-                            cx,
-                            &t,
-                            EntityPaint { play: &play, snapshot: &snapshot, selected: selected.as_ref() },
-                        );
-                        paint_ghosts(window, cx, &t, &play, &snapshot, &active);
+                        let frame = Frame {
+                            play: &play,
+                            snapshot: &snapshot,
+                            playhead_ms,
+                            selected: selected.as_ref(),
+                            ghosts: &active,
+                        };
+                        paint_scene(window, cx, &scene::build(&frame, &t));
                     },
                 )
                 .size_full(),
