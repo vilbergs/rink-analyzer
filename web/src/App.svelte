@@ -1,9 +1,16 @@
 <script lang="ts">
+  import { PlayerState } from "./lib/player.svelte";
+  import RinkCanvas from "./lib/rink/RinkCanvas.svelte";
+  import Transport from "./lib/timeline/Transport.svelte";
   import init, { PlayHandle } from "./lib/wasm/rink_wasm.js";
 
-  async function load(): Promise<PlayHandle> {
-    const [, play] = await Promise.all([init(), fetchText("plays/breakout.rink.json")]);
-    return PlayHandle.from_json(play);
+  async function load(): Promise<PlayerState> {
+    const [, play, review] = await Promise.all([
+      init(),
+      fetchText("plays/breakout.rink.json"),
+      fetchText("plays/breakout.review.json"),
+    ]);
+    return new PlayerState(PlayHandle.from_json(play), review);
   }
 
   async function fetchText(path: string): Promise<string> {
@@ -15,10 +22,11 @@
 
 {#await load()}
   <p class="status">Loading…</p>
-{:then handle}
+{:then player}
   <main>
-    <header>{handle.title()}</header>
-    <canvas></canvas>
+    <header>{player.title}</header>
+    <RinkCanvas {player} />
+    <Transport {player} />
   </main>
 {:catch error}
   <p class="status">Could not load the play: {error.message}</p>
@@ -26,8 +34,8 @@
 
 <style>
   main {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     height: 100%;
   }
   header {
@@ -36,12 +44,17 @@
     border-bottom: 1px solid var(--border);
     font-weight: 600;
   }
-  canvas {
-    flex: 1;
-    min-height: 0;
-  }
   .status {
     padding: 16px;
     color: var(--text-muted);
+  }
+  @media (max-width: 699px) {
+    main {
+      height: auto;
+      grid-template-rows: auto;
+    }
+    main > :global(.rink) {
+      aspect-ratio: 2 / 1;
+    }
   }
 </style>
