@@ -1,6 +1,6 @@
 import type { Mark, Point } from "../rink/paint";
 
-/** The JSON shapes `LessonHandle` returns, as rink-lesson serializes them. */
+// The JSON shapes `LessonHandle` returns, as rink-lesson serializes them.
 
 export type Which = "main" | "wrong";
 

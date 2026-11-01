@@ -18,11 +18,19 @@
 
   $effect(() => {
     let open: LessonSession | null = null;
+    let closed = false;
     loadLesson(id).then(
-      (loaded) => (session = open = new LessonSession(loaded, progress)),
+      (loaded) => {
+        open = new LessonSession(loaded, progress);
+        if (closed) open.close();
+        else session = open;
+      },
       (e: Error) => (loadError = e.message),
     );
-    return () => open?.close();
+    return () => {
+      closed = true;
+      open?.close();
+    };
   });
 </script>
 
