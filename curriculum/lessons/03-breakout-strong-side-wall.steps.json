@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "lesson": "l3-breakout-strong-side-wall",
+  "steps": [
+    { "id": "l3-principle", "type": "card", "section": "Principle" },
+    { "id": "l3-watch-1", "type": "watch", "from_ms": 0, "to_ms": 2000 },
+    { "id": "l3-choice-rim", "type": "choice", "at_ms": 2000, "prompt": "The rim is on your stick. What were you doing before it got there?",
+      "options": [
+        { "text": "Stopped at the hash marks, back to the boards, shoulder checking", "grade": 2, "fb": "That's it. You won the puck because you were already there, and you know their LW is coming down the wall and their LD is starting to pinch, so the decision is made before the puck lands." },
+        { "text": "Stopped at the hash marks, eyes on the puck all the way", "grade": 1, "fb": "Being stopped wins the puck. But you looked only at the puck, so you find their LW and LD after it lands, and that half second was your time to carry." },
+        { "text": "Skating to the hash marks, eyes on our RD", "grade": 0, "fb": "The rim hits you moving. You take it on your skates with your back to the play, and the pinch arrives while you're still turning.", "play": "wrong" },
+        { "text": "Already up the wall toward the blue line, for a pass in stride", "grade": 0, "fb": "The rim needs a body at the hash marks. Up high, it goes past you or their LD steps down and keeps it in the zone." }
+      ] },
+    { "id": "l3-watch-2", "type": "watch", "from_ms": 2000, "to_ms": 3000 },
+    { "id": "l3-choice-dp", "type": "choice", "at_ms": 3000, "prompt": "Their LD is pinching. Chip it past him or carry it out?",
+      "options": [
+        { "text": "Carry: he pinched late and the lane up the wall is open", "grade": 2, "fb": "Right. He pinched late, so you take it out with speed and it's a 3-on-2 the other way." },
+        { "text": "Chip it off the glass past him", "grade": 1, "fb": "Safe, but it gives away a puck you could have carried. The chip is right only when he's committed to the pinch and our C is swinging through the middle to pick it up. Here it's a race instead of a 3-on-2." },
+        { "text": "Back to our RD behind the net", "grade": 0, "fb": "Their C is right there forechecking. The puck goes back into the pressure and the breakout starts over in our corner." },
+        { "text": "Across to the middle for our C", "grade": 0, "fb": "Through their C and LW. A turnover in the middle of our zone is a shot on our net." }
+      ] },
+    { "id": "l3-spot-dp", "type": "spot", "at_ms": 3000, "prompt": "Their LD is pinching. Tap where you should be.",
+      "fb": { "right": "Up the wall with the puck, level with their LW and moving, before their LD gets down to you.", "close": "On the wall, but a stride or two behind. Their LW is still level with you and the pinch is closer.", "wrong": "Still at the hash marks or off the wall. Their LW is above you and the pinch arrives while you're standing." } },
+    { "id": "l3-watch-3", "type": "watch", "from_ms": 3000, "to_ms": 6000 },
+    { "id": "l3-contrast", "type": "contrast", "at_ms": 2000, "section": "What wrong looks like" },
+    { "id": "l3-self-check", "type": "card", "section": "Self-check" },
+    { "id": "l3-cue", "type": "card", "section": "Cue" }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "lesson": "l1-dzone-strong-side-wall",
+  "steps": [
+    { "id": "l1-principle", "type": "card", "section": "Principle" },
+    { "id": "l1-watch-1", "type": "watch", "from_ms": 0, "to_ms": 2000 },
+    { "id": "l1-choice-man", "type": "choice", "at_ms": 2000, "prompt": "Their C is working toward the wall, looking up. Who is your man?",
+      "options": [
+        { "text": "Their LD at the point", "grade": 2, "fb": "Right. On the strong side the winger owns the point. Their LD is the pass their C is looking for, so he is yours before the puck goes." },
+        { "text": "Their C with the puck", "grade": 1, "fb": "He is the threat right now, but the corner battle belongs to our RD and C. Two of us on him leaves their LD alone at the point for the pass." },
+        { "text": "Their LW in the slot", "grade": 0, "fb": "Our C has the slot. If you drop to their LW, nobody is in the lane up the wall and the pass to the point is clean." }
+      ] },
+    { "id": "l1-watch-2", "type": "watch", "from_ms": 2000, "to_ms": 2500 },
+    { "id": "l1-choice-dp", "type": "choice", "at_ms": 2500, "prompt": "The pass is going to their LD at the point. Where are you when it leaves?",
+      "options": [
+        { "text": "Already inside him, above the puck, stick in the lane up the wall", "grade": 2, "fb": "That's the job. You were between the puck and the point before the pass went, so you push while it travels and meet him a stick length off on his inside shoulder. He can't walk to the middle, and his shot goes through a half-closed lane." },
+        { "text": "Halfway down, at the hash marks, ready to go either way", "grade": 1, "fb": "Better than the corner, but you're reacting instead of owning the point. When the pass leaves you are still a few strides from him, so he gets his head up and a step toward the middle before you arrive." },
+        { "text": "On the wall below the puck, next to our RD, helping in the corner", "grade": 0, "fb": "That's our RD's battle. From below the puck you can't reach the pass: their LD gets it clean with the whole top of the zone, and you chase uphill while he picks his shot.", "play": "wrong" },
+        { "text": "In front of our net, to block the shot", "grade": 0, "fb": "Our C and D have the net front. From there you're ten meters from their LD, so he takes the pass with time, walks the line and shoots through bodies our goalie can't see past." }
+      ] },
+    { "id": "l1-spot-dp", "type": "spot", "at_ms": 2500, "prompt": "The pass to the point is about to go. Tap where you should be.",
+      "fb": { "right": "Above the puck, inside their LD, in the lane up the wall. From there you push while the pass travels and arrive as he does.", "close": "Near the lane but a stride off it. That stride is the time he needs to get his head up and walk to the middle.", "wrong": "Too far from the lane to the point. From below the puck or in the slot the pass is clean and you chase him uphill." } },
+    { "id": "l1-watch-3", "type": "watch", "from_ms": 2500, "to_ms": 6000 },
+    { "id": "l1-contrast", "type": "contrast", "at_ms": 2500, "section": "What wrong looks like" },
+    { "id": "l1-self-check", "type": "card", "section": "Self-check" },
+    { "id": "l1-cue", "type": "card", "section": "Cue" }
+  ]
+}
