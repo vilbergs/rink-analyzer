@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { PlayerState } from "../player.svelte";
+  import type { PlayerState, View } from "../player.svelte";
   import { paint, type Scene } from "./paint";
 
   const MAX_ZOOM = 8;
@@ -16,18 +16,20 @@
     const { t, selected, reviewJson, view } = player;
     const ctx = canvas.getContext("2d");
     if (!ctx || width === 0 || height === 0) return;
-    const { zoom, pan, flipped } = view;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
-    const scene: Scene = player.handle.scene(Math.round(t), width, height, zoom, pan.x, pan.y, flipped, selected, reviewJson);
+    const scene: Scene = player.handle.scene(Math.round(t), { ...viewOpts(view), selected, review: reviewJson });
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     paint(ctx, scene);
   });
 
+  function viewOpts({ zoom, pan, flipped }: View) {
+    return { width, height, zoom, pan: [pan.x, pan.y], flipped };
+  }
+
   function onclick(e: MouseEvent) {
-    const { zoom, pan, flipped } = player.view;
     const t = Math.round(player.t);
-    player.selected = player.handle.hit_test(t, e.offsetX, e.offsetY, width, height, zoom, pan.x, pan.y, flipped) ?? null;
+    player.selected = player.handle.hit_test(t, e.offsetX, e.offsetY, viewOpts(player.view)) ?? null;
   }
 
   function onwheel(e: WheelEvent) {

@@ -4690,6 +4690,7 @@ name = "rink-wasm"
 version = "0.1.0"
 dependencies = [
  "rink-core",
+ "rink-lesson",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

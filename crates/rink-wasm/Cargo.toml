@@ -3,13 +3,14 @@ name = "rink-wasm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Rink Replay's play model and rink scene for the browser, through wasm-bindgen."
+description = "Rink Replay's play model, rink scene and lessons for the browser, through wasm-bindgen."
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 rink-core = { path = "../rink-core", default-features = false }
+rink-lesson = { path = "../rink-lesson" }
 serde.workspace = true
 serde_json.workspace = true
 # Must match the wasm-bindgen CLI that scripts/build-wasm.sh runs.
