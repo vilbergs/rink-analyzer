@@ -211,6 +211,20 @@ by hand for L1 to L4 to find the right rhythm, and from L5 on a `draft-lesson` s
 `draft-play` writes both files and the wrong variant from a description, then runs the check. The
 vault's `Theory` notes become a pointer to the app, or go.
 
+## Standalone, no backend
+
+The web app is the whole experience on its own. It is a static site: the core as wasm, the Svelte
+shell, and `curriculum/` shipped in the bundle. Grading runs in the browser. Progress and attempts
+live in browser storage (IndexedDB) and export as JSON. No request leaves the page after it loads.
+
+To make that hold on a phone, the app ships a web app manifest and a service worker, so it can be
+added to the home screen and works offline. Installed pages are also exempt from iOS Safari's
+seven-day storage eviction, which otherwise can wipe progress on a site not visited for a week.
+
+What would need a backend, none of it planned: accounts and sync across devices, Claude reviewing the
+user's own retraced plays (an LLM call; today done through the CLI on the desktop), or several people
+authoring content without a redeploy.
+
 ## Where the logic lives
 
 `rink-core` stays a crate with no idea that lessons exist. It knows plays, sampling, facts, the
