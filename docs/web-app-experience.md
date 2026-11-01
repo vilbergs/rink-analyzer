@@ -22,7 +22,7 @@ with the ice. No streaks, points or badges: retention is not a goal, understandi
 | --- | --- | --- |
 | The vault lessons | The lesson anatomy: principle, one play, decision point, transcript, "what wrong looks like", cue, Saturday log. The module order. The prose itself moves into the repo. | The vault as a source. After the move it can embed or link the app's content, not the other way around. |
 | Rink Replay | Plays as keyframed, to-scale motion with captions and answers. `sample()`, facts, the suggestion check and the ghost rendering, which already draw "where you were" against "where you should be". | The editor as the primary surface. Editing stays a later phase. |
-| chalktalk | Questions as a registry of types with pure grading, grade 0/1/2, feedback that explains the cost, model answers played as plans, situations as data with permanent ids, the bottom sheet over the rink, mirroring for left wing later. | Static boards. Every chalktalk situation becomes a moment in a moving play. |
+| chalktalk | Questions as a registry of types with pure grading, grade 0/1/2, feedback that explains the cost, model answers played as plans, situations as data with permanent ids, the bottom sheet over the rink. | Static boards. Every chalktalk situation becomes a moment in a moving play. |
 | Brilliant | One concept per lesson. Interact before you read. Short explanations that pause for a question. | Long courses. Streaks. |
 | Duolingo | The path. Locked until ready. Mixed practice of what you got wrong. | Everything built for retention: hearts, lives, leagues, XP, daily goals, reminders. |
 
@@ -248,7 +248,7 @@ component. Nothing else changes.
 3. **Practice and check-in.** `pick`, `freeze` and `order`. The practice node and its selection rule.
    The Saturday check-in and its log line.
 4. **Authoring.** The `draft-lesson` skill, `rink lesson check`, L5 to L9.
-5. **Later types** (`route`, `predict`, `recall`), left wing by mirroring, the library of own plays.
+5. **Later types** (`route`, `predict`, `recall`) and the library of own plays.
 6. **Accounts and sync**, if a second user ever appears.
 
 Phase 1 is the one to feel in the hand before anything else. If a lesson is not clear on a phone with
@@ -262,10 +262,7 @@ L1, the path will not fix it.
   vault is not a source.
 - **Mobile web first.** Built and tested on a phone browser before the desktop layout gets attention.
   A native wrapper (Tauri) is a later option, not part of this plan.
-
-## Open decisions
-
-- **Strictness.** `spot` radii of 2 m and 4 m are a guess from the desktop's default zone radius; tune
-  after L1 is playable.
-- **Left wing.** chalktalk mirrors; Rink Replay plays are drafted for the right wing. Mirroring a play
-  is a transform on the file (negate y, swap L and R roles), cheap in `rink-core` when wanted.
+- **Spot grading.** A tap within 2 m of the drafted position is right, within 4 m is close, further is
+  wrong. Positions are placed by hand, so the radii are forgiving. A step can override them.
+- **Right wing only.** No left-wing mirroring. The plays are drafted from the right winger's view and
+  the user plays right wing.
