@@ -43,6 +43,33 @@ pub struct Frame<'a> {
     pub selected: Option<&'a EntityId>,
     /// Active suggestions with the ghost's position at the playhead.
     pub ghosts: &'a [(Suggestion, Vec2)],
+    /// Entities not drawn, with their orders. Their snapshot state still
+    /// exists, so hit testing and facts work.
+    pub hidden: &'a [EntityId],
+    /// Annotations drawn above everything, in rink meters.
+    pub marks: &'a [Mark],
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Mark {
+    /// Translucent disc, such as an acceptable zone.
+    Zone {
+        at: Vec2,
+        r_m: f32,
+        color: Color,
+    },
+    /// A labelled point: a player-sized disc with the text centered on it.
+    Dot {
+        at: Vec2,
+        label: String,
+        color: Color,
+    },
+    Arrow {
+        from: Vec2,
+        to: Vec2,
+        color: Color,
+    },
 }
 
 // Colors below are 0xRRGGBB unless named as RGBA.
@@ -66,8 +93,8 @@ const WHITE: u32 = 0xffffff;
 /// Players without a team.
 const NO_TEAM: u32 = 0x808080;
 /// Position feedback: zone fill (RGBA), ghost outline and arrow, ghost fill (RGBA), label text.
-const ZONE_FILL: u32 = 0x22b35a40;
-const GHOST: u32 = 0x1a9a4c;
+pub const ZONE_FILL: u32 = 0x22b35a40;
+pub const GHOST: u32 = 0x1a9a4c;
 const GHOST_FILL: u32 = 0xd8f5e3c0;
 const GHOST_LABEL: u32 = 0x146b37;
 const DASH: [f32; 2] = [5.0, 4.0];
@@ -190,7 +217,7 @@ fn vertical_band(x: f32, width: f32, half_h: f32) -> [Vec2; 4] {
     [Vec2::new(x - w, -half_h), Vec2::new(x + w, -half_h), Vec2::new(x + w, half_h), Vec2::new(x - w, half_h)]
 }
 
-fn opaque(rgb: u32) -> Color {
+pub fn opaque(rgb: u32) -> Color {
     (rgb << 8) | 0xff
 }
 
@@ -222,7 +249,7 @@ impl Builder<'_> {
     }
 
     /// A line from `from` to `to` with an arrowhead, both in rink meters.
-    fn arrow(&mut self, from: Vec2, to: Vec2, width_px: f32, rgb: u32) {
+    fn arrow(&mut self, from: Vec2, to: Vec2, width_px: f32, color: Color) {
         let d = to - from;
         if d.length() < 0.1 {
             return;
@@ -231,8 +258,8 @@ impl Builder<'_> {
         let head = 0.9;
         let left = to - dir.rotate(Vec2::from_angle(0.45)) * head;
         let right = to - dir.rotate(Vec2::from_angle(-0.45)) * head;
-        self.stroke(&[from, to], false, width_px, rgb);
-        self.fill(&[to, left, right], rgb);
+        self.line(&[from, to], false, width_px, None, color);
+        self.fill_translucent(&[to, left, right], color);
     }
 
     fn text(&mut self, at: Vec2, text: String, size_px: f32, rgb: u32) {
@@ -249,9 +276,10 @@ pub fn build(frame: &Frame<'_>, t: &RinkTransform) -> Scene {
     let mut b = Builder { t, shapes: Vec::new() };
     rink(&mut b, &frame.play.rink);
     suggestion_zones(&mut b, frame.play, frame.ghosts);
-    orders(&mut b, frame.play, frame.playhead_ms, frame.selected);
+    orders(&mut b, frame);
     entities(&mut b, frame);
     ghosts(&mut b, frame.play, frame.snapshot, frame.ghosts);
+    marks(&mut b, frame.marks);
     Scene { shapes: b.shapes }
 }
 
@@ -335,8 +363,9 @@ fn suggestion_zones(b: &mut Builder<'_>, play: &Play, active: &[(Suggestion, Vec
 /// playhead on, dotted along the path they'll skate, with a dashed ring
 /// where they stop and dots at the places they pass through. The selected
 /// player's is drawn strongest.
-fn orders(b: &mut Builder<'_>, play: &Play, playhead_ms: u32, selected: Option<&EntityId>) {
-    for (id, orders) in &play.orders {
+fn orders(b: &mut Builder<'_>, frame: &Frame<'_>) {
+    let Frame { play, playhead_ms, selected, hidden, .. } = *frame;
+    for (id, orders) in play.orders.iter().filter(|(id, _)| !hidden.contains(id)) {
         let Some(order) = orders.iter().rev().find(|o| o.t_ms <= playhead_ms) else { continue };
         let end = order_end_ms(play, id, order);
         let Some(entity) = play.entity(id).filter(|_| end > playhead_ms) else { continue };
@@ -363,8 +392,8 @@ fn orders(b: &mut Builder<'_>, play: &Play, playhead_ms: u32, selected: Option<&
 }
 
 fn entities(b: &mut Builder<'_>, frame: &Frame<'_>) {
-    let Frame { play, snapshot, selected, .. } = *frame;
-    for state in &snapshot.entities {
+    let Frame { play, snapshot, selected, hidden, .. } = *frame;
+    for state in snapshot.entities.iter().filter(|s| !hidden.contains(&s.id)) {
         let Some(entity) = play.entity(&state.id) else { continue };
         let r = entity_radius(entity.kind);
         let team_color = entity.team.map(|s| play.team(s).color_rgb()).unwrap_or(NO_TEAM);
@@ -386,6 +415,9 @@ fn entities(b: &mut Builder<'_>, frame: &Frame<'_>) {
         b.text(state.pos, entity.mark(), size, WHITE);
     }
 
+    if play.puck().is_some_and(|p| hidden.contains(&p.id)) {
+        return;
+    }
     let scale = b.t.scale();
     let puck_r = PUCK_RADIUS_M.max(3.5 / scale);
     let puck = puck_draw_pos(play, snapshot);
@@ -408,7 +440,7 @@ fn ghosts(b: &mut Builder<'_>, play: &Play, snapshot: &Snapshot, active: &[(Sugg
             let gap = ghost.distance(actual);
             if gap > r * 1.2 {
                 let dir = (*ghost - actual).normalize();
-                b.arrow(actual + dir * r, *ghost - dir * (r * 0.6), 2.5, c.line);
+                b.arrow(actual + dir * r, *ghost - dir * (r * 0.6), 2.5, opaque(c.line));
             }
         }
         if let Some(facing) = s.facing {
@@ -419,6 +451,22 @@ fn ghosts(b: &mut Builder<'_>, play: &Play, snapshot: &Snapshot, active: &[(Sugg
         b.line(&circle(*ghost, r), true, 2.0, Some(DASH), opaque(c.line));
         let size = b.label_size(r * 1.1);
         b.text(*ghost, entity.mark(), size, c.label);
+    }
+}
+
+fn marks(b: &mut Builder<'_>, marks: &[Mark]) {
+    for mark in marks {
+        match mark {
+            Mark::Zone { at, r_m, color } => b.fill_translucent(&circle(*at, *r_m), *color),
+            Mark::Dot { at, label, color } => {
+                let r = SKATER_RADIUS_M;
+                b.fill_translucent(&circle(*at, r), *color);
+                b.stroke(&circle(*at, r), true, 2.0, WHITE);
+                let size = b.label_size(r * 0.9);
+                b.text(*at, label.clone(), size, WHITE);
+            }
+            Mark::Arrow { from, to, color } => b.arrow(*from, *to, 2.5, *color),
+        }
     }
 }
 
@@ -459,7 +507,15 @@ mod tests {
         let snap = sample(&play, 0);
         let me = play.me().unwrap();
         let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
-        let frame = Frame { play: &play, snapshot: &snap, playhead_ms: 0, selected: Some(&me.id), ghosts: &[] };
+        let frame = Frame {
+            play: &play,
+            snapshot: &snap,
+            playhead_ms: 0,
+            selected: Some(&me.id),
+            ghosts: &[],
+            hidden: &[],
+            marks: &[],
+        };
         let scene = build(&frame, &t);
 
         let Shape::Fill { color, .. } = &scene.shapes[1] else { panic!("ice comes second") };
@@ -501,8 +557,16 @@ mod tests {
         assert_eq!(ghosts.len(), 1);
         let snap = sample(&play, 600);
         let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
-        let scene =
-            build(&Frame { play: &play, snapshot: &snap, playhead_ms: 600, selected: None, ghosts: &ghosts }, &t);
+        let frame = Frame {
+            play: &play,
+            snapshot: &snap,
+            playhead_ms: 600,
+            selected: None,
+            ghosts: &ghosts,
+            hidden: &[],
+            marks: &[],
+        };
+        let scene = build(&frame, &t);
         let last = scene.shapes.last().unwrap();
         assert!(matches!(last, Shape::Text { color, .. } if *color == opaque(GHOST_LABEL)), "{last:?}");
         let zone_label =
@@ -510,5 +574,68 @@ mod tests {
         let first_player =
             scene.shapes.iter().position(|s| matches!(s, Shape::Fill { color, .. } if *color == PLAYER_SHADOW));
         assert!(zone_label < first_player, "zones sit under the players");
+    }
+
+    #[test]
+    fn hidden_entities_are_not_drawn() {
+        let play = template(Template::Breakout, RinkSpec::iihf());
+        let snap = sample(&play, 0);
+        let me = play.me().unwrap();
+        let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
+        let hidden = [me.id.clone()];
+        let frame = Frame {
+            play: &play,
+            snapshot: &snap,
+            playhead_ms: 0,
+            selected: None,
+            ghosts: &[],
+            hidden: &hidden,
+            marks: &[],
+        };
+        let scene = build(&frame, &t);
+        let labels: Vec<_> = scene
+            .shapes
+            .iter()
+            .filter_map(|s| match s {
+                Shape::Text { at, .. } => Some(*at),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(labels.len(), snap.entities.len() - 1);
+        let me_at = t.to_screen(snap.entity(&me.id).unwrap().pos);
+        assert!(labels.iter().all(|at| at.distance(me_at) > 1.0), "no label on the hidden player");
+        assert!(!scene.shapes.iter().any(|s| matches!(s, Shape::Stroke { color, .. } if *color == opaque(ME_RING))));
+    }
+
+    #[test]
+    fn marks_are_drawn_over_everything_else() {
+        let play = template(Template::Breakout, RinkSpec::iihf());
+        let snap = sample(&play, 0);
+        let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
+        let frame = |marks| Frame {
+            play: &play,
+            snapshot: &snap,
+            playhead_ms: 0,
+            selected: None,
+            ghosts: &[],
+            hidden: &[],
+            marks,
+        };
+        let plain = build(&frame(&[]), &t);
+        let you = Vec2::new(-10.0, 5.0);
+        let marks = [
+            Mark::Zone { at: Vec2::new(-12.0, 6.0), r_m: 2.0, color: ZONE_FILL },
+            Mark::Dot { at: you, label: "you".into(), color: opaque(SELECTED_RING) },
+            Mark::Arrow { from: you, to: Vec2::new(-12.0, 6.0), color: opaque(GHOST) },
+        ];
+        let marked = build(&frame(&marks), &t);
+
+        assert_eq!(marked.shapes[..plain.shapes.len()], plain.shapes[..]);
+        let added = &marked.shapes[plain.shapes.len()..];
+        assert!(matches!(&added[0], Shape::Fill { color, .. } if *color == ZONE_FILL), "{:?}", added[0]);
+        assert!(added.iter().any(
+            |s| matches!(s, Shape::Text { at, text, .. } if text == "you" && at.distance(t.to_screen(you)) < 1e-3)
+        ));
+        assert!(matches!(added.last(), Some(Shape::Fill { color, .. }) if *color == opaque(GHOST)), "arrowhead last");
     }
 }

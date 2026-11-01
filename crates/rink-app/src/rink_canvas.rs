@@ -207,6 +207,8 @@ impl Render for RinkCanvas {
                             playhead_ms,
                             selected: selected.as_ref(),
                             ghosts: &active,
+                            hidden: &[],
+                            marks: &[],
                         };
                         paint_scene(window, cx, &scene::build(&frame, &t));
                     },

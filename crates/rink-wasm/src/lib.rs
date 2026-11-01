@@ -86,6 +86,8 @@ impl PlayHandle {
             playhead_ms: t_ms,
             selected: selected.as_ref(),
             ghosts: &ghosts,
+            hidden: &[],
+            marks: &[],
         };
         let t = self.transform(width, height, zoom, pan_x, pan_y, flipped);
         Ok(to_js(&scene::build(&frame, &t)))
