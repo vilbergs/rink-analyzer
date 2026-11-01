@@ -5,6 +5,9 @@ How the desktop app becomes a web app with the curriculum inside it, written 202
 plays. A web app removes that split: one place to read a lesson, watch its play, answer its decision
 point and see your progress.
 
+The user-facing side (path, lessons, step types, progress) is in
+[web-app-experience.md](web-app-experience.md).
+
 ## What is reused and what is rebuilt
 
 The rule: **everything that decides where something is lives in Rust and runs in the browser as
