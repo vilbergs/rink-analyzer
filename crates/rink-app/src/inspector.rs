@@ -351,23 +351,19 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
 
     let team = e.team.map(|t| play.team(t));
     let color = team.map(|t| t.color_rgb()).unwrap_or(0x808080);
-    let title = match (e.number, e.role) {
-        (Some(n), Some(r)) => format!("#{n} · {}", role_name(r)),
-        _ => short_name(play, &e.id),
+    let title = match (e.role, e.number) {
+        (Some(r), Some(n)) => format!("{} · #{n}", role_name(r)),
+        (Some(r), None) => role_name(r).to_string(),
+        (None, _) => short_name(play, &e.id),
     };
-    let mut header = div()
-        .flex()
-        .items_center()
-        .gap_3()
-        .child(player_chip(e.number.map(|n| n.to_string()).unwrap_or_default(), color, e.is_me))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .child(div().text_sm().font_weight(FontWeight::SEMIBOLD).child(SharedString::from(title)))
-                .child(muted(team.map(|t| t.name.clone()).unwrap_or_default())),
-        );
+    let mut header = div().flex().items_center().gap_3().child(player_chip(e.mark(), color, e.is_me)).child(
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .child(div().text_sm().font_weight(FontWeight::SEMIBOLD).child(SharedString::from(title)))
+            .child(muted(team.map(|t| t.name.clone()).unwrap_or_default())),
+    );
     if e.is_me {
         header = header.child(badge("You", theme::ME));
     }

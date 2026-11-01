@@ -262,12 +262,7 @@ pub fn paint_entities(window: &mut Window, cx: &mut App, t: &RinkTransform, p: E
         fill(window, t, &circle(state.pos, r), team_color);
         stroke(window, t, &circle(state.pos, r), true, 2.0, 0xffffff);
 
-        let label = entity
-            .number
-            .map(|n| n.to_string())
-            .or_else(|| entity.role.map(|r| r.as_str().to_string()))
-            .unwrap_or_default();
-        paint_centered_text(window, cx, t, state.pos, &label, r * 1.1);
+        paint_centered_text(window, cx, t, state.pos, &entity.mark(), r * 1.1);
     }
 
     let puck_r = PUCK_RADIUS_M.max(3.5 / t.scale());
@@ -385,10 +380,8 @@ pub fn paint_ghosts(
         }
         fill_translucent(window, t, &circle(*ghost, r), c.fill);
         stroke_dashed(window, t, &circle(*ghost, r), 2.0, c.line);
-        if let Some(n) = entity.number {
-            let font = px((r * 1.1 * t.scale()).clamp(8.0, 28.0));
-            paint_text(window, cx, t.to_screen(*ghost), &n.to_string(), font, c.label);
-        }
+        let font = px((r * 1.1 * t.scale()).clamp(8.0, 28.0));
+        paint_text(window, cx, t.to_screen(*ghost), &entity.mark(), font, c.label);
     }
 }
 

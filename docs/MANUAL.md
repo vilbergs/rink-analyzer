@@ -68,13 +68,13 @@ repo.
 ├─ ▶ 2.2s / 3.6s  1×  All players ────── legend · ? Shortcuts ────────────────────┤
 │ Events    ◆  |     ◆   (blue: events, orange: decision points, purple: captions)│
 │ Feedback  ━━━━━━━━━◆   (green: where the better route splits off → the moment)  │
-│ #17 LW    ◆   ▬▬▬▬ ◆   (keyframes; grey bar: has the puck)                       │
+│ LW        ◆   ▬▬▬▬ ◆   (keyframes; grey bar: has the puck)                       │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Toolbar.** Click the play's title to open another play (same as Cmd-O); the list there shows each
   play's file name. Next to the title is the save state: *Saving…* while you edit, *Saved* a moment later.
-  The last status message ("Undid move of #17 LW", "Opened …") sits on the right. In a narrow window
+  The last status message ("Undid move of LW", "Opened …") sits on the right. In a narrow window
   it is cut short, or hidden, so the title stays readable. Drag an empty part of the toolbar to move the window.
 - **Red banner.** Errors, and a play that changed on disk while you were editing it, show here until you
   deal with them (see [saving](#opening-creating-and-saving-plays)).
@@ -120,7 +120,7 @@ step. Enter (Cmd-Enter in notes) or a click elsewhere finishes; Esc puts back wh
 
   Use ↑ ↓ and Enter, or click a play. Esc or a click outside closes the picker.
 - **New play.** The bottom of the picker has three templates: Breakout, D-zone set and Faceoff. Each one
-  has the full 5v5 roster, with home LW (#17) marked as you. It's saved into the library as soon as you
+  has the full 5v5 roster, with home LW marked as you. It's saved into the library as soon as you
   change something, under a name made from its title. Give it a title with Play → Edit.
 - **Saving is automatic.** About a second after you stop editing, the play is saved to its file. So
   Claude and the `rink` CLI always see what you see. Cmd-S saves at once. Quitting or closing the window
@@ -251,7 +251,9 @@ in the strip under the rink until the next one. Purple marks in the Events lane 
 - **Play → Edit:** the title (it's also what the picker shows), the notes (what happened, and what you
   want judged), the team names, and the length in half-second steps. The length can't be shorter than
   the last keyframe or event.
-- **Numbers:** select a player and type in the number field under their stats.
+- **Numbers:** select a player and type in the number field under their stats. Players are marked by
+  position (LW, C, RW, LD, RD, G) on the rink and in lists; the opponents read as "their LW". The number
+  is kept in the file and shown in the inspector header.
 - **This is me:** marks the selected player as you. Reviews are about this player.
 - **Remove from play / put on the ice:** removing a player clears all their keyframes and skating orders
   for the entire play, not just from the current moment. They can't be in any events. A notice offers

@@ -144,17 +144,17 @@ pub fn role_name(role: Role) -> &'static str {
     }
 }
 
-/// How a player is named in lists: "#17 LW", or "Puck".
+/// How a player is named in lists and messages: "LW" for the user's team,
+/// "their LW" for the opponents (home is the user's team by convention), or
+/// "Puck".
 pub fn short_name(play: &Play, id: &EntityId) -> String {
     let Some(e) = play.entity(id) else { return id.to_string() };
     if e.is_puck() {
         return "Puck".into();
     }
-    match (e.number, e.role) {
-        (Some(n), Some(r)) => format!("#{n} {}", r.as_str()),
-        (Some(n), None) => format!("#{n}"),
-        (None, Some(r)) => r.as_str().to_string(),
-        (None, None) => e.id.to_string(),
+    match e.team {
+        Some(rink_core::TeamSide::Away) => format!("their {}", e.mark()),
+        _ => e.mark(),
     }
 }
 

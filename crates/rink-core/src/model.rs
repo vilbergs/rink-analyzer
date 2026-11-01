@@ -141,6 +141,17 @@ impl Entity {
     pub fn is_puck(&self) -> bool {
         self.kind == EntityKind::Puck
     }
+
+    /// What marks a player on the rink and in lists: their position (LW, RD,
+    /// G), or their number when they have no position. Positions read better
+    /// than numbers when the point is who covers what.
+    pub fn mark(&self) -> String {
+        match (self.role, self.number) {
+            (Some(r), _) => r.as_str().to_string(),
+            (None, Some(n)) => format!("#{n}"),
+            (None, None) => self.id.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -487,6 +498,16 @@ mod tests {
         assert_eq!(at(2499), Some("first"), "between");
         assert_eq!(at(2500), Some("second"));
         assert_eq!(at(9000), Some("second"), "after the last");
+    }
+
+    #[test]
+    fn mark_prefers_position_over_number() {
+        let mut e = crate::templates::standard_entity(TeamSide::Home, Role::LW);
+        assert_eq!(e.mark(), "LW");
+        e.role = None;
+        assert_eq!(e.mark(), format!("#{}", e.number.unwrap()));
+        e.number = None;
+        assert_eq!(e.mark(), "home_LW");
     }
 
     #[test]
