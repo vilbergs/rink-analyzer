@@ -8,9 +8,8 @@ use gpui::{point, px, rgb, rgba, App, Hsla, PathBuilder, Pixels, Point, Rgba, Sh
 use rink_core::review::play_fingerprint;
 use rink_core::sample::position_at;
 use rink_core::skate::order_end_ms;
+use rink_core::transform::RinkTransform;
 use rink_core::{EntityId, EntityKind, Play, RinkSpec, Snapshot, Suggestion, Vec2};
-
-use crate::transform::RinkTransform;
 
 const ICE: u32 = 0xf3f7fa;
 /// Goal frames.
@@ -65,12 +64,17 @@ pub fn entity_radius(kind: EntityKind) -> f32 {
     }
 }
 
+fn screen(t: &RinkTransform, p: Vec2) -> Point<Pixels> {
+    let s = t.to_screen(p);
+    point(px(s.x), px(s.y))
+}
+
 fn color(hex: u32) -> Rgba {
     rgb(hex)
 }
 
 fn fill(window: &mut Window, t: &RinkTransform, pts: &[Vec2], hex: u32) {
-    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let screen: Vec<_> = pts.iter().map(|p| screen(t, *p)).collect();
     let mut b = PathBuilder::fill();
     b.add_polygon(&screen, true);
     if let Ok(path) = b.build() {
@@ -79,7 +83,7 @@ fn fill(window: &mut Window, t: &RinkTransform, pts: &[Vec2], hex: u32) {
 }
 
 fn stroke(window: &mut Window, t: &RinkTransform, pts: &[Vec2], closed: bool, width_px: f32, hex: u32) {
-    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let screen: Vec<_> = pts.iter().map(|p| screen(t, *p)).collect();
     let mut b = PathBuilder::stroke(px(width_px));
     b.add_polygon(&screen, closed);
     if let Ok(path) = b.build() {
@@ -88,7 +92,7 @@ fn stroke(window: &mut Window, t: &RinkTransform, pts: &[Vec2], closed: bool, wi
 }
 
 fn fill_translucent(window: &mut Window, t: &RinkTransform, pts: &[Vec2], hex_rgba: u32) {
-    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let screen: Vec<_> = pts.iter().map(|p| screen(t, *p)).collect();
     let mut b = PathBuilder::fill();
     b.add_polygon(&screen, true);
     if let Ok(path) = b.build() {
@@ -97,7 +101,7 @@ fn fill_translucent(window: &mut Window, t: &RinkTransform, pts: &[Vec2], hex_rg
 }
 
 fn stroke_dashed(window: &mut Window, t: &RinkTransform, pts: &[Vec2], width_px: f32, hex: u32) {
-    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let screen: Vec<_> = pts.iter().map(|p| screen(t, *p)).collect();
     let mut b = PathBuilder::stroke(px(width_px)).dash_array(&[px(5.), px(4.)]);
     b.add_polygon(&screen, true);
     if let Ok(path) = b.build() {
@@ -107,7 +111,7 @@ fn stroke_dashed(window: &mut Window, t: &RinkTransform, pts: &[Vec2], width_px:
 
 /// An open dotted line through `pts`, in a color with alpha.
 fn dotted(window: &mut Window, t: &RinkTransform, pts: &[Vec2], width_px: f32, hex_rgba: u32) {
-    let screen: Vec<_> = pts.iter().map(|p| t.to_screen(*p)).collect();
+    let screen: Vec<_> = pts.iter().map(|p| screen(t, *p)).collect();
     let mut b = PathBuilder::stroke(px(width_px)).dash_array(&[px(2.), px(5.)]);
     b.add_polygon(&screen, false);
     if let Ok(path) = b.build() {
@@ -322,7 +326,7 @@ pub fn paint_orders(
             let r = entity_radius(entity.kind);
             fill_translucent(window, t, &circle(stop, r), (hex << 8) | 0x24);
             let mut b = PathBuilder::stroke(px(width)).dash_array(&[px(5.), px(4.)]);
-            b.add_polygon(&circle(stop, r).iter().map(|p| t.to_screen(*p)).collect::<Vec<_>>(), true);
+            b.add_polygon(&circle(stop, r).iter().map(|p| screen(t, *p)).collect::<Vec<_>>(), true);
             if let Ok(path) = b.build() {
                 window.paint_path(path, rgba(line));
             }
@@ -348,7 +352,7 @@ pub fn paint_suggestion_zones(
             None => s.id.clone(),
         };
         let below = s.target - Vec2::new(0.0, s.zone_radius_m + 0.8);
-        paint_text(window, cx, t.to_screen(below), &label, px(11.0), c.label);
+        paint_text(window, cx, screen(t, below), &label, px(11.0), c.label);
     }
 }
 
@@ -381,13 +385,13 @@ pub fn paint_ghosts(
         fill_translucent(window, t, &circle(*ghost, r), c.fill);
         stroke_dashed(window, t, &circle(*ghost, r), 2.0, c.line);
         let font = px((r * 1.1 * t.scale()).clamp(8.0, 28.0));
-        paint_text(window, cx, t.to_screen(*ghost), &entity.mark(), font, c.label);
+        paint_text(window, cx, screen(t, *ghost), &entity.mark(), font, c.label);
     }
 }
 
 fn paint_centered_text(window: &mut Window, cx: &mut App, t: &RinkTransform, at: Vec2, text: &str, height_m: f32) {
     let font_size = px((height_m * t.scale()).clamp(8.0, 28.0));
-    paint_text(window, cx, t.to_screen(at), text, font_size, 0xffffff);
+    paint_text(window, cx, screen(t, at), text, font_size, 0xffffff);
 }
 
 /// Paint one line of text centered on `center` (window pixels).

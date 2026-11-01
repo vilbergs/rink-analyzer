@@ -14,6 +14,7 @@ pub mod session;
 pub mod skate;
 pub mod spline;
 pub mod templates;
+pub mod transform;
 pub mod validate;
 
 pub use glam::Vec2;

@@ -19,7 +19,6 @@ mod text_input;
 mod theme;
 mod timeline;
 mod toolbar;
-mod transform;
 mod workspace;
 
 use std::path::PathBuf;

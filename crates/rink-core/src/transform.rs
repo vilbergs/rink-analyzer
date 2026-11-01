@@ -1,8 +1,9 @@
 //! Maps rink meters to screen pixels and back. Drawing and hit-testing both go
 //! through one `RinkTransform`, so what you click is what you see.
 
-use gpui::{point, px, Bounds, Pixels, Point};
-use rink_core::{RinkSpec, Vec2};
+use glam::Vec2;
+
+use crate::rink::RinkSpec;
 
 /// Screen space kept free around the boards, in pixels.
 const MARGIN_PX: f32 = 24.0;
@@ -39,12 +40,13 @@ pub struct RinkTransform {
 }
 
 impl RinkTransform {
-    pub fn fit(bounds: Bounds<Pixels>, rink: &RinkSpec, flipped: bool, view: ViewZoom) -> Self {
-        let w = f32::from(bounds.size.width) - 2.0 * MARGIN_PX;
-        let h = f32::from(bounds.size.height) - 2.0 * MARGIN_PX;
+    /// Fit `rink` into the canvas at `origin` with `size`, both in pixels.
+    pub fn fit(origin: Vec2, size: Vec2, rink: &RinkSpec, flipped: bool, view: ViewZoom) -> Self {
+        let w = size.x - 2.0 * MARGIN_PX;
+        let h = size.y - 2.0 * MARGIN_PX;
         let fit_scale = (w / rink.length_m).min(h / rink.width_m).max(0.1);
-        let half_bounds = Vec2::new(f32::from(bounds.size.width) / 2.0, f32::from(bounds.size.height) / 2.0);
-        let fit_center = Vec2::new(f32::from(bounds.origin.x), f32::from(bounds.origin.y)) + half_bounds;
+        let half_bounds = size / 2.0;
+        let fit_center = origin + half_bounds;
         let mut t = RinkTransform {
             center: fit_center,
             scale: fit_scale,
@@ -64,13 +66,12 @@ impl RinkTransform {
         self.scale
     }
 
-    /// `view` zoomed by `factor`, keeping the rink point under `at` where it is.
-    pub fn zoomed(&self, view: ViewZoom, at: Point<Pixels>, factor: f32) -> ViewZoom {
+    /// `view` zoomed by `factor`, keeping the rink point under `at` (pixels) where it is.
+    pub fn zoomed(&self, view: ViewZoom, at: Vec2, factor: f32) -> ViewZoom {
         // Work from `view`, not this transform's own center and scale: several
         // gesture steps can land before the next paint.
         let view = self.clamped(view);
         let zoom = (view.zoom * factor).clamp(1.0, MAX_ZOOM);
-        let at = Vec2::new(f32::from(at.x), f32::from(at.y));
         let center = at + (self.fit_center + view.pan - at) * (zoom / view.zoom);
         self.clamped(ViewZoom { zoom, pan: center - self.fit_center })
     }
@@ -89,19 +90,14 @@ impl RinkTransform {
         ViewZoom { zoom, pan: view.pan.clamp(-max, max) }
     }
 
-    /// Rink meters (y up) to window pixels (y down).
-    pub fn to_screen(self, p: Vec2) -> Point<Pixels> {
-        let s = self.to_screen_vec(p);
-        point(px(s.x), px(s.y))
-    }
-
-    pub fn to_screen_vec(self, p: Vec2) -> Vec2 {
+    /// Rink meters (y up) to screen pixels (y down).
+    pub fn to_screen(self, p: Vec2) -> Vec2 {
         Vec2::new(self.center.x + p.x * self.scale * self.flip, self.center.y - p.y * self.scale * self.flip)
     }
 
-    pub fn to_rink(self, p: Point<Pixels>) -> Vec2 {
-        let x = (f32::from(p.x) - self.center.x) / (self.scale * self.flip);
-        let y = -(f32::from(p.y) - self.center.y) / (self.scale * self.flip);
+    pub fn to_rink(self, p: Vec2) -> Vec2 {
+        let x = (p.x - self.center.x) / (self.scale * self.flip);
+        let y = -(p.y - self.center.y) / (self.scale * self.flip);
         Vec2::new(x, y)
     }
 }
@@ -109,14 +105,9 @@ impl RinkTransform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::size;
-
-    fn bounds() -> Bounds<Pixels> {
-        Bounds { origin: point(px(10.0), px(20.0)), size: size(px(1248.0), px(648.0)) }
-    }
 
     fn fit(flipped: bool, view: ViewZoom) -> RinkTransform {
-        RinkTransform::fit(bounds(), &RinkSpec::iihf(), flipped, view)
+        RinkTransform::fit(Vec2::new(10.0, 20.0), Vec2::new(1248.0, 648.0), &RinkSpec::iihf(), flipped, view)
     }
 
     #[test]
@@ -132,11 +123,11 @@ mod tests {
     #[test]
     fn home_attacks_right_and_plus_y_is_up() {
         let t = fit(false, ViewZoom::default());
-        let o = t.to_screen_vec(Vec2::ZERO);
-        assert!(t.to_screen_vec(Vec2::new(10.0, 0.0)).x > o.x);
-        assert!(t.to_screen_vec(Vec2::new(0.0, 10.0)).y < o.y);
+        let o = t.to_screen(Vec2::ZERO);
+        assert!(t.to_screen(Vec2::new(10.0, 0.0)).x > o.x);
+        assert!(t.to_screen(Vec2::new(0.0, 10.0)).y < o.y);
         let f = fit(true, ViewZoom::default());
-        assert!(f.to_screen_vec(Vec2::new(10.0, 0.0)).x < o.x);
+        assert!(f.to_screen(Vec2::new(10.0, 0.0)).x < o.x);
     }
 
     #[test]
@@ -163,7 +154,7 @@ mod tests {
     #[test]
     fn zoom_and_pan_stay_in_range() {
         let t = fit(false, ViewZoom::default());
-        let at = point(px(300.0), px(300.0));
+        let at = Vec2::new(300.0, 300.0);
         assert_eq!(t.zoomed(ViewZoom::default(), at, 0.5), ViewZoom::default());
         assert_eq!(t.zoomed(ViewZoom::default(), at, 100.0).zoom, MAX_ZOOM);
         assert_eq!(t.panned(ViewZoom::default(), Vec2::new(50.0, 50.0)).pan, Vec2::ZERO);

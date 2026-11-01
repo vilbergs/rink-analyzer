@@ -7,9 +7,10 @@ use std::rc::Rc;
 
 use futures::StreamExt;
 use gpui::{
-    canvas, div, prelude::*, rgb, Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ScrollDelta, ScrollWheelEvent, Task, Window,
+    canvas, div, prelude::*, rgb, Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
+    Point, ScrollDelta, ScrollWheelEvent, Task, Window,
 };
+use rink_core::transform::{RinkTransform, ViewZoom};
 use rink_core::{EntityId, Vec2};
 
 use crate::paint::{
@@ -18,11 +19,14 @@ use crate::paint::{
 use crate::pinch::{self, Pinch};
 use crate::state::PlayState;
 use crate::theme::{self, short_name};
-use crate::transform::{RinkTransform, ViewZoom};
 
 /// Zoom per line of a mouse wheel, and per pixel of Cmd/Ctrl-scroll.
 const WHEEL_ZOOM_PER_LINE: f32 = 1.15;
 const SCROLL_ZOOM_PER_PX: f32 = 1.01;
+
+fn vec2(p: Point<Pixels>) -> Vec2 {
+    Vec2::new(f32::from(p.x), f32::from(p.y))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DragMode {
@@ -68,9 +72,9 @@ impl RinkCanvas {
         cx.notify();
     }
 
-    fn zoom_at(&mut self, at: gpui::Point<gpui::Pixels>, factor: f32, cx: &mut Context<Self>) {
+    fn zoom_at(&mut self, at: Point<Pixels>, factor: f32, cx: &mut Context<Self>) {
         let Some(t) = self.transform.get() else { return };
-        self.view = t.zoomed(self.view, at, factor);
+        self.view = t.zoomed(self.view, vec2(at), factor);
         cx.notify();
     }
 
@@ -97,7 +101,7 @@ impl RinkCanvas {
     /// Shift adds the spot to the order they're on. Works while playing.
     fn order(&mut self, ev: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let Some(t) = self.transform.get() else { return };
-        let at = t.to_rink(ev.position);
+        let at = t.to_rink(vec2(ev.position));
         self.drag = None;
         self.state.update(cx, |s, cx| {
             s.order_to(at, ev.modifiers.shift);
@@ -110,7 +114,7 @@ impl RinkCanvas {
             return self.order(ev, window, cx);
         }
         let Some(t) = self.transform.get() else { return };
-        let at = t.to_rink(ev.position);
+        let at = t.to_rink(vec2(ev.position));
         self.state.update(cx, |s, cx| {
             s.stop_review_loop();
             s.playing = false;
@@ -140,7 +144,7 @@ impl RinkCanvas {
             return;
         }
         let (Some(drag), Some(t)) = (&mut self.drag, self.transform.get()) else { return };
-        let at = t.to_rink(ev.position);
+        let at = t.to_rink(vec2(ev.position));
         let first = !std::mem::replace(&mut drag.recorded, true);
         self.state.update(cx, |s, cx| {
             if first {
@@ -191,7 +195,8 @@ impl Render for RinkCanvas {
                     {
                         let rink = play.rink.clone();
                         move |bounds, _, _| {
-                            let t = RinkTransform::fit(bounds, &rink, flipped, view);
+                            let size = Vec2::new(f32::from(bounds.size.width), f32::from(bounds.size.height));
+                            let t = RinkTransform::fit(vec2(bounds.origin), size, &rink, flipped, view);
                             cell.set(Some(t));
                             t
                         }
