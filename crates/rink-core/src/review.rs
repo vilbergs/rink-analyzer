@@ -7,13 +7,16 @@
 //! ice and reachable from where the player really was when the paths split.
 
 use std::fmt;
+#[cfg(feature = "std")]
 use std::fs;
+#[cfg(feature = "std")]
 use std::path::{Path, PathBuf};
 
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "std")]
 use crate::io::{IoError, PLAY_EXTENSION};
 use crate::model::{EntityId, Play};
 use crate::sample::position_at;
@@ -225,6 +228,7 @@ impl Review {
     }
 }
 
+#[cfg(feature = "std")]
 /// `plays/breakout-1a2b3c4d.rink.json` -> `plays/breakout-1a2b3c4d.review.json`.
 pub fn review_path(play_path: &Path) -> PathBuf {
     let name = play_path.file_name().and_then(|n| n.to_str()).unwrap_or("play");
@@ -232,6 +236,7 @@ pub fn review_path(play_path: &Path) -> PathBuf {
     play_path.with_file_name(format!("{stem}{REVIEW_EXTENSION}"))
 }
 
+#[cfg(feature = "std")]
 /// The review for a play, or None if there isn't one yet.
 pub fn load_review(play_path: &Path) -> Result<Option<Review>, IoError> {
     let path = review_path(play_path);
@@ -243,6 +248,7 @@ pub fn load_review(play_path: &Path) -> Result<Option<Review>, IoError> {
     serde_json::from_str(&text).map(Some).map_err(|source| IoError::Parse { path, source })
 }
 
+#[cfg(feature = "std")]
 pub fn save_review(play_path: &Path, review: &Review) -> Result<PathBuf, IoError> {
     let path = review_path(play_path);
     let tmp = path.with_extension("json.tmp");

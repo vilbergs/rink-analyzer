@@ -11,4 +11,13 @@ serde_json.workspace = true
 glam.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
-directories.workspace = true
+directories = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Random play ids in the browser come from crypto.getRandomValues.
+uuid = { workspace = true, features = ["js"] }
+
+[features]
+default = ["std"]
+# The library folder, play and review files on disk, and the app session files.
+std = ["dep:directories"]

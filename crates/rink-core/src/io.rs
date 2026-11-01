@@ -1,7 +1,10 @@
 //! `.rink.json` files: one human-readable play per file in a library folder.
 
+#[cfg(feature = "std")]
 use std::fs;
-use std::path::{Path, PathBuf};
+#[cfg(feature = "std")]
+use std::path::Path;
+use std::path::PathBuf;
 
 use serde_json::Value;
 use thiserror::Error;
@@ -24,6 +27,7 @@ pub enum IoError {
     TooNew { path: PathBuf, found: u32 },
 }
 
+#[cfg(feature = "std")]
 /// The library folder: `$RINK_REPLAY_LIBRARY` if set, else `plays/` under the
 /// platform data dir. The app and the MCP server both resolve it this way.
 pub fn library_dir() -> PathBuf {
@@ -48,6 +52,7 @@ pub fn to_json(play: &Play) -> String {
     serde_json::to_string_pretty(play).expect("a Play always serializes")
 }
 
+#[cfg(feature = "std")]
 pub fn load(path: &Path) -> Result<Play, IoError> {
     let text = fs::read_to_string(path).map_err(|source| IoError::Read { path: path.into(), source })?;
     let version = serde_json::from_str::<Value>(&text)
@@ -60,6 +65,7 @@ pub fn load(path: &Path) -> Result<Play, IoError> {
     from_json(&text).map_err(|source| IoError::Parse { path: path.into(), source })
 }
 
+#[cfg(feature = "std")]
 /// Write atomically (temp file + rename) so a crash mid-save never leaves a
 /// half-written play for the MCP server to read.
 pub fn save(play: &Play, path: &Path) -> Result<(), IoError> {
@@ -89,6 +95,7 @@ pub fn file_name(play: &Play) -> String {
     }
 }
 
+#[cfg(feature = "std")]
 /// All play files in `dir`, sorted by path. Missing dir = empty library.
 pub fn list_play_files(dir: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
