@@ -16,7 +16,7 @@ use rink_core::{EntityId, EventKind, Play, Suggestion};
 
 use crate::paint::paint_text;
 use crate::state::{snap, PlayState};
-use crate::theme::{self, button, seconds, short_name};
+use crate::theme::{self, button, player_badge, seconds, short_name};
 use crate::workspace::{CycleSpeed, ToggleAllLanes, TogglePlay, ToggleShortcuts};
 
 const PAD_PX: f32 = 16.0;
@@ -480,8 +480,8 @@ fn legend(label: &'static str, hex: u32) -> gpui::Div {
     div().flex().items_center().gap_1p5().child(div().size(px(7.)).rounded_sm().bg(rgb(hex))).child(label)
 }
 
-fn lane_label(text: impl Into<SharedString>, h: f32) -> gpui::Div {
-    div().h(px(h)).flex().items_center().px_4().truncate().child(text.into())
+fn lane_label(content: impl IntoElement, h: f32) -> gpui::Div {
+    div().h(px(h)).flex().items_center().px_4().child(content)
 }
 
 impl Render for TimelineView {
@@ -623,11 +623,11 @@ impl Render for TimelineView {
                 let id = id.clone();
                 let state = self.state.clone();
                 labels.child(
-                    lane_label(short_name(&play, &id), lanes.key_px)
+                    lane_label(player_badge(&play, &id), lanes.key_px)
                         .id(("lane", i))
                         .cursor_pointer()
-                        .when(selected, |d| d.text_color(rgb(theme::TEXT)))
-                        .hover(|d| d.text_color(rgb(theme::TEXT)))
+                        .when(!selected, |d| d.opacity(0.7))
+                        .hover(|d| d.opacity(1.0))
                         .on_click(move |_, _, cx| {
                             state.update(cx, |s, cx| {
                                 s.selected = Some(id.clone());

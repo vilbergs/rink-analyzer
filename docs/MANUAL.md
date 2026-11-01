@@ -252,8 +252,9 @@ in the strip under the rink until the next one. Purple marks in the Events lane 
   want judged), the team names, and the length in half-second steps. The length can't be shorter than
   the last keyframe or event.
 - **Numbers:** select a player and type in the number field under their stats. Players are marked by
-  position (LW, C, RW, LD, RD, G) on the rink and in lists; the opponents read as "their LW". The number
-  is kept in the file and shown in the inspector header.
+  position (LW, C, RW, LD, RD, G) on the rink, and in lists by the same mark on a pill in their team's
+  color, so you can tell the two LWs apart. The number is kept in the file and shown in the inspector
+  header.
 - **This is me:** marks the selected player as you. Reviews are about this player.
 - **Remove from play / put on the ice:** removing a player clears all their keyframes and skating orders
   for the entire play, not just from the current moment. They can't be in any events. A notice offers

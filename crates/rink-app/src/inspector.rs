@@ -15,7 +15,7 @@ use rink_core::{EntityId, EventKind, Pace, Play, TeamSide};
 
 use crate::state::PlayState;
 use crate::text_input::{InputEvent, TextInput};
-use crate::theme::{self, badge, card, chip, role_name, seconds, section, short_name};
+use crate::theme::{self, badge, card, chip, player_badge, player_badges, role_name, seconds, section, short_name};
 
 pub struct InspectorView {
     state: Entity<PlayState>,
@@ -189,12 +189,16 @@ fn muted(text: impl Into<SharedString>) -> Div {
 }
 
 fn stat(label: &'static str, value: impl Into<SharedString>) -> Div {
+    stat_el(label, div().child(value.into()))
+}
+
+fn stat_el(label: &'static str, value: Div) -> Div {
     div()
         .flex()
         .flex_col()
         .flex_1()
         .child(div().text_xs().text_color(rgb(theme::TEXT_FAINT)).child(label))
-        .child(div().text_sm().text_color(rgb(theme::TEXT)).child(value.into()))
+        .child(value.text_sm().text_color(rgb(theme::TEXT)))
 }
 
 /// A round chip in the team's color with the player's number, like on the rink.
@@ -326,8 +330,8 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
 
     if e.is_puck() {
         let carrier = match &snap.puck.carrier {
-            Some(id) => format!("Carried by {}", short_name(play, id)),
-            None => "Loose".into(),
+            Some(id) => div().flex().items_center().gap_1p5().child("Carried by").child(player_badge(play, id)),
+            None => div().child("Loose"),
         };
         return section("Selection").child(
             card()
@@ -344,7 +348,7 @@ fn selection(this: &InspectorView, s: &PlayState) -> Div {
                         .flex()
                         .pt_2()
                         .child(stat("Position", format!("{:.1}, {:.1} m", snap.puck.pos.x, snap.puck.pos.y)))
-                        .child(stat("State", carrier)),
+                        .child(stat_el("State", carrier)),
                 ),
         );
     }
@@ -466,14 +470,10 @@ fn off_ice(this: &InspectorView, s: &PlayState) -> Option<Div> {
         return None;
     }
     let mut chips = div().flex().flex_wrap().gap_1p5();
-    for (i, (side, role, id)) in spots.into_iter().enumerate() {
-        let name = match s.play.entity(&id) {
-            Some(_) => short_name(&s.play, &id),
-            None => role.as_str().to_string(),
-        };
+    for (i, (side, role, _)) in spots.into_iter().enumerate() {
         let team = if side == TeamSide::Home { "Us" } else { "Them" };
         chips = chips.child(
-            chip(("put-on", i), format!("{team} {name}"), false)
+            chip(("put-on", i), format!("{team} {}", role.as_str()), false)
                 .on_click(on_state(&this.state, move |s| s.put_on_ice(side, role))),
         );
     }
@@ -496,11 +496,16 @@ fn feedback(s: &PlayState, cx: &Context<InspectorView>) -> Option<Div> {
             Some(id) => id == sug.id,
             None => active.contains(&sug.id.as_str()),
         };
-        let mut meta = format!("{} · {}", seconds(sug.t_ms), short_name(play, &sug.entity));
+        let mut meta = div()
+            .flex()
+            .items_center()
+            .gap_1p5()
+            .child(muted(seconds(sug.t_ms)))
+            .child(player_badge(play, &sug.entity));
         if let Some(m) = sug.miss_distance(play) {
-            meta.push_str(&format!(" · {m:.1} m off"));
+            meta = meta.child(muted(format!("{m:.1} m off")));
         }
-        let mut head = div().flex().items_center().justify_between().child(muted(meta));
+        let mut head = div().flex().items_center().justify_between().child(meta);
         if sug.is_stale(play) {
             head = head.child(badge("Play edited since", theme::TEXT_MUTED));
         }
@@ -589,7 +594,6 @@ fn events(this: &InspectorView, s: &PlayState, cx: &Context<InspectorView>) -> D
         let past = ev.t_ms <= s.playhead_ms;
         let here = ev.t_ms == s.playhead_ms;
         let dot = if ev.kind == EventKind::DecisionPoint { theme::WARN } else { theme::ACCENT };
-        let actors: Vec<String> = ev.actors.iter().map(|a| short_name(play, a)).collect();
         let delete = div()
             .id(("delete-event", i))
             .flex_none()
@@ -628,14 +632,7 @@ fn events(this: &InspectorView, s: &PlayState, cx: &Context<InspectorView>) -> D
                     .text_color(rgb(if past { theme::TEXT } else { theme::TEXT_MUTED }))
                     .child(ev.kind.label()),
             )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .text_color(rgb(if past { theme::TEXT_MUTED } else { theme::TEXT_FAINT }))
-                    .child(SharedString::from(actors.join(" → "))),
-            )
+            .child(player_badges(play, &ev.actors, "→").flex_1().opacity(if past { 1.0 } else { 0.6 }))
             .child(delete);
         let mut item = div()
             .id(("event", i))
@@ -701,16 +698,22 @@ fn event_editor(this: &InspectorView, s: &PlayState, i: usize) -> Div {
     let mut players = div().flex().flex_wrap().items_center().gap_1p5();
     for (a, actor) in ev.actors.iter().enumerate() {
         players = players.child(
-            chip(("actor", a), format!("{}  ✕", short_name(play, actor)), true)
+            chip(("actor", a), "", true)
+                .gap_1p5()
+                .child(player_badge(play, actor))
+                .child("✕")
                 .on_click(on_state(&this.state, move |s| s.remove_event_actor(i, a))),
         );
     }
     let addable: Option<EntityId> =
         s.selected.clone().filter(|id| !ev.actors.contains(id) && play.entity(id).is_some_and(|e| !e.is_puck()));
     if let Some(id) = addable {
-        let label = format!("+ {}", short_name(play, &id));
-        players = players
-            .child(chip("add-actor", label, false).on_click(on_state(&this.state, move |s| s.add_event_actor(i, &id))));
+        players = players.child(
+            chip("add-actor", "+", false)
+                .gap_1p5()
+                .child(player_badge(play, &id))
+                .on_click(on_state(&this.state, move |s| s.add_event_actor(i, &id))),
+        );
     } else if ev.actors.is_empty() {
         players = players.child(muted("Select a player on the rink to add them."));
     }

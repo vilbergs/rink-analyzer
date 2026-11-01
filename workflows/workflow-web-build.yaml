@@ -31,7 +31,7 @@ jobs:
           methodName: execute
           inputs:
             run: cargo clippy --workspace --all-targets --locked -- -D warnings
-            timeout: 1800
+            timeout: 1800000
       - name: test
         dependsOn: [{ step: clippy, condition: { type: succeeded } }]
         task:
@@ -41,7 +41,7 @@ jobs:
           methodName: execute
           inputs:
             run: cargo test --workspace --locked
-            timeout: 1800
+            timeout: 1800000
   - name: wasm
     description: Compile rink-wasm for wasm32 and generate the JS bindings into web/src/lib/wasm
     dependsOn: [{ job: check, condition: { type: succeeded } }]
@@ -54,7 +54,7 @@ jobs:
           methodName: execute
           inputs:
             run: scripts/build-wasm.sh
-            timeout: 1800
+            timeout: 1800000
   - name: web
     description: Install and build the Svelte app
     dependsOn: [{ job: wasm, condition: { type: succeeded } }]
@@ -69,4 +69,4 @@ jobs:
           inputs:
             run: npm ci && npm run build
             workingDir: web
-            timeout: 1800
+            timeout: 1800000

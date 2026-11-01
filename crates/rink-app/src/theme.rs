@@ -144,18 +144,52 @@ pub fn role_name(role: Role) -> &'static str {
     }
 }
 
-/// How a player is named in lists and messages: "LW" for the user's team,
-/// "their LW" for the opponents (home is the user's team by convention), or
-/// "Puck".
+/// How a player is named where only text fits (status messages, hover
+/// labels): "LW", or "Puck". Where an element fits, [`player_badge`] also
+/// shows the team.
 pub fn short_name(play: &Play, id: &EntityId) -> String {
     let Some(e) = play.entity(id) else { return id.to_string() };
     if e.is_puck() {
         return "Puck".into();
     }
-    match e.team {
-        Some(rink_core::TeamSide::Away) => format!("their {}", e.mark()),
-        _ => e.mark(),
+    e.mark()
+}
+
+/// A player's position on a pill in their team's color, white text, like
+/// their disc on the rink, so LW and LW read as two players. The user's own
+/// player gets the same orange ring as on the rink.
+pub fn player_badge(play: &Play, id: &EntityId) -> Div {
+    let (text, hex, me) = match play.entity(id) {
+        Some(e) if e.is_puck() => ("Puck".to_string(), TEXT_FAINT, false),
+        Some(e) => (e.mark(), e.team.map(|t| play.team(t).color_rgb()).unwrap_or(0x808080), e.is_me),
+        None => (id.to_string(), TEXT_FAINT, false),
+    };
+    div()
+        .flex()
+        .flex_none()
+        .items_center()
+        .h(px(16.))
+        .px_1p5()
+        .rounded_sm()
+        .bg(rgb(hex))
+        .border_1()
+        .border_color(rgb(if me { ME } else { hex }))
+        .text_xs()
+        .font_weight(FontWeight::BOLD)
+        .text_color(rgb(0xffffff))
+        .child(SharedString::from(text))
+}
+
+/// Badges for several players in a row, with `sep` between them.
+pub fn player_badges(play: &Play, ids: &[EntityId], sep: &'static str) -> Div {
+    let mut row = div().flex().items_center().gap_1p5().min_w_0();
+    for (i, id) in ids.iter().enumerate() {
+        if i > 0 {
+            row = row.child(div().text_xs().text_color(rgb(TEXT_FAINT)).child(sep));
+        }
+        row = row.child(player_badge(play, id));
     }
+    row
 }
 
 /// Seconds with one decimal, for time readouts.
