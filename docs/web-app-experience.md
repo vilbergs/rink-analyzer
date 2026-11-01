@@ -132,8 +132,10 @@ nearest opponent, open lanes), for your answer and the model answer side by side
 - **Check-in**: a short form over the week's cues.
 - **Library** (later): own plays from the desktop app, viewed and eventually edited here.
 
-Phone first. The vault note says lessons happen on a weeknight and that stills were wanted because the
-app wasn't on the phone. Desktop gets the same layout with more room.
+Mobile web first: a phone browser is the target device, portrait, touch, safe-area insets, and the
+rink fits the screen width. Desktop gets the same layout with more room. A Tauri wrapper for a native
+app, as chalktalk has for iOS, is a possible later step and is out of scope now. Nothing in the plan
+should assume it: no native plugins, no app store, storage that works in a browser.
 
 ## Content model
 
@@ -258,6 +260,8 @@ L1, the path will not fix it.
   attempts that drive practice. Retention is not a goal of this app right now.
 - **The repo is the content source.** Markdown for prose, JSON for steps, plays as `.rink.json`. The
   vault is not a source.
+- **Mobile web first.** Built and tested on a phone browser before the desktop layout gets attention.
+  A native wrapper (Tauri) is a later option, not part of this plan.
 
 ## Open decisions
 
