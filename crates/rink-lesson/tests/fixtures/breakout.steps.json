@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "lesson": "fx-breakout-weak-side",
+  "steps": [
+    { "id": "fx-principle", "type": "card", "section": "Principle" },
+    { "id": "fx-watch-1", "type": "watch", "from_ms": 0, "to_ms": 2000 },
+    {
+      "id": "fx-choice-dp",
+      "type": "choice",
+      "at_ms": 2000,
+      "prompt": "Our D has it. Where do you go?",
+      "options": [
+        { "text": "The wall at the hashmarks", "grade": 2, "fb": "Right: the D has an outlet." },
+        { "text": "The slot", "grade": 1, "fb": "Close: open, but the pass goes through the middle." },
+        { "text": "Down to the corner", "grade": 0, "fb": "Wrong: two of us in the corner and no outlet.", "play": "wrong" }
+      ]
+    },
+    {
+      "id": "fx-spot-dp",
+      "type": "spot",
+      "at_ms": 2000,
+      "prompt": "Where should you be?",
+      "fb": { "right": "Right: on the wall.", "close": "Close: a few strides off.", "wrong": "Wrong: no outlet there." }
+    },
+    { "id": "fx-spot-explicit", "type": "spot", "at_ms": 3500, "prompt": "And now?", "target": [-12.0, 11.5], "r1_m": 1.0, "r2_m": 3.0,
+      "fb": { "right": "Right.", "close": "Close.", "wrong": "Wrong." } },
+    { "id": "fx-watch-wrong", "type": "watch", "from_ms": 2000, "to_ms": 4000, "play": "wrong", "speed": 1.0 },
+    { "id": "fx-contrast", "type": "contrast", "at_ms": 2000, "section": "What wrong looks like" },
+    { "id": "fx-cue", "type": "card", "section": "Cue" }
+  ]
+}

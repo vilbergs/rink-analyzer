@@ -1,0 +1,12 @@
+[package]
+name = "rink-lesson"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Rink Replay lessons: the lesson and step model, grading and content checks. No UI dependencies."
+
+[dependencies]
+rink-core = { path = "../rink-core", default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
