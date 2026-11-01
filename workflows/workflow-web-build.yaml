@@ -1,0 +1,72 @@
+id: 6fa7806a-0071-45eb-a3d6-c4014936dd2b
+name: web-build
+description: >-
+  Check the Rust workspace, compile rink-core to WebAssembly, and build the
+  Svelte web app. Run it from the repo root; every step runs there.
+version: 1
+inputs:
+  properties:
+    web:
+      type: boolean
+      default: true
+      description: Build the Svelte app under web/ after the wasm step. Pass web=false while web/ does not exist yet.
+jobs:
+  - name: check
+    description: Format, lint and test the Rust workspace, as CI does
+    steps:
+      - name: fmt
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-fmt
+          methodName: execute
+          inputs:
+            run: cargo fmt --all --check
+      - name: clippy
+        dependsOn: [{ step: fmt, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-clippy
+          methodName: execute
+          inputs:
+            run: cargo clippy --workspace --all-targets --locked -- -D warnings
+            timeout: 1800
+      - name: test
+        dependsOn: [{ step: clippy, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-test
+          methodName: execute
+          inputs:
+            run: cargo test --workspace --locked
+            timeout: 1800
+  - name: wasm
+    description: Compile rink-wasm for wasm32 and generate the JS bindings into web/src/lib/wasm
+    dependsOn: [{ job: check, condition: { type: succeeded } }]
+    steps:
+      - name: build
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-wasm
+          methodName: execute
+          inputs:
+            run: scripts/build-wasm.sh
+            timeout: 1800
+  - name: web
+    description: Install and build the Svelte app
+    dependsOn: [{ job: wasm, condition: { type: succeeded } }]
+    steps:
+      - name: build
+        guard: ${{ !inputs.web }}
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-web
+          methodName: execute
+          inputs:
+            run: npm ci && npm run build
+            workingDir: web
+            timeout: 1800
