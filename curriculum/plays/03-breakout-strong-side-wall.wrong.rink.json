@@ -1,0 +1,529 @@
+{
+  "schema_version": 3,
+  "id": "16df05bf-e852-4b32-82fc-4f3cce2a808e",
+  "title": "Breakout 1: I'm the wall (strong side) (wrong)",
+  "rink": {
+    "name": "IIHF 60x30",
+    "length_m": 60.0,
+    "width_m": 30.0,
+    "corner_radius_m": 8.5,
+    "goal_line_from_end_m": 4.0,
+    "blue_line_from_end_m": 22.86,
+    "line_width_m": 0.05,
+    "blue_line_width_m": 0.3,
+    "red_line_width_m": 0.3,
+    "center_circle_radius_m": 4.5,
+    "faceoff_circle_radius_m": 4.5,
+    "end_dot_from_goal_line_m": 6.0,
+    "end_dot_lateral_m": 7.0,
+    "neutral_dot_from_blue_line_m": 1.5,
+    "neutral_dot_lateral_m": 7.0,
+    "crease_radius_m": 1.8,
+    "goal_width_m": 1.83,
+    "goal_depth_m": 1.12
+  },
+  "duration_ms": 6000,
+  "teams": [
+    {
+      "side": "home",
+      "name": "Home",
+      "color": "#1f5fbf",
+      "attacks_positive_x": true
+    },
+    {
+      "side": "away",
+      "name": "Away",
+      "color": "#c8322d",
+      "attacks_positive_x": false
+    }
+  ],
+  "entities": [
+    {
+      "id": "home_LW",
+      "kind": "skater",
+      "team": "home",
+      "number": 17,
+      "role": "LW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_C",
+      "kind": "skater",
+      "team": "home",
+      "number": 19,
+      "role": "C",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_RW",
+      "kind": "skater",
+      "team": "home",
+      "number": 27,
+      "role": "RW",
+      "label": "",
+      "is_me": true
+    },
+    {
+      "id": "home_LD",
+      "kind": "skater",
+      "team": "home",
+      "number": 4,
+      "role": "LD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_RD",
+      "kind": "skater",
+      "team": "home",
+      "number": 44,
+      "role": "RD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_G",
+      "kind": "goalie",
+      "team": "home",
+      "number": 30,
+      "role": "G",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_LW",
+      "kind": "skater",
+      "team": "away",
+      "number": 18,
+      "role": "LW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_C",
+      "kind": "skater",
+      "team": "away",
+      "number": 20,
+      "role": "C",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_RW",
+      "kind": "skater",
+      "team": "away",
+      "number": 28,
+      "role": "RW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_LD",
+      "kind": "skater",
+      "team": "away",
+      "number": 5,
+      "role": "LD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_RD",
+      "kind": "skater",
+      "team": "away",
+      "number": 45,
+      "role": "RD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_G",
+      "kind": "goalie",
+      "team": "away",
+      "number": 31,
+      "role": "G",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "puck",
+      "kind": "puck",
+      "label": "",
+      "is_me": false
+    }
+  ],
+  "tracks": {
+    "home_G": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -25.0,
+          -0.0
+        ],
+        "facing": -0.0
+      }
+    ],
+    "away_G": [
+      {
+        "t_ms": 0,
+        "pos": [
+          25.0,
+          -0.0
+        ],
+        "facing": -3.141592653589793
+      }
+    ],
+    "away_C": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -20.0,
+          -2.0
+        ]
+      },
+      {
+        "t_ms": 1500,
+        "pos": [
+          -25.0,
+          -5.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -21.0,
+          -9.0
+        ]
+      },
+      {
+        "t_ms": 4500,
+        "pos": [
+          -15.0,
+          -9.0
+        ]
+      }
+    ],
+    "away_RD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -6.0,
+          5.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -5.0,
+          4.0
+        ]
+      }
+    ],
+    "away_RW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -15.0,
+          6.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -17.0,
+          3.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -14.0,
+          2.0
+        ]
+      }
+    ],
+    "away_LD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -6.0,
+          -7.0
+        ]
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -8.0,
+          -9.0
+        ]
+      },
+      {
+        "t_ms": 5500,
+        "pos": [
+          -4.0,
+          -8.0
+        ]
+      }
+    ],
+    "away_LW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -14.0,
+          -8.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -15.0,
+          -11.0
+        ]
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -11.0,
+          -10.5
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -7.0,
+          -9.5
+        ]
+      }
+    ],
+    "home_C": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -22.0,
+          -0.0
+        ]
+      },
+      {
+        "t_ms": 2500,
+        "pos": [
+          -16.0,
+          -3.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -6.0,
+          -4.0
+        ]
+      },
+      {
+        "t_ms": 6000,
+        "pos": [
+          -2.0,
+          -3.0
+        ]
+      }
+    ],
+    "home_RD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -27.5,
+          -3.0
+        ]
+      },
+      {
+        "t_ms": 1500,
+        "pos": [
+          -27.0,
+          -6.0
+        ]
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -24.0,
+          -5.0
+        ]
+      }
+    ],
+    "home_RW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -15.0,
+          -5.0
+        ]
+      },
+      {
+        "t_ms": 1000,
+        "pos": [
+          -17.0,
+          -8.5
+        ]
+      },
+      {
+        "t_ms": 2000,
+        "pos": [
+          -18.5,
+          -11.0
+        ]
+      },
+      {
+        "t_ms": 2600,
+        "pos": [
+          -19.3,
+          -12.5
+        ]
+      },
+      {
+        "t_ms": 3200,
+        "pos": [
+          -18.0,
+          -12.6
+        ]
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -14.5,
+          -12.5
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -10.0,
+          -12.0
+        ]
+      },
+      {
+        "t_ms": 6000,
+        "pos": [
+          -5.5,
+          -11.0
+        ]
+      }
+    ],
+    "home_LD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -24.0,
+          6.0
+        ]
+      },
+      {
+        "t_ms": 2500,
+        "pos": [
+          -20.0,
+          4.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -12.0,
+          3.0
+        ]
+      }
+    ],
+    "home_LW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -18.0,
+          10.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -12.0,
+          9.5
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -6.0,
+          9.0
+        ]
+      },
+      {
+        "t_ms": 6000,
+        "pos": [
+          -2.0,
+          8.0
+        ]
+      }
+    ],
+    "puck": []
+  },
+  "events": [
+    {
+      "t_ms": 0,
+      "kind": "puck_recovery",
+      "actors": [
+        "home_RD"
+      ],
+      "note": ""
+    },
+    {
+      "t_ms": 1500,
+      "kind": "pass",
+      "actors": [
+        "home_RD",
+        "home_RW"
+      ],
+      "note": "",
+      "arrive_ms": 2000
+    },
+    {
+      "t_ms": 3000,
+      "kind": "decision_point",
+      "actors": [
+        "home_RW"
+      ],
+      "note": "Their LD is pinching. Chip it past him or carry it out?",
+      "answer": "Carry. He pinched late and the lane up the wall is open, so I take it out with speed and it's a 3-on-2. Chip it off the glass only when he's committed to the pinch and our C is swinging through the middle to pick it up."
+    },
+    {
+      "t_ms": 5600,
+      "kind": "zone_exit",
+      "actors": [
+        "home_RW"
+      ],
+      "note": ""
+    }
+  ],
+  "notes": "Study play. Our RD recovers behind the net and rims it up my wall. I'm stopped at the hash marks before he has it, back to the boards, head up. Their LW comes along the wall and their LD pinches late, so I carry past him and out.",
+  "captions": [
+    {
+      "t_ms": 0,
+      "text": "Our RD recovers behind the net. Their C forechecks him. I'm late, still skating out of the middle toward my wall."
+    },
+    {
+      "t_ms": 1500,
+      "text": "RD rims it up my wall. I'm not at the hash marks yet."
+    },
+    {
+      "t_ms": 2000,
+      "text": "The rim reaches me while I'm still moving. I take it on my skates, back to the play, with no idea who's coming."
+    },
+    {
+      "t_ms": 3000,
+      "text": "I'm still turning. Their LW is above me on the wall and their LD is coming down."
+    },
+    {
+      "t_ms": 3500,
+      "text": "I come up the wall slow, their LW in front of me and their LD stepping down. No room to carry, no time to look."
+    },
+    {
+      "t_ms": 5500,
+      "text": "It gets out, late and slow. Our C and LW had to wait for me: no 3-on-2."
+    }
+  ]
+}
