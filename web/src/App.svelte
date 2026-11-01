@@ -27,5 +27,5 @@
 {:else if route.name === "viewer"}
   <Viewer />
 {:else}
-  <Home />
+  <Home {progress} />
 {/if}

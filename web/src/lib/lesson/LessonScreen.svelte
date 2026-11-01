@@ -2,10 +2,12 @@
   import CaptionStrip from "../CaptionStrip.svelte";
   import RinkCanvas from "../rink/RinkCanvas.svelte";
   import { loadLesson } from "./content";
+  import Result from "./Result.svelte";
   import { LessonSession } from "./session.svelte";
   import type { ProgressStore } from "../progress/store";
   import CardStep from "./steps/CardStep.svelte";
   import ChoiceStep from "./steps/ChoiceStep.svelte";
+  import ContrastStep from "./steps/ContrastStep.svelte";
   import SpotStep from "./steps/SpotStep.svelte";
   import WatchStep from "./steps/WatchStep.svelte";
 
@@ -39,7 +41,11 @@
     {/if}
   </header>
 
-  {#if session}
+  {#if session?.finished}
+    <section class="sheet">
+      <Result {session} />
+    </section>
+  {:else if session}
     {@const s = session}
     <div class="rink-box">
       <RinkCanvas
@@ -61,6 +67,8 @@
           <ChoiceStep session={s} step={s.step} />
         {:else if s.step.type === "spot"}
           <SpotStep session={s} step={s.step} />
+        {:else if s.step.type === "contrast"}
+          <ContrastStep session={s} step={s.step} />
         {/if}
       {/key}
     </section>

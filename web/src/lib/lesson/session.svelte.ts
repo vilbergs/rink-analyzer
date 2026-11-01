@@ -104,6 +104,7 @@ export class LessonSession {
     if (this.index === this.steps.length - 1) {
       this.pause();
       this.finished = true;
+      void this.#progress.markStudied(this.meta.id, new Date().toISOString());
       return;
     }
     this.index += 1;
@@ -111,8 +112,9 @@ export class LessonSession {
   }
 
   back() {
-    if (this.index === 0) return;
-    this.index -= 1;
+    if (this.finished) this.finished = false;
+    else if (this.index === 0) return;
+    else this.index -= 1;
     this.enter();
   }
 

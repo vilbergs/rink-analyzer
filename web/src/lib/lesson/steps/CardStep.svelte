@@ -1,15 +1,16 @@
 <script lang="ts">
+  import { paragraphs } from "../paragraphs";
   import type { LessonSession } from "../session.svelte";
 
   let { session, step }: { session: LessonSession; step: { section: string } } = $props();
 
-  const paragraphs = $derived((session.meta.sections[step.section] ?? "").split(/\n\s*\n/));
+  const texts = $derived(paragraphs(session.meta.sections[step.section] ?? ""));
 </script>
 
 <div class="step-body">
   <span class="eyebrow">{step.section}</span>
-  {#each paragraphs as text, i (i)}
-    <p class:lead={paragraphs.length === 1}>{text}</p>
+  {#each texts as text, i (i)}
+    <p class:lead={texts.length === 1}>{text}</p>
   {/each}
 </div>
 <div class="actions">
