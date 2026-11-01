@@ -117,7 +117,11 @@ nearest opponent, open lanes), for your answer and the model answer side by side
 - **Saturday check-in**: one screen per cue studied so far: "Did you catch yourself doing it?" with
   yes, no and a one-line note. It is a log, not a score, and it exports as the `· L1 ✓` line the
   session log in the vault uses, for as long as that log lives there.
-- **Storage**: browser storage first, exported as JSON. Accounts and sync are a later phase.
+- **Storage**: browser storage (IndexedDB) while the experience is being tuned, exported as JSON.
+  User accounts come later, once the lessons feel right. To keep that cheap, progress is append-only
+  attempt rows (step id, grade, answered at) and check-in rows behind one `ProgressStore` interface.
+  An account backend is a second implementation of that interface plus a one-time upload of the local
+  rows. The lesson player never knows which one it is talking to.
 
 ## Screens
 
@@ -221,9 +225,9 @@ To make that hold on a phone, the app ships a web app manifest and a service wor
 added to the home screen and works offline. Installed pages are also exempt from iOS Safari's
 seven-day storage eviction, which otherwise can wipe progress on a site not visited for a week.
 
-What would need a backend, none of it planned: accounts and sync across devices, Claude reviewing the
-user's own retraced plays (an LLM call; today done through the CLI on the desktop), or several people
-authoring content without a redeploy.
+What needs a backend, all of it after the experience is tuned: user accounts and sync across devices
+(planned, Phase 6), Claude reviewing the user's own retraced plays (an LLM call; today done through
+the CLI on the desktop), or several people authoring content without a redeploy.
 
 ## Where the logic lives
 
@@ -263,7 +267,8 @@ component. Nothing else changes.
    The Saturday check-in and its log line.
 4. **Authoring.** The `draft-lesson` skill, `rink lesson check`, L5 to L9.
 5. **Later types** (`route`, `predict`, `recall`) and the library of own plays.
-6. **Accounts and sync**, if a second user ever appears.
+6. **User accounts and sync.** After the experience is tuned on browser storage. A second
+   `ProgressStore` over a backend, and an import of the local rows on first sign-in.
 
 Phase 1 is the one to feel in the hand before anything else. If a lesson is not clear on a phone with
 L1, the path will not fix it.
