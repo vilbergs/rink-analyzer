@@ -144,11 +144,11 @@ which is also what makes a future "answer a suggestion by dragging the ghost" wo
 
 The repo is a swamp repository. `workflows/workflow-web-build.yaml` runs three jobs in order: `check`
 (fmt, clippy, test, as CI does), `wasm` (`scripts/build-wasm.sh`) and `web` (`npm ci && npm run build`
-in `web/`). Pass `--input web=false` until `web/` exists.
+in `web/`). Pass `--input web=false` to stop after the wasm job.
 
 ```sh
 swamp workflow validate web-build
-swamp workflow run web-build --input web=false
+swamp workflow run web-build
 swamp workflow history logs web-build
 ```
 

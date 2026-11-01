@@ -19,6 +19,7 @@ Plan: [Rink Replay — Hockey Play Animator (Plan)](https://claude.ai/artifact/9
 | M1 · Core + playback: `rink-core` model, `sample()`, keyframes, scrub, play/pause | Done |
 | M2 · Editor: multi-row timeline, event editing, templates UI, undo, autosave | Done: text fields, event and roster editing, all-players timeline, play picker, undo/redo, autosave with conflict handling |
 | Position feedback: facts, `rink` CLI, Claude Code skill, ghosts in the app | Done (replaces the planned MCP server for now) |
+| Web viewer: the rink through WebAssembly in a Svelte app ([design](docs/web-app-design.md)) | In progress: rink, playback, captions, event lane, selection |
 
 ## Layout
 
@@ -27,6 +28,8 @@ crates/
   rink-core/   # model, rink geometry, interpolation (sample), validation, file format, templates
   rink-app/    # GPUI binary: rink-replay
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
+  rink-wasm/   # rink-core for the browser: a play handle, its scene and hit test
+web/           # Svelte viewer (Vite); paints rink-wasm's scene on a canvas
 rinks/         # rink presets (IIHF 60x30, NHL 61x26) as JSON
 examples/      # breakout play with an example review
 .claude/skills/   # Claude Code skills: review-positioning, draft-play
@@ -138,6 +141,21 @@ driver.
 
 `gpui` is pinned to `=0.2.2` from crates.io instead of a Zed git revision. `Cargo.lock` pins `libc` to 0.2.188
 because gpui's `xattr` 0.2 dependency fails to compile against newer `libc` releases.
+
+### Web viewer
+
+The viewer in `web/` loads the breakout example and plays it back in the browser. It needs the
+`wasm32-unknown-unknown` target and the `wasm-bindgen` CLI at the version in `Cargo.lock`.
+
+```sh
+scripts/build-wasm.sh       # rink-wasm and its JS bindings, into web/src/lib/wasm/
+cd web && npm ci
+npm run dev                 # http://localhost:5173
+```
+
+`npm run build` type-checks and writes the static site to `web/dist/`. `web/public/plays` links to `examples/`.
+In the viewer, Space plays and pauses, ← → step 100 ms, Home / End jump, a click selects a player, the wheel
+zooms, Shift-wheel or a middle-button drag pans, and 0 fits the rink.
 
 ## Controls
 

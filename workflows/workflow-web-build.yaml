@@ -9,7 +9,7 @@ inputs:
     web:
       type: boolean
       default: true
-      description: Build the Svelte app under web/ after the wasm step. Pass web=false while web/ does not exist yet.
+      description: Build the Svelte app under web/ after the wasm step.
 jobs:
   - name: check
     description: Format, lint and test the Rust workspace, as CI does
