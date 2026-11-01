@@ -1,7 +1,11 @@
-import type { Mark } from "../rink/paint";
+import type { ProgressStore } from "../progress/store";
+import type { Mark, SceneOpts } from "../rink/paint";
 import type { LessonHandle } from "../wasm/rink_wasm.js";
 import type { LoadedLesson } from "./content";
-import type { Caption, Graded, LessonMeta, PlayEntity, Step, Which } from "./types";
+import type { Answer, Caption, Graded, LessonMeta, PlayEntity, Step, Which } from "./types";
+
+/** What the user answered on a graded step, and how it was graded. */
+export type Answered = { answer: Answer; graded: Graded };
 
 /** A stretch of a play that plays to `to` and stops there. */
 export type Segment = { from: number; to: number };
@@ -16,6 +20,7 @@ export class LessonSession {
   readonly hasWrong: boolean;
   readonly #entities: Map<string, PlayEntity>;
   readonly #captions: Record<Which, Caption[]>;
+  readonly #progress: ProgressStore;
 
   index = $state(0);
   finished = $state(false);
@@ -24,11 +29,11 @@ export class LessonSession {
   playing = $state(false);
   speed = $state(0.5);
   segment = $state<Segment | null>(null);
-  /** Graded answers of this run, by step id. */
-  answers = $state.raw<Record<string, Graded>>({});
+  /** This run's responses, by step id. */
+  responses = $state.raw<Record<string, Answered>>({});
 
   step: Step;
-  answer: Graded | null;
+  response: Answered | null;
   /** The user's player is hidden while a spot step waits for the tap. */
   hidden: string[];
   marks: Mark[];
@@ -36,8 +41,9 @@ export class LessonSession {
 
   #frame = 0;
 
-  constructor({ handle, entities, hasWrong }: LoadedLesson) {
+  constructor({ handle, entities, hasWrong }: LoadedLesson, progress: ProgressStore) {
     this.handle = handle;
+    this.#progress = progress;
     this.meta = handle.meta();
     this.steps = handle.steps();
     this.hasWrong = hasWrong;
@@ -50,9 +56,9 @@ export class LessonSession {
     this.#captions = { main: captions("main"), wrong: this.hasWrong ? captions("wrong") : [] };
 
     this.step = $derived(this.steps[this.index]);
-    this.answer = $derived(this.answers[this.step.id] ?? null);
-    this.hidden = $derived(this.step.type === "spot" && !this.answer ? [this.me] : []);
-    this.marks = $derived(this.answer?.marks ?? []);
+    this.response = $derived(this.responses[this.step.id] ?? null);
+    this.hidden = $derived(this.step.type === "spot" && !this.response ? [this.me] : []);
+    this.marks = $derived(this.response?.graded.marks ?? []);
     this.caption = $derived(this.#captions[this.which].findLast((c) => c.t_ms <= this.t)?.text ?? null);
     this.enter();
   }
@@ -67,6 +73,31 @@ export class LessonSession {
     if (!e) return id;
     const mine = this.#entities.get(this.me)?.team;
     return `${e.team === mine ? "our" : "their"} ${e.role ?? `#${e.number}`}`;
+  }
+
+  /** Grade the current step's answer and record the attempt. A step is answered once per run. */
+  respond(answer: Answer) {
+    const { id } = this.step;
+    if (this.responses[id]) return;
+    const graded: Graded = this.handle.grade(id, answer);
+    this.responses = { ...this.responses, [id]: { answer, graded } };
+    void this.#progress.record({
+      stepId: id,
+      lessonId: this.meta.id,
+      grade: graded.grade,
+      answeredAt: new Date().toISOString(),
+    });
+  }
+
+  /** A tap on the rink answers a spot step that is still waiting for one. */
+  tap(xPx: number, yPx: number, opts: SceneOpts) {
+    if (this.step.type !== "spot" || this.response) return;
+    this.respond({ kind: "spot", at: this.handle.to_rink("main", xPx, yPx, opts) });
+  }
+
+  /** Play `which` on from `from` to its end, as a choice's "watch what happens". */
+  watchOn(which: Which, from: number) {
+    this.playSegment({ from, to: this.handle.duration_ms(which) }, which);
   }
 
   next() {

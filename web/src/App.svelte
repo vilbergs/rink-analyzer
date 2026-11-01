@@ -1,7 +1,10 @@
 <script lang="ts">
   import Home from "./lib/home/Home.svelte";
   import LessonScreen from "./lib/lesson/LessonScreen.svelte";
+  import { IndexedDbProgressStore } from "./lib/progress/store";
   import Viewer from "./lib/viewer/Viewer.svelte";
+
+  const progress = new IndexedDbProgressStore();
 
   type Route = { name: "home" } | { name: "lesson"; id: string } | { name: "viewer" };
 
@@ -19,7 +22,7 @@
 
 {#if route.name === "lesson"}
   {#key route.id}
-    <LessonScreen id={route.id} />
+    <LessonScreen id={route.id} {progress} />
   {/key}
 {:else if route.name === "viewer"}
   <Viewer />
