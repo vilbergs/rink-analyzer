@@ -58,13 +58,17 @@ Alternatives, and why not:
 
 ### The wasm boundary
 
-`crates/rink-wasm` exposes one `PlayHandle` (parse with migration, serialize, duration, snapshot,
-captions, events, entities) plus `scene(...)` and `hit_test(...)`. The Svelte app never computes a
-position. It asks for a scene per frame and paints it. A frame is about 200 shapes, so JSON across the
-boundary is fine to start; a flat `Float32Array` is the optimization if it ever shows in a profile.
+`crates/rink-wasm` exposes two handles. `PlayHandle` (parse with migration, serialize, duration,
+snapshot, captions, events, entities) plus `scene(t_ms, opts)`, `hit_test(t_ms, x, y, opts)` and
+`to_rink(x, y, opts)`, where `opts` is one view object: canvas size, zoom, pan, flipped, the selected
+entity, entities to hide, annotation marks to draw, and an optional review. `LessonHandle` wraps a
+lesson's Markdown, steps and plays and adds `steps`, `grade(step_id, answer)` and `check` from the
+`rink-lesson` crate. The Svelte app never computes a position or a grade. It asks for a scene per
+frame and paints it. A frame is about 200 shapes, so JSON across the boundary is fine to start; a flat
+`Float32Array` is the optimization if it ever shows in a profile.
 
-Compiling `rink-core` for `wasm32-unknown-unknown` needs two changes: the file functions in `io.rs`,
-`session.rs` and `review.rs` go behind a default `std` feature, and `uuid` gets its `js` feature on
+Compiling `rink-core` for `wasm32-unknown-unknown` needs two things: the file functions in `io.rs`,
+`session.rs` and `review.rs` sit behind a default `std` feature, and `uuid` gets its `js` feature on
 wasm.
 
 ## The web app
