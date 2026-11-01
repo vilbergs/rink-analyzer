@@ -1,0 +1,50 @@
+id: 32d0ce93-6cf5-41d5-a2dd-044d935c01e2
+name: deploy-pi
+description: >-
+  Build the web app (the web-build workflow), copy web/dist to the Pi, serve it with Caddy at
+  https://rink.vilberg.dev (tailnet only, Let's Encrypt through Cloudflare DNS), and check it answers.
+version: 1
+jobs:
+  - name: build
+    steps:
+      - name: web-build
+        task:
+          type: workflow
+          workflowIdOrName: web-build
+  - name: deploy
+    dependsOn: [{ job: build, condition: { type: succeeded } }]
+    steps:
+      - name: push
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-deploy-pi
+          methodName: execute
+          inputs:
+            run: scripts/deploy-pi.sh
+            timeout: 300000
+  - name: verify
+    dependsOn: [{ job: deploy, condition: { type: succeeded } }]
+    steps:
+      - name: fetch
+        task:
+          type: behavior
+          behaviorType: command/shell
+          behaviorName: rink-verify-pi
+          methodName: execute
+          inputs:
+            run: >-
+              sleep 5;
+              curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/ &&
+              curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/manifest.webmanifest &&
+              curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/curriculum/course.json
+            timeout: 120000
+      - name: answers
+        dependsOn: [{ step: fetch, condition: { type: succeeded } }]
+        task:
+          type: assert
+          expr: >-
+            data.latest("rink-verify-pi", "result").attributes.stdout.contains("200 text/html") &&
+            data.latest("rink-verify-pi", "result").attributes.stdout.contains("200 application/manifest+json") &&
+            data.latest("rink-verify-pi", "result").attributes.stdout.contains("200 application/json")
+          message: "rink.vilberg.dev does not answer with the expected content types"

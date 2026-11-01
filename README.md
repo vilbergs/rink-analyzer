@@ -169,6 +169,22 @@ to `curriculum/` and `web/public/plays` to `examples/`; both are served as stati
 - `#/viewer` plays the breakout example. Space plays and pauses, ← → step 100 ms, Home / End jump, a click
   selects a player, the wheel zooms, Shift-wheel or a middle-button drag pans, and 0 fits the rink.
 
+### Hosting
+
+The web app is served tailnet-only at https://rink.vilberg.dev by Caddy on the Pi, with a Let's
+Encrypt certificate through Cloudflare DNS, the same way `hq.vilberg.dev` is. One swamp workflow does
+the whole deploy: it runs `web-build`, copies `web/dist/` to `/var/www/rink` on the Pi (through
+furulid as the SSH jump host), installs `deploy/pi/rink.caddy`, makes sure the DNS record exists
+(`deploy/pi/ensure-dns.py`, with Caddy's own Cloudflare token on the Pi), reloads Caddy and checks the
+site answers.
+
+```sh
+swamp workflow run deploy-pi
+```
+
+A new DNS name is cached as missing by the tailnet's Pi-hole until the deploy flushes it; a Mac that
+looked the name up before that keeps the stale answer for up to 30 minutes.
+
 ## Controls
 
 Press ? in the app for the shortcut sheet. The [manual](docs/MANUAL.md#keyboard-and-mouse-reference) has the

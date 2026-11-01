@@ -1,0 +1,17 @@
+# Rink Replay web app (tailnet only): the static build from the web-build workflow.
+# Import this site from /etc/caddy/Caddyfile. The address is this Pi's tailnet IP.
+rink.vilberg.dev {
+	bind 100.72.119.74
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 1.0.0.1
+	}
+	root * /var/www/rink
+	encode zstd gzip
+	@immutable path /assets/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+	@entry path / /index.html /sw.js /registerSW.js /manifest.webmanifest
+	header @entry Cache-Control "no-cache"
+	header /manifest.webmanifest Content-Type application/manifest+json
+	file_server
+}
