@@ -159,6 +159,14 @@ methods that return structured results (test counts, wasm size) instead of stdou
 site is where swamp earns its place: `@swamp/cloudflare/*` already exists for Pages, so the deploy job
 is a behavior, not a script.
 
+## Follow-ups the viewer surfaced
+
+- Export the clamped `zoomed` and `panned` from `rink-wasm`. The JS zoom math re-does what `RinkTransform`
+  already does, and cannot see its clamping, so a pan can drift past the boards.
+- Emit TypeScript types for `Shape`, `Caption` and `Event` from the Rust (a `typescript_custom_section`
+  or `tsify`), so `web/src/lib/rink/paint.ts` stops hand-copying them.
+- Parse the review once (`set_review`) instead of per frame in `scene()`.
+
 ## Open decisions
 
 - **Hosting**: Cloudflare Pages or GitHub Pages for the static app. Cloudflare has a swamp extension.
