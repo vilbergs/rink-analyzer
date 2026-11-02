@@ -10,6 +10,8 @@ use crate::{Issue, Lesson, LessonError, SCHEMA};
 #[serde(deny_unknown_fields)]
 pub struct Course {
     pub schema: u32,
+    #[serde(default)]
+    pub title: String,
     pub modules: Vec<Module>,
 }
 
@@ -18,6 +20,8 @@ pub struct Course {
 pub struct Module {
     pub id: String,
     pub title: String,
+    #[serde(default)]
+    pub description: String,
     /// Lesson ids, in path order.
     pub lessons: Vec<String>,
 }
