@@ -1,21 +1,24 @@
 <script lang="ts">
-  import { loadCourse, type CourseModule } from "../lesson/content";
   import type { ProgressStore } from "../progress/store";
+  import CourseIcon from "./CourseIcon.svelte";
+  import Icon from "./Icon.svelte";
+  import { loadPath, type Path } from "./path";
+  import Segments from "./Segments.svelte";
+  import ZoneGlyph from "./ZoneGlyph.svelte";
 
   let { progress }: { progress: ProgressStore } = $props();
 
-  let studied = $state<Record<string, string>>({});
-  let modules = $state<CourseModule[] | null>(null);
+  let path = $state.raw<Path | null>(null);
   let loadError = $state<string | null>(null);
 
-  loadCourse().then(
-    (m) => (modules = m),
-    (e: Error) => (loadError = e.message),
-  );
-
   $effect(() => {
-    progress.studied().then((s) => (studied = s));
+    loadPath(progress).then(
+      (p) => (path = p),
+      (e: Error) => (loadError = e.message),
+    );
   });
+
+  const current = $derived(path?.modules.find((m) => m.next));
 
   async function exportProgress() {
     const blob = new Blob([await progress.exportJson()], { type: "application/json" });
@@ -28,35 +31,54 @@
 </script>
 
 <main class="home">
-  <h1>Rink Replay</h1>
-  {#if modules}
-    {#each modules as module (module.id)}
-      <section>
-        <h2>{module.title}</h2>
-        <ul>
-          {#each module.lessons as lesson (lesson.id)}
-            <li>
-              <a href="#/lesson/{lesson.id}">
-                <span class="title">{lesson.title}</span>
-                <span class="principle">{lesson.principle}</span>
-                <span class="meta">
-                  10 min
-                  {#if studied[lesson.id]}<span class="studied">✓ Studied</span>{/if}
-                </span>
-              </a>
-            </li>
-          {/each}
-        </ul>
-      </section>
-    {/each}
+  <header>
+    <span class="eyebrow">Rink Replay</span>
+    <a href="#/viewer">Play viewer</a>
+  </header>
+  {#if path}
+    <div class="course">
+      <CourseIcon />
+      <h1>{path.title}</h1>
+    </div>
+    <h2 class="eyebrow">Topics</h2>
+    <ul>
+      {#each path.modules as module (module.id)}
+        <li class="card">
+          <a class="topic" href="#/topic/{module.id}">
+            <ZoneGlyph module={module.id} />
+            <span class="text">
+              <span class="title">{module.title}</span>
+              <span class="sub">
+                {#if module.studied > 0}
+                  {module.studied} of {module.lessons.length} studied
+                {:else}
+                  {module.lessons.length} lessons · start with “{module.lessons[0]?.title}”
+                {/if}
+              </span>
+            </span>
+            <span class="chevron"><Icon name="chevron" /></span>
+            <span class="bar"><Segments lessons={module.lessons} /></span>
+          </a>
+          {#if module === current && module.next}
+            <div class="next">
+              <div>
+                <span class="eyebrow accent">Up next · Lesson {module.next.n}</span>
+                <span class="title">{module.next.title}</span>
+              </div>
+              <a class="btn primary" href="#/lesson/{module.next.id}">Continue</a>
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </ul>
   {:else if loadError}
     <p class="status">Could not load the course: {loadError}</p>
   {:else}
     <p class="status">Loading…</p>
   {/if}
   <footer>
-    <a href="#/viewer">Play viewer</a>
     <button class="link" onclick={exportProgress}>Export progress</button>
+    <p>Progress is kept in this browser.</p>
   </footer>
 </main>
 
@@ -64,73 +86,126 @@
   .home {
     max-width: 640px;
     margin: 0 auto;
-    padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+    padding: calc(4px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
       calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
   }
-  h1 {
-    margin: 8px 0 20px;
-    font-size: 22px;
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
   }
-  h2 {
-    margin: 24px 0 8px;
+  header a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
     color: var(--text-muted);
     font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+  }
+  .course {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin: 12px 0 28px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 24px;
+  }
+  h2 {
+    margin: 0 0 10px;
   }
   ul {
     display: grid;
-    gap: 8px;
+    gap: 10px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  li a {
-    display: grid;
-    gap: 4px;
-    padding: 14px 16px;
+  .card {
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     background: var(--panel);
+    overflow: hidden;
+  }
+  .topic {
+    display: grid;
+    grid-template-columns: 40px 1fr 20px;
+    gap: 6px 12px;
+    align-items: center;
+    padding: 14px 14px 16px;
     color: inherit;
     text-decoration: none;
   }
-  li a:active {
+  .topic:active {
     background: var(--raised);
   }
+  .text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
   .title {
+    display: block;
     font-size: 16px;
     font-weight: 600;
   }
-  .principle {
+  .sub {
     color: var(--text-muted);
-    line-height: 1.4;
+    font-size: 13px;
+    line-height: 1.35;
   }
-  .meta {
+  .chevron {
+    display: flex;
     color: var(--text-muted);
-    font-size: 12px;
+  }
+  .bar {
+    display: flex;
+    grid-column: 2 / 4;
+    margin-top: 6px;
+  }
+  .next {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .next div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .accent {
+    color: var(--accent);
+  }
+  .next .btn {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    text-decoration: none;
   }
   footer {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
     margin-top: 32px;
+    color: var(--text-muted);
     font-size: 13px;
   }
-  footer a,
+  footer p {
+    margin: 0;
+  }
   .link {
-    padding: 0;
+    min-height: 44px;
+    padding: 0 12px;
     border: none;
     background: none;
     color: var(--text-muted);
     font: inherit;
     text-decoration: underline;
     cursor: pointer;
-  }
-  .studied {
-    margin-left: 8px;
-    color: var(--feedback);
-    font-weight: 600;
   }
   .status {
     color: var(--text-muted);

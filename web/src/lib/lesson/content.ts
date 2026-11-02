@@ -2,10 +2,15 @@ import { fetchText, wasmReady } from "../load";
 import { LessonHandle } from "../wasm/rink_wasm.js";
 import type { PlayEntity } from "./types";
 
-export type LessonSummary = { id: string; title: string; principle: string };
-export type CourseModule = { id: string; title: string; lessons: LessonSummary[] };
+export type LessonSummary = { id: string; title: string; principle: string; stepCount: number };
+export type CourseModule = { id: string; title: string; description: string; lessons: LessonSummary[] };
+export type Course = { title: string; modules: CourseModule[] };
 
-type CourseFile = { schema: number; modules: { id: string; title: string; lessons: string[] }[] };
+type CourseFile = {
+  schema: number;
+  title?: string;
+  modules: { id: string; title: string; description?: string; lessons: string[] }[];
+};
 
 export type LoadedLesson = { handle: LessonHandle; entities: PlayEntity[]; hasWrong: boolean };
 
@@ -16,22 +21,34 @@ export function lessonStem(id: string): string {
   return `${m[1].padStart(2, "0")}-${m[2]}`;
 }
 
-/** The modules in order, each lesson with its title and the principle's first sentence. */
-export async function loadCourse(): Promise<CourseModule[]> {
+/** The course title and its modules in order, each lesson with its title, principle and step count. */
+export async function loadCourse(): Promise<Course> {
   const course: CourseFile = JSON.parse(await fetchText("curriculum/course.json"));
-  return Promise.all(
-    course.modules.map(async ({ id, title, lessons }) => ({
-      id,
-      title,
-      lessons: await Promise.all(lessons.map(summary)),
-    })),
-  );
+  return {
+    title: course.title ?? "",
+    modules: await Promise.all(
+      course.modules.map(async ({ id, title, description, lessons }) => ({
+        id,
+        title,
+        description: description ?? "",
+        lessons: await Promise.all(lessons.map(summary)),
+      })),
+    ),
+  };
 }
 
 async function summary(id: string): Promise<LessonSummary> {
-  const md = await fetchText(`curriculum/lessons/${lessonStem(id)}.md`);
-  const principle = section(md, "Principle");
-  return { id, title: frontmatter(md).title ?? id, principle: /^.*?[.!?](?=\s|$)/s.exec(principle)?.[0] ?? principle };
+  const stem = lessonStem(id);
+  const [md, steps] = await Promise.all([
+    fetchText(`curriculum/lessons/${stem}.md`),
+    fetchText(`curriculum/lessons/${stem}.steps.json`),
+  ]);
+  return {
+    id,
+    title: frontmatter(md).title ?? id,
+    principle: section(md, "Principle"),
+    stepCount: (JSON.parse(steps) as { steps: unknown[] }).steps.length,
+  };
 }
 
 export async function loadLesson(id: string): Promise<LoadedLesson> {
