@@ -11,7 +11,7 @@ use gpui::{
     Point, ScrollDelta, ScrollWheelEvent, Task, Window,
 };
 use rink_core::scene::{self, puck_draw_pos, Frame};
-use rink_core::transform::{RinkTransform, ViewZoom};
+use rink_core::transform::{RinkTransform, ViewZoom, Viewport};
 use rink_core::{EntityId, Vec2};
 
 use crate::paint::paint_scene;
@@ -195,7 +195,8 @@ impl Render for RinkCanvas {
                         let rink = play.rink.clone();
                         move |bounds, _, _| {
                             let size = Vec2::new(f32::from(bounds.size.width), f32::from(bounds.size.height));
-                            let t = RinkTransform::fit(vec2(bounds.origin), size, &rink, flipped, view);
+                            let viewport = Viewport { flipped, ..Viewport::new(vec2(bounds.origin), size) };
+                            let t = RinkTransform::fit(&rink, &viewport, view);
                             cell.set(Some(t));
                             t
                         }

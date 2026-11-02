@@ -476,7 +476,7 @@ mod tests {
     use crate::review::active_suggestions;
     use crate::sample::sample;
     use crate::templates::{build as template, Template};
-    use crate::transform::ViewZoom;
+    use crate::transform::{ViewZoom, Viewport};
 
     #[test]
     fn goal_line_is_shorter_than_center_line() {
@@ -506,7 +506,8 @@ mod tests {
         let play = template(Template::Breakout, RinkSpec::iihf());
         let snap = sample(&play, 0);
         let me = play.me().unwrap();
-        let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
+        let t =
+            RinkTransform::fit(&play.rink, &Viewport::new(Vec2::ZERO, Vec2::new(1248.0, 648.0)), ViewZoom::default());
         let frame = Frame {
             play: &play,
             snapshot: &snap,
@@ -556,7 +557,8 @@ mod tests {
         let ghosts: Vec<_> = active_suggestions(&suggestions, &play, 600).map(|(s, g)| (s.clone(), g)).collect();
         assert_eq!(ghosts.len(), 1);
         let snap = sample(&play, 600);
-        let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
+        let t =
+            RinkTransform::fit(&play.rink, &Viewport::new(Vec2::ZERO, Vec2::new(1248.0, 648.0)), ViewZoom::default());
         let frame = Frame {
             play: &play,
             snapshot: &snap,
@@ -581,7 +583,8 @@ mod tests {
         let play = template(Template::Breakout, RinkSpec::iihf());
         let snap = sample(&play, 0);
         let me = play.me().unwrap();
-        let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
+        let t =
+            RinkTransform::fit(&play.rink, &Viewport::new(Vec2::ZERO, Vec2::new(1248.0, 648.0)), ViewZoom::default());
         let hidden = [me.id.clone()];
         let frame = Frame {
             play: &play,
@@ -611,7 +614,8 @@ mod tests {
     fn marks_are_drawn_over_everything_else() {
         let play = template(Template::Breakout, RinkSpec::iihf());
         let snap = sample(&play, 0);
-        let t = RinkTransform::fit(Vec2::ZERO, Vec2::new(1248.0, 648.0), &play.rink, false, ViewZoom::default());
+        let t =
+            RinkTransform::fit(&play.rink, &Viewport::new(Vec2::ZERO, Vec2::new(1248.0, 648.0)), ViewZoom::default());
         let frame = |marks| Frame {
             play: &play,
             snapshot: &snap,

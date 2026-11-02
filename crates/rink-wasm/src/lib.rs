@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use rink_core::review::active_suggestions;
 use rink_core::scene::{self, Frame, Mark};
-use rink_core::transform::{RinkTransform, ViewZoom};
+use rink_core::transform::{RinkTransform, ViewZoom, Viewport};
 use rink_core::{io, sample, EntityId, Play, Review, Vec2};
 use rink_lesson::{check, grade, Answer, Lesson, Plays, Which};
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,9 @@ impl ViewOpts {
 
     fn transform(&self, play: &Play) -> RinkTransform {
         let view = ViewZoom { zoom: self.zoom, pan: Vec2::from(self.pan) };
-        RinkTransform::fit(Vec2::ZERO, Vec2::new(self.width, self.height), &play.rink, self.flipped, view)
+        let viewport =
+            Viewport { flipped: self.flipped, ..Viewport::new(Vec2::ZERO, Vec2::new(self.width, self.height)) };
+        RinkTransform::fit(&play.rink, &viewport, view)
     }
 }
 
