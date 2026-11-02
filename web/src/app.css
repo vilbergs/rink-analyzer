@@ -4,11 +4,15 @@
   --raised: #1d2128;
   --border: #262a32;
   --text: #e8ebf0;
+  --text-soft: #c3c9d3;
   --text-muted: #9ba3b0;
+  --text-dim: #666e7b;
   --accent: #4c8dff;
+  --accent-soft: #a9c7ff;
   --feedback: #35c47c;
   --warn: #f2a93b;
   --danger: #ef5b5b;
+  --wrong: #ff6b6b;
 
   color-scheme: dark;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -76,8 +80,16 @@ body,
   margin-top: auto;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   background: var(--panel);
-  border-top: 1px solid var(--border);
 }
 .actions .btn {
+  display: inline-flex;
   flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+  text-decoration: none;
 }

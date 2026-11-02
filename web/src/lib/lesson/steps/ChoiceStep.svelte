@@ -1,5 +1,6 @@
 <script lang="ts">
   import { GRADES } from "../grades";
+  import Icon from "../Icon.svelte";
   import type { LessonSession } from "../session.svelte";
   import type { Step } from "../types";
 
@@ -14,23 +15,28 @@
   <ul>
     {#each step.options as option, i (i)}
       {@const grade = GRADES[option.grade]}
+      {@const mine = chosen === i}
+      {@const right = chosen !== null && !mine && option.grade === 2}
       <li>
         <button
           class="option"
-          class:chosen={chosen === i}
-          class:right={chosen !== null && option.grade === 2}
-          style:--grade={chosen === i || (chosen !== null && option.grade === 2) ? grade.color : null}
+          class:mine
+          class:right
+          class:dim={chosen !== null && !mine && !right}
+          style:--grade={mine || right ? grade.color : null}
           disabled={chosen !== null}
           onclick={() => session.respond({ kind: "choice", index: i })}
         >
-          {option.text}
-          {#if chosen !== null && (chosen === i || option.grade === 2)}
-            <span class="tag">{grade.label}</span>
+          {#if mine}
+            <span class="tag">Your answer · {grade.label}</span>
+          {:else if right}
+            <span class="tag"><Icon name="check" size={14} />{grade.label}</span>
+          {/if}
+          <span>{option.text}</span>
+          {#if mine && response}
+            <span class="feedback">{response.graded.feedback}</span>
           {/if}
         </button>
-        {#if chosen === i && response}
-          <p class="feedback" style:--grade={grade.color}>{response.graded.feedback}</p>
-        {/if}
       </li>
     {/each}
   </ul>
@@ -49,6 +55,7 @@
   .prompt {
     font-size: 17px;
     font-weight: 600;
+    line-height: 1.4;
   }
   ul {
     display: grid;
@@ -59,28 +66,35 @@
   }
   .option {
     display: grid;
-    gap: 4px;
+    gap: 6px;
     width: 100%;
     min-height: 48px;
     padding: 12px 14px;
-    border: 1px solid var(--grade, var(--border));
-    border-radius: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
     background: var(--raised);
     color: var(--text);
     font: inherit;
+    font-size: 15px;
+    line-height: 1.4;
     text-align: left;
     cursor: pointer;
   }
   .option:disabled {
     cursor: default;
   }
-  .option:disabled:not(.chosen, .right) {
-    opacity: 0.5;
+  .option.mine,
+  .option.right {
+    padding: 11px 13px;
+    border: 2px solid var(--grade);
   }
-  .option.chosen {
-    border-width: 2px;
+  .option.dim {
+    color: var(--text-muted);
   }
   .tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     color: var(--grade);
     font-size: 12px;
     font-weight: 700;
@@ -88,8 +102,11 @@
     text-transform: uppercase;
   }
   .feedback {
-    margin: 8px 2px 0;
-    padding-left: 10px;
-    border-left: 3px solid var(--grade);
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--text-soft);
+    font-size: 14px;
+    line-height: 1.5;
   }
 </style>

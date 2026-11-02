@@ -2,13 +2,16 @@ import type { ProgressStore } from "../progress/store";
 import type { Mark, SceneOpts } from "../rink/paint";
 import type { LessonHandle } from "../wasm/rink_wasm.js";
 import type { LoadedLesson } from "./content";
-import type { Answer, Caption, Graded, LessonMeta, PlayEntity, Step, Which } from "./types";
+import type { Answer, Caption, Graded, LessonMeta, PlayEntity, PlayEvent, PlayTeam, Step, Which } from "./types";
 
 /** What the user answered on a graded step, and how it was graded. */
 export type Answered = { answer: Answer; graded: Graded };
 
 /** A stretch of a play that plays to `to` and stops there. */
 export type Segment = { from: number; to: number };
+
+/** How a player is drawn in text: their role, their team's color, and whether they are the user. */
+export type PlayerTag = { label: string; color: string; me: boolean };
 
 /** One open lesson: which step, what the rink shows, and this run's answers. */
 export class LessonSession {
@@ -18,8 +21,15 @@ export class LessonSession {
   /** The user's player. */
   readonly me: string;
   readonly hasWrong: boolean;
+  /** The user's own net is at the bottom of the portrait rink. */
+  readonly flipped: boolean;
+  /** Meters across the ice. */
+  readonly rinkWidth: number;
   readonly #entities: Map<string, PlayEntity>;
+  readonly #teams: Map<string, PlayTeam>;
   readonly #captions: Record<Which, Caption[]>;
+  readonly #events: Record<Which, PlayEvent[]>;
+  readonly #focus: Record<Which, [number, number]>;
   readonly #progress: ProgressStore;
 
   index = $state(0);
@@ -37,29 +47,45 @@ export class LessonSession {
   /** The user's player is hidden while a spot step waits for the tap. */
   hidden: string[];
   marks: Mark[];
+  /** The captions of the play on show, in time order. */
+  captions: Caption[];
   caption: string | null;
+  events: PlayEvent[];
+  /** The rink x-range the play on show is cropped to. */
+  focus: [number, number];
 
   #frame = 0;
 
-  constructor({ handle, entities, hasWrong }: LoadedLesson, progress: ProgressStore) {
+  constructor({ handle, entities, teams, rinkWidth, hasWrong }: LoadedLesson, progress: ProgressStore) {
     this.handle = handle;
     this.#progress = progress;
     this.meta = handle.meta();
     this.steps = handle.steps();
     this.hasWrong = hasWrong;
+    this.rinkWidth = rinkWidth;
     this.#entities = new Map(entities.map((e) => [e.id, e]));
+    this.#teams = new Map(teams.map((t) => [t.side, t]));
     const me = entities.find((e) => e.is_me);
     if (!me) throw new Error(`${this.meta.id}: the play has no player marked as me`);
     this.me = me.id;
-    const captions = (which: Which) =>
-      (handle.captions(which) as Caption[]).toSorted((a, b) => a.t_ms - b.t_ms);
-    this.#captions = { main: captions("main"), wrong: this.hasWrong ? captions("wrong") : [] };
+    this.flipped = !(me.team && this.#teams.get(me.team)?.attacks_positive_x);
+    const byWhich = <T>(read: (which: Which) => T, none: T): Record<Which, T> => ({
+      main: read("main"),
+      wrong: this.hasWrong ? read("wrong") : none,
+    });
+    const sorted = <T extends { t_ms: number }>(items: T[]) => items.toSorted((a, b) => a.t_ms - b.t_ms);
+    this.#captions = byWhich((w) => sorted(handle.captions(w) as Caption[]), []);
+    this.#events = byWhich((w) => sorted(handle.events(w) as PlayEvent[]), []);
+    this.#focus = byWhich((w) => handle.focus(w) as [number, number], handle.focus("main") as [number, number]);
 
     this.step = $derived(this.steps[this.index]);
     this.response = $derived(this.responses[this.step.id] ?? null);
     this.hidden = $derived(this.step.type === "spot" && !this.response ? [this.me] : []);
     this.marks = $derived(this.response?.graded.marks ?? []);
-    this.caption = $derived(this.#captions[this.which].findLast((c) => c.t_ms <= this.t)?.text ?? null);
+    this.captions = $derived(this.#captions[this.which]);
+    this.caption = $derived(this.captions.findLast((c) => c.t_ms <= this.t)?.text ?? null);
+    this.events = $derived(this.#events[this.which]);
+    this.focus = $derived(this.#focus[this.which]);
     this.enter();
   }
 
@@ -73,6 +99,16 @@ export class LessonSession {
     if (!e) return id;
     const mine = this.#entities.get(this.me)?.team;
     return `${e.team === mine ? "our" : "their"} ${e.role ?? `#${e.number}`}`;
+  }
+
+  /** The role badge for a player: "LD" in their team's color. */
+  player(id: string): PlayerTag {
+    const e = this.#entities.get(id);
+    return {
+      label: e?.role ?? (e?.number !== undefined ? `#${e.number}` : id),
+      color: (e?.team && this.#teams.get(e.team)?.color) || "var(--border)",
+      me: id === this.me,
+    };
   }
 
   /** Grade the current step's answer and record the attempt. A step is answered once per run. */
@@ -111,10 +147,10 @@ export class LessonSession {
     this.enter();
   }
 
-  back() {
-    if (this.finished) this.finished = false;
-    else if (this.index === 0) return;
-    else this.index -= 1;
+  /** Reopen step `index`, as the result does for a step worth another look. Its answer stays. */
+  goTo(index: number) {
+    this.finished = false;
+    this.index = index;
     this.enter();
   }
 
