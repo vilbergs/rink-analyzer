@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::{EntityId, EntityKind, Play};
 use crate::review::{play_fingerprint, Suggestion};
 use crate::rink::RinkSpec;
-use crate::sample::{position_at, Snapshot};
+use crate::sample::{position_at, sample, Snapshot};
 use crate::skate::order_end_ms;
 use crate::transform::RinkTransform;
 
@@ -147,6 +147,35 @@ pub fn puck_draw_pos(play: &Play, snapshot: &Snapshot) -> Vec2 {
     let offset = puck - carrier.pos;
     let dir = if offset.length() > 0.05 { offset.normalize() } else { Vec2::from_angle(carrier.facing) };
     carrier.pos + dir * (r + PUCK_RADIUS_M * 0.5)
+}
+
+/// The x-range, in meters, that `ids` cover as drawn over the whole play,
+/// padded by `pad_m` each way and kept on the rink. The puck counts where it
+/// is drawn, on its carrier's stick. Sampled every 100 ms. The whole rink when
+/// none of `ids` is ever on the ice.
+pub fn x_extent(play: &Play, ids: &[EntityId], pad_m: f32) -> [f32; 2] {
+    let half = play.rink.half_length();
+    let puck = play.puck().map(|p| &p.id);
+    let times = (0..play.duration_ms).step_by(100).chain([play.duration_ms]);
+    let (lo, hi) = times
+        .flat_map(|t_ms| {
+            let snapshot = sample(play, t_ms);
+            ids.iter()
+                .filter_map(|id| {
+                    if Some(id) == puck {
+                        Some(puck_draw_pos(play, &snapshot))
+                    } else {
+                        snapshot.entity(id).map(|e| e.pos)
+                    }
+                })
+                .map(|p| p.x)
+                .collect::<Vec<_>>()
+        })
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), x| (lo.min(x), hi.max(x)));
+    if lo > hi {
+        return [-half, half];
+    }
+    [(lo - pad_m).max(-half), (hi + pad_m).min(half)]
 }
 
 /// The entity under `at` (rink meters): the puck first, else the nearest
@@ -473,6 +502,7 @@ fn marks(b: &mut Builder<'_>, marks: &[Mark]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{Entity, Event, EventKind, Keyframe};
     use crate::review::active_suggestions;
     use crate::sample::sample;
     use crate::templates::{build as template, Template};
@@ -641,5 +671,37 @@ mod tests {
             |s| matches!(s, Shape::Text { at, text, .. } if text == "you" && at.distance(t.to_screen(you)) < 1e-3)
         ));
         assert!(matches!(added.last(), Some(Shape::Fill { color, .. }) if *color == opaque(GHOST)), "arrowhead last");
+    }
+
+    #[test]
+    fn x_extent_covers_the_ids_and_the_puck_as_drawn() {
+        let mut play = Play::new("extent", RinkSpec::iihf());
+        play.duration_ms = 3000;
+        play.entities = template(Template::Breakout, RinkSpec::iihf())
+            .entities
+            .into_iter()
+            .filter(|e| e.is_puck() || e.is_me)
+            .collect();
+        let me = play.me().unwrap().id.clone();
+        let puck = play.puck().unwrap().id.clone();
+        let other = EntityId::new("other");
+        play.entities.push(Entity { id: other.clone(), is_me: false, ..play.me().unwrap().clone() });
+        play.set_keyframe(&me, Keyframe::at(0, -20.0, 0.0).facing(0.0));
+        play.set_keyframe(&me, Keyframe::at(2000, -12.0, 0.0).facing(0.0));
+        play.set_keyframe(&other, Keyframe::at(0, -2.0, 5.0).facing(PI));
+        play.events.push(Event::new(0, EventKind::PuckRecovery, &[&me]));
+        play.events.push(Event { arrive_ms: Some(2000), ..Event::new(1000, EventKind::Pass, &[&me, &other]) });
+
+        let [lo, hi] = x_extent(&play, std::slice::from_ref(&me), 0.0);
+        assert!((lo + 20.0).abs() < 0.05 && (hi + 12.0).abs() < 0.05, "{lo}..{hi}");
+
+        // The pass carries the puck to the other skater's stick, in front of him.
+        let [lo, hi] = x_extent(&play, &[me.clone(), puck], 0.0);
+        assert!((lo + 20.0).abs() < 0.05, "{lo}");
+        assert!(hi > -3.5 && hi < -2.0, "{hi}");
+
+        assert_eq!(x_extent(&play, std::slice::from_ref(&me), 6.0), [-26.0, -6.0]);
+        assert_eq!(x_extent(&play, std::slice::from_ref(&me), 15.0), [-30.0, 3.0]);
+        assert_eq!(x_extent(&play, &[EntityId::new("nobody")], 6.0), [-30.0, 30.0]);
     }
 }
