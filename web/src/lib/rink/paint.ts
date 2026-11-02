@@ -24,6 +24,10 @@ export type SceneOpts = {
   zoom: number;
   pan: Point;
   flipped: boolean;
+  /** The rink's length runs down the canvas, home's own net at the bottom unless flipped. */
+  portrait?: boolean;
+  /** The rink x-range in meters that fills the canvas, from a handle's `focus()`. */
+  focus?: [number, number] | null;
   hidden: string[];
   marks: Mark[];
 };

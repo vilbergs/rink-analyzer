@@ -30,6 +30,15 @@ struct ViewOpts {
     pan: [f32; 2],
     #[serde(default)]
     flipped: bool,
+    /// The rink's length runs down the canvas, home's own net at the bottom
+    /// unless `flipped`.
+    #[serde(default)]
+    portrait: bool,
+    /// The rink x-range, `[x0, x1]` in meters, that fills the canvas at zoom 1,
+    /// as [`PlayHandle::focus`] gives it. Kept 8 px from the canvas edges
+    /// rather than 24.
+    #[serde(default)]
+    focus: Option<[f32; 2]>,
     #[serde(default)]
     selected: Option<String>,
     /// Entity ids left out of the drawing.
@@ -42,6 +51,11 @@ struct ViewOpts {
     review: Option<String>,
 }
 
+/// Canvas pixels kept free around a focused view, small enough for a phone.
+const FOCUS_MARGIN_PX: f32 = 8.0;
+/// Meters of ice shown beyond the user's player and the puck.
+const FOCUS_PAD_M: f32 = 6.0;
+
 fn one() -> f32 {
     1.0
 }
@@ -53,10 +67,24 @@ impl ViewOpts {
 
     fn transform(&self, play: &Play) -> RinkTransform {
         let view = ViewZoom { zoom: self.zoom, pan: Vec2::from(self.pan) };
-        let viewport =
-            Viewport { flipped: self.flipped, ..Viewport::new(Vec2::ZERO, Vec2::new(self.width, self.height)) };
+        let mut viewport = Viewport {
+            flipped: self.flipped,
+            portrait: self.portrait,
+            crop: self.focus,
+            ..Viewport::new(Vec2::ZERO, Vec2::new(self.width, self.height))
+        };
+        if self.focus.is_some() {
+            viewport.margin_px = FOCUS_MARGIN_PX;
+        }
         RinkTransform::fit(&play.rink, &viewport, view)
     }
+}
+
+/// The x-range where `play` happens for the user: their player and the puck
+/// over the whole play, padded.
+fn focus(play: &Play) -> [f32; 2] {
+    let ids: Vec<EntityId> = [play.me(), play.puck()].into_iter().flatten().map(|e| e.id.clone()).collect();
+    scene::x_extent(play, &ids, FOCUS_PAD_M)
 }
 
 fn draw(play: &Play, t_ms: u32, opts: JsValue) -> Result<JsValue, JsError> {
@@ -136,7 +164,8 @@ impl PlayHandle {
 
     /// The frame at `t_ms` as a back-to-front list of shapes in canvas
     /// pixels. `opts` is the view: `{ width, height, zoom?, pan?: [x, y],
-    /// flipped?, selected?, hidden?: [id], marks?: [mark], review? }`.
+    /// flipped?, portrait?, focus?: [x0, x1], selected?, hidden?: [id],
+    /// marks?: [mark], review? }`.
     pub fn scene(&self, t_ms: u32, opts: JsValue) -> Result<JsValue, JsError> {
         draw(&self.play, t_ms, opts)
     }
@@ -150,6 +179,12 @@ impl PlayHandle {
     /// Canvas pixel (`x_px`, `y_px`) in rink meters, as `[x, y]`.
     pub fn to_rink(&self, x_px: f32, y_px: f32, opts: JsValue) -> Result<JsValue, JsError> {
         rink_point(&self.play, x_px, y_px, opts)
+    }
+
+    /// `[x0, x1]`, the rink x-range the user's player and the puck cover over
+    /// the play with 6 m to spare, for `opts.focus`.
+    pub fn focus(&self) -> JsValue {
+        to_js(&focus(&self.play))
     }
 }
 
@@ -227,6 +262,11 @@ impl LessonHandle {
         rink_point(self.play(which)?, x_px, y_px, opts)
     }
 
+    /// See [`PlayHandle::focus`].
+    pub fn focus(&self, which: &str) -> Result<JsValue, JsError> {
+        Ok(to_js(&focus(self.play(which)?)))
+    }
+
     /// Grade `{ kind: "choice", index }` or `{ kind: "spot", at: [x, y] }`
     /// for step `step_id`: `{ grade, feedback, watch, marks, facts }`.
     pub fn grade(&self, step_id: &str, answer: JsValue) -> Result<JsValue, JsError> {
@@ -248,5 +288,17 @@ impl LessonHandle {
             other => return Err(JsError::new(&format!("`{other}` is not \"main\" or \"wrong\""))),
         };
         self.plays.get(which).ok_or_else(|| JsError::new("this lesson has no wrong play"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dzone_lesson_focuses_on_the_defensive_zone() {
+        let text = include_str!("../../../curriculum/plays/01-dzone-strong-side-wall.rink.json");
+        let [x0, x1] = focus(&io::from_json(text).unwrap());
+        assert!(-30.0 <= x0 && x0 < x1 && x1 <= -5.0, "{x0}..{x1}");
     }
 }
