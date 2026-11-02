@@ -8,12 +8,26 @@
     scene: (t: number, opts: SceneOpts) => Scene;
     /** Given, the wheel zooms and a middle-button drag pans it. */
     view?: View;
+    /** Without a `view`, whether the rink is turned around. */
+    flipped?: boolean;
+    portrait?: boolean;
+    focus?: [number, number] | null;
     hidden?: string[];
     marks?: Mark[];
     onTap?: (xPx: number, yPx: number, opts: SceneOpts) => void;
   };
 
-  let { t, scene, view = $bindable(), hidden = [], marks = [], onTap }: Props = $props();
+  let {
+    t,
+    scene,
+    view = $bindable(),
+    flipped = false,
+    portrait = false,
+    focus = null,
+    hidden = [],
+    marks = [],
+    onTap,
+  }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let width = $state(0);
@@ -32,8 +46,8 @@
   });
 
   function opts(): SceneOpts {
-    const { zoom, pan, flipped } = view ?? FIT;
-    return { width, height, zoom, pan: [pan.x, pan.y], flipped, hidden, marks };
+    const { zoom, pan, flipped: turned } = view ?? { ...FIT, flipped };
+    return { width, height, zoom, pan: [pan.x, pan.y], flipped: turned, portrait, focus, hidden, marks };
   }
 
   function onclick(e: MouseEvent) {

@@ -1,6 +1,6 @@
 import { fetchText, wasmReady } from "../load";
 import { LessonHandle } from "../wasm/rink_wasm.js";
-import type { PlayEntity } from "./types";
+import type { PlayEntity, PlayTeam } from "./types";
 
 export type LessonSummary = { id: string; title: string; principle: string; stepCount: number };
 export type CourseModule = { id: string; title: string; description: string; lessons: LessonSummary[] };
@@ -12,7 +12,14 @@ type CourseFile = {
   modules: { id: string; title: string; description?: string; lessons: string[] }[];
 };
 
-export type LoadedLesson = { handle: LessonHandle; entities: PlayEntity[]; hasWrong: boolean };
+export type LoadedLesson = {
+  handle: LessonHandle;
+  entities: PlayEntity[];
+  teams: PlayTeam[];
+  /** The rink's width in meters, across the ice. */
+  rinkWidth: number;
+  hasWrong: boolean;
+};
 
 /** `l1-dzone-strong-side-wall` is stored as `01-dzone-strong-side-wall`. */
 export function lessonStem(id: string): string {
@@ -35,6 +42,14 @@ export async function loadCourse(): Promise<Course> {
       })),
     ),
   };
+}
+
+let cachedCourse: Promise<Course> | null = null;
+
+/** `loadCourse()`, fetched once per page load. */
+export function course(): Promise<Course> {
+  cachedCourse ??= loadCourse();
+  return cachedCourse;
 }
 
 async function summary(id: string): Promise<LessonSummary> {
@@ -61,9 +76,12 @@ export async function loadLesson(id: string): Promise<LoadedLesson> {
   if (!play) throw new Error(`${stem}.md names no play`);
   const playFile = (stem: string) => fetchText(`curriculum/plays/${stem}.rink.json`);
   const [main, wrongJson] = await Promise.all([playFile(play), wrong ? playFile(wrong) : null, wasmReady()]);
+  const file = JSON.parse(main);
   return {
     handle: LessonHandle.load(md, steps, main, wrongJson),
-    entities: JSON.parse(main).entities,
+    entities: file.entities,
+    teams: file.teams,
+    rinkWidth: file.rink.width_m,
     hasWrong: wrongJson !== null,
   };
 }

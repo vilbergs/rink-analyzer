@@ -54,3 +54,9 @@ export type Caption = { t_ms: number; text: string };
 
 /** An entity as the `.rink.json` file stores it. */
 export type PlayEntity = { id: string; team?: "home" | "away"; role?: string; number?: number; is_me?: boolean };
+
+/** A team as the `.rink.json` file stores it. */
+export type PlayTeam = { side: "home" | "away"; color: string; attacks_positive_x: boolean };
+
+/** One instant on a play's timeline, as `LessonHandle.events` returns it. */
+export type PlayEvent = { t_ms: number; kind: string; actors: string[]; note?: string };
