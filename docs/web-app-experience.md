@@ -270,8 +270,9 @@ component. Nothing else changes.
 6. **User accounts and sync.** After the experience is tuned on browser storage. A second
    `ProgressStore` over a backend, and an import of the local rows on first sign-in.
 
-Status: Phase 1 landed 2026-11-01 in `web/`. Phase 2's attempts in browser storage, the result screen
-and export landed with it; the path and locking did not.
+Status: Phase 1 landed 2026-11-01 in `web/`. Phase 2 landed 2026-11-02: the course home, the topic path
+with locking, attempts in browser storage, the result screen and export. The rink in a lesson is portrait,
+the user's own net at the bottom, cropped to the ice the user's player and the puck cover.
 
 Phase 1 is the one to feel in the hand before anything else. If a lesson is not clear on a phone with
 L1, the path will not fix it.

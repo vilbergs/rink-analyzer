@@ -158,8 +158,11 @@ npm run dev                 # http://localhost:5173
 service worker so a phone can add it to the home screen and run it offline. `web/public/curriculum` links
 to `curriculum/` and `web/public/plays` to `examples/`; both are served as static files.
 
-- `#/` lists the course from `curriculum/course.json`, each lesson with its principle and a Studied mark.
-  "Export progress" downloads attempts and studied lessons as JSON.
+- `#/` is the course home from `curriculum/course.json`: one card per topic with a segment per lesson,
+  and the topic in progress shows its next lesson with Continue. "Export progress" downloads attempts and
+  studied lessons as JSON.
+- `#/topic/<id>` is the topic's path: lessons in order, studied, current or locked. A lesson unlocks when
+  the one before it is studied; studied lessons stay open.
 - `#/lesson/<id>` runs a lesson: the rink on top, the step in a bottom sheet. A card reads a Markdown
   section, a watch step plays a segment and stops on the beat, a choice grades on tap and can play on in
   the variant the option leads to, a spot hides your player until you tap the rink and then draws the
