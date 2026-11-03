@@ -440,7 +440,7 @@
       "actors": [
         "home_RW"
       ],
-      "note": "Puck is on the far wall. Where is your man, their LD at the point? Are you inside him, stick in the cross-ice lane, seeing both him and the puck?",
+      "note": "The puck is on the far wall. Where is their LD, and can you see both them and the puck?",
       "answer": "Inside their LD in the high slot, with them and the puck both in view. If I drift toward the puck, they slip behind me."
     },
     {
@@ -469,7 +469,7 @@
       "actors": [
         "home_RW"
       ],
-      "note": "D-to-D is coming to your point. Step out now, or hold the slot?",
+      "note": "The D-to-D pass is coming to their LD at my point. Step out now, or hold the slot?",
       "answer": "Step out when the pass leaves, not when it arrives. The pass and my skate out both take about half a second."
     },
     {

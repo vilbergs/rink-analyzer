@@ -30,7 +30,7 @@ export type Play = {
   id: string;
   duration_ms: number;
   entities: { id: string; is_me?: boolean }[];
-  events: { t_ms: number; kind: string }[];
+  events: { t_ms: number; kind: string; note?: string; answer?: string }[];
   captions?: { t_ms: number; text: string }[];
 };
 
@@ -85,7 +85,7 @@ export type Kind =
   | "feedback"
   | "caption";
 
-/** One piece of text a learner reads, and where it lives. */
+/** One piece of text a learner reads, and where it lives. A decision point's note is its question in the desktop app and its answer the reveal, so they count as a prompt and a feedback. */
 export type Text = { lesson: string; step: string | null; kind: Kind; where: string; text: string };
 
 export type Issue = { lesson: string; step: string | null; rule: string; where: string; text: string };
@@ -197,6 +197,11 @@ export function surfaces(lesson: Lesson): Text[] {
       add(step.id, "prompt", "prompt", step.prompt);
       for (const k of ["right", "close", "wrong"] as const) add(step.id, "feedback", `${k} feedback`, step.fb[k]);
     }
+  }
+  for (const e of lesson.main.events) {
+    if (e.kind !== "decision_point") continue;
+    if (e.note) add(null, "prompt", `decision point at ${e.t_ms} ms, note`, e.note);
+    if (e.answer) add(null, "feedback", `decision point at ${e.t_ms} ms, answer`, e.answer);
   }
   for (const c of lesson.main.captions ?? []) add(null, "caption", `caption at ${c.t_ms} ms`, c.text);
   for (const c of lesson.variant?.captions ?? []) add(null, "caption", `wrong caption at ${c.t_ms} ms`, c.text);
