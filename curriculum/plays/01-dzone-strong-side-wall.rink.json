@@ -446,7 +446,7 @@
         "home_RW"
       ],
       "note": "Pass is going to their LD at the point. Are you already inside him, between the puck and the point, or do you have to chase?",
-      "answer": "Already inside him. The job on the strong side is the point, not the corner battle, so I was between the puck and their LD before the pass went. A chase from below the puck gives him the whole top of the zone."
+      "answer": "Already between the puck and their LD. On the strong side the point is my job, not the fight for the puck. From below the puck the pass has nobody in the way."
     },
     {
       "t_ms": 4200,
@@ -480,31 +480,31 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Their C has it in our right corner, my corner. I'm above the puck, between it and their LD at the point, stick in the lane up the wall."
+      "text": "Their C has it in my corner. I'm between the puck and their LD."
     },
     {
       "t_ms": 2000,
-      "text": "Their C works toward the wall, looking for the point. I keep the lane and stay inside my point man."
+      "text": "Their C looks up the wall for their LD. I hold the lane."
     },
     {
       "t_ms": 2500,
-      "text": "Pass to the point. I push now, because I'm already inside him."
+      "text": "Pass to the point. I move now: I'm already between them."
     },
     {
       "t_ms": 3000,
-      "text": "Their LD has it. A stick length off, on his inside shoulder: no walk to the middle."
+      "text": "Their LD has it. I'm a stick length away, between them and our net."
     },
     {
       "t_ms": 4000,
-      "text": "He walks the line. I slide with him, between him and the net, stick on the ice."
+      "text": "Their LD skates along the blue line. I slide with them, in the lane."
     },
     {
       "t_ms": 4200,
-      "text": "Shot from the point, through a half-closed lane, low to the pad."
+      "text": "Shot from the point through a half-closed lane, low."
     },
     {
       "t_ms": 4500,
-      "text": "Save. Rebound to the far corner, our LD picks it up. I turn to my wall: breakout."
+      "text": "Save. Our LD gets the rebound far side. I turn to my wall."
     }
   ],
   "notes": "Study play. Puck is in our right corner, my side. The strong-side winger owns the point: stay between the puck and their LD, on the wall side of him, stick in the lane up the boards. When the pass goes to the point, I'm already there and close with my stick in the shot lane. Shot gets through to the goalie, rebound to the far corner, our LD recovers."

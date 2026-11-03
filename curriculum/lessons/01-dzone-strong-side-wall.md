@@ -1,18 +1,20 @@
 ---
 id: l1-dzone-strong-side-wall
 module: dzone
-title: Puck in my corner (strong side)
+title: Puck in my corner
 play: 01-dzone-strong-side-wall
 wrong: 01-dzone-strong-side-wall.wrong
 ---
 ## Principle
-The strong-side winger owns the point. Be inside their D before the pass goes there.
-
-## Cue
-When the puck goes into my corner, look up at my point man, not at the battle.
+The puck is in my corner. Their C is looking for a pass to their LD at the point. Stand between the puck and their LD before the pass goes, so it never has a free lane.
 
 ## What wrong looks like
-You leave the lane up the wall and drop to the wall below the puck, next to our RD, as if helping in the corner. When the pass goes to the point it is clean: their LD has the whole top of the zone, you are more than ten meters away, and you chase uphill while he walks the line and shoots through an open lane.
+You leave the lane to the point and drop down the wall to help our RD with the puck. When the pass goes to their LD, nobody is in the way. You are ten meters below the puck, and they skate along the blue line and shoot through an open lane while you chase.
 
-## Self-check
-At 2.5 s, were you between the puck and their LD, or below the puck? What does the lane to the point look like from where you are?
+## Check yourself
+When the pass left for the point, who were you between?
+
+The puck and their LD. From there the pass lane runs through you, and you reach their LD as the puck does.
+
+## Cue
+Puck in my corner: find their LD at the point, not the puck.

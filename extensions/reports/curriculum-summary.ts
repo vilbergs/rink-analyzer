@@ -24,7 +24,6 @@ type Context = {
   dataHandles: Handle[];
   dataRepository: {
     getContent(type: string, modelId: string, name: string, version?: number): Promise<Uint8Array | null>;
-    findAllForModel(type: string, modelId: string): Promise<{ name: string; version: number }[]>;
   };
 };
 
@@ -33,10 +32,13 @@ async function read<T>(context: Context, name: string, version?: number): Promis
   return raw ? JSON.parse(new TextDecoder().decode(raw)) as T : null;
 }
 
+/** The newest version before `handle` that still exists; listings show only the latest, so step back. */
 async function previousVersion(context: Context, handle: Handle): Promise<number | null> {
-  const all = await context.dataRepository.findAllForModel(context.modelType, context.modelId);
-  const older = all.filter((d) => d.name === handle.name && d.version < handle.version).map((d) => d.version);
-  return older.length ? Math.max(...older) : null;
+  for (let v = handle.version - 1; v >= 1; v--) {
+    const raw = await context.dataRepository.getContent(context.modelType, context.modelId, handle.name, v);
+    if (raw) return v;
+  }
+  return null;
 }
 
 function table(header: string[], rows: string[][]): string {
