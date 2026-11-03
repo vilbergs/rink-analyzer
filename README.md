@@ -31,6 +31,9 @@ crates/
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
   rink-wasm/   # rink-core and rink-lesson for the browser: play and lesson handles, scene, hit test, grading
 web/           # Svelte app (Vite): lesson player and play viewer over rink-wasm
+curriculum/    # the course: lessons (Markdown + steps JSON), plays, glossary.json, STYLE.md
+extensions/    # swamp: the @vilbergs/curriculum lint behavior and its summary report
+workflows/     # swamp: web-build, deploy-pi, curriculum-check
 rinks/         # rink presets (IIHF 60x30, NHL 61x26) as JSON
 examples/      # breakout play with an example review
 .claude/skills/   # Claude Code skills: review-positioning, draft-play
