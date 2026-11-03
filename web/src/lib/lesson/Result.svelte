@@ -9,13 +9,15 @@
   const revisit = $derived(
     session.steps.flatMap((step, index) => {
       const graded = session.responses[step.id]?.graded;
-      if (!graded || graded.grade === 2 || !("prompt" in step)) return [];
-      const label = GRADES[graded.grade].label;
+      if (!graded || !("prompt" in step)) return [];
+      const grade = session.firstGrades[step.id] ?? graded.grade;
+      if (grade === 2) return [];
+      const label = GRADES[grade].label;
       return [
         {
           index,
           step,
-          grade: graded.grade,
+          grade,
           verdict: graded.facts ? `${label}, ${graded.facts.distance_m.toFixed(1)} m` : label,
         },
       ];

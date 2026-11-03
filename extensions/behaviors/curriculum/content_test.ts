@@ -21,7 +21,6 @@ function lesson(over: Partial<Lesson> = {}): Lesson {
     wrong: "01-one.wrong",
     sections: { "Principle": "Short.", "Cue": "Look up.", "What wrong looks like": "Bad." },
     steps: [
-      { type: "card", id: "l1-principle", section: "Principle" },
       { type: "watch", id: "l1-watch", from_ms: 0, to_ms: 2000 },
       {
         type: "choice",
@@ -34,6 +33,7 @@ function lesson(over: Partial<Lesson> = {}): Lesson {
           { text: "In front of our net", grade: 0, fb: "Far.", play: "wrong" },
         ],
       },
+      { type: "card", id: "l1-principle", section: "Principle" },
       { type: "spot", id: "l1-spot", at_ms: 2000, prompt: "Tap.", fb: { right: "r", close: "c", wrong: "w" } },
       { type: "contrast", id: "l1-contrast", at_ms: 2000, section: "What wrong looks like" },
       { type: "card", id: "l1-cue", section: "Cue" },
@@ -78,7 +78,7 @@ Deno.test("clock times and pronouns are flagged", () => {
 
 Deno.test("the right option must not be the longest", () => {
   const l = lesson();
-  const choice = l.steps[2];
+  const choice = l.steps[1];
   if (choice.type !== "choice") throw new Error("fixture");
   choice.options[0].text = "Already inside them, above the puck, in the lane";
   assertEquals(rules(curriculum([l])), ["right-is-longest"]);
@@ -92,6 +92,13 @@ Deno.test("a spot off a decision point needs an explicit target", () => {
   assertEquals(rules(curriculum([l])), ["spot-off-decision"]);
   spot.target = [-9, -12];
   assertEquals(rules(curriculum([l])), []);
+});
+
+Deno.test("the principle card follows the first question", () => {
+  const l = lesson();
+  const [watch, choice, principle, ...rest] = l.steps;
+  l.steps = [principle, watch, choice, ...rest];
+  assertEquals(rules(curriculum([l])), ["first-step", "principle-after-read"]);
 });
 
 Deno.test("the inventory counts terms per lesson", () => {

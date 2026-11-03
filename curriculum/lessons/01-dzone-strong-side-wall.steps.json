@@ -2,27 +2,107 @@
   "schema": 1,
   "lesson": "l1-dzone-strong-side-wall",
   "steps": [
-    { "id": "l1-principle", "type": "card", "section": "Principle" },
-    { "id": "l1-watch-1", "type": "watch", "from_ms": 0, "to_ms": 2000 },
-    { "id": "l1-choice-read", "type": "choice", "at_ms": 2000, "prompt": "Their C has the puck in the corner and is looking up. What are they looking for?",
+    {
+      "id": "l1-watch-1",
+      "type": "watch",
+      "from_ms": 0,
+      "to_ms": 2000
+    },
+    {
+      "id": "l1-choice-read",
+      "type": "choice",
+      "at_ms": 2000,
+      "prompt": "Their C has the puck in the corner and is looking up. What are they looking for?",
       "options": [
-        { "text": "A pass to their LD at the point", "grade": 2, "fb": "Right. Their C is looking up the wall for their LD. That pass is the danger, so their LD is the player you watch." },
-        { "text": "A shot from the corner", "grade": 0, "fb": "There is no angle from the corner. Their C wants the puck at the point, where their LD has time and a lane to the net." },
-        { "text": "A pass across to their LW in the slot", "grade": 1, "fb": "Possible, but our C is standing in that lane. The open pass is up the wall to their LD, and that one is yours to take away." }
-      ] },
-    { "id": "l1-watch-2", "type": "watch", "from_ms": 2000, "to_ms": 2500 },
-    { "id": "l1-choice-dp", "type": "choice", "at_ms": 2500, "prompt": "The pass is leaving for their LD at the point. Where are you?",
+        {
+          "text": "A pass to their LD at the point",
+          "grade": 2,
+          "fb": "Right. Their C is looking up the wall for their LD. That pass is the danger, so their LD is the player you watch."
+        },
+        {
+          "text": "A shot from the corner",
+          "grade": 0,
+          "fb": "There is no angle from the corner. Their C wants the puck at the point, where their LD has time and a lane to the net."
+        },
+        {
+          "text": "A pass across to their LW in the slot",
+          "grade": 1,
+          "fb": "Possible, but our C is standing in that lane. The open pass is up the wall to their LD, and that one is yours to take away."
+        }
+      ]
+    },
+    {
+      "id": "l1-principle",
+      "type": "card",
+      "section": "Principle"
+    },
+    {
+      "id": "l1-watch-2",
+      "type": "watch",
+      "from_ms": 2000,
+      "to_ms": 2500
+    },
+    {
+      "id": "l1-choice-dp",
+      "type": "choice",
+      "at_ms": 2500,
+      "prompt": "The pass is leaving for their LD at the point. Where are you?",
       "options": [
-        { "text": "Between the puck and their LD", "grade": 2, "fb": "Right. You were already between the puck and their LD, so you move as the pass travels and arrive as it does. Their shot has to go through you." },
-        { "text": "At the hash marks, ready either way", "grade": 1, "fb": "Better than the corner, but you are reacting. The pass arrives before you do, and their LD gets a look at the net and a step toward the middle." },
-        { "text": "Down the wall, helping our RD", "grade": 0, "fb": "That corner is our RD's job. From there you are ten meters from their LD. The pass gets there with nobody in the way, and they pick a shot while you chase.", "play": "wrong" },
-        { "text": "In front of our net", "grade": 0, "fb": "Our C and our RD have the net. From the net you are far from their LD, who takes the pass, skates along the blue line and shoots through bodies." }
-      ] },
-    { "id": "l1-spot-dp", "type": "spot", "at_ms": 2500, "prompt": "The pass is about to leave for the point. Tap where you should be.",
-      "fb": { "right": "Above the puck, between it and their LD, in the lane up the wall. You move as the pass travels and arrive as it does.", "close": "Near the lane but a stride off it. That stride is the time their LD needs to look up and step toward the middle.", "wrong": "Too far from the lane to the point. From below the puck or from the slot, the pass arrives with nobody in the way and you chase." } },
-    { "id": "l1-watch-3", "type": "watch", "from_ms": 2500, "to_ms": 6000 },
-    { "id": "l1-contrast", "type": "contrast", "at_ms": 2500, "section": "What wrong looks like" },
-    { "id": "l1-check", "type": "card", "section": "Check yourself" },
-    { "id": "l1-cue", "type": "card", "section": "Cue" }
+        {
+          "text": "Between the puck and their LD",
+          "grade": 2,
+          "fb": "Right. You were already between the puck and their LD, so you move as the pass travels and arrive as it does. Their shot has to go through you."
+        },
+        {
+          "text": "At the hash marks, ready either way",
+          "grade": 1,
+          "fb": "Better than the corner, but you are reacting. The pass arrives before you do, and their LD gets a look at the net and a step toward the middle."
+        },
+        {
+          "text": "Down the wall, helping our RD",
+          "grade": 0,
+          "fb": "That corner is our RD's job. From there you are ten meters from their LD. The pass gets there with nobody in the way, and they pick a shot while you chase.",
+          "play": "wrong"
+        },
+        {
+          "text": "In front of our net",
+          "grade": 0,
+          "fb": "Our C and our RD have the net. From the net you are far from their LD, who takes the pass, skates along the blue line and shoots through bodies."
+        }
+      ]
+    },
+    {
+      "id": "l1-spot-dp",
+      "type": "spot",
+      "at_ms": 2500,
+      "prompt": "The pass is about to leave for the point. Tap where you should be.",
+      "fb": {
+        "right": "Above the puck, between it and their LD, in the lane up the wall. You move as the pass travels and arrive as it does.",
+        "close": "Near the lane but a stride off it. That stride is the time their LD needs to look up and step toward the middle.",
+        "wrong": "Too far from the lane to the point. From below the puck or from the slot, the pass arrives with nobody in the way and you chase."
+      }
+    },
+    {
+      "id": "l1-watch-3",
+      "type": "watch",
+      "from_ms": 2500,
+      "to_ms": 6000
+    },
+    {
+      "id": "l1-contrast",
+      "type": "contrast",
+      "at_ms": 2500,
+      "section": "What wrong looks like"
+    },
+    {
+      "id": "l1-check",
+      "type": "card",
+      "section": "Check yourself"
+    },
+    {
+      "id": "l1-cue",
+      "type": "card",
+      "section": "Cue"
+    }
   ]
 }

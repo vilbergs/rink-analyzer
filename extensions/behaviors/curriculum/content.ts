@@ -334,7 +334,15 @@ function structure(lesson: Lesson, c: Curriculum): Issue[] {
   }
 
   const first = lesson.steps[0];
-  if (!first || first.type !== "card" || first.section !== "Principle") at(null, "first-step", "steps", "the first step is the Principle card");
+  const firstChoice = lesson.steps.findIndex((s) => s.type === "choice");
+  const principle = lesson.steps.findIndex((s) => s.type === "card" && s.section === "Principle");
+  if (firstChoice < 0) {
+    if (!first || first.type !== "card" || first.section !== "Principle") at(null, "first-step", "steps", "a lesson with no question starts with the Principle card");
+  } else {
+    const opensWell = first.type === "watch" || (first.type === "card" && first.section === "Words");
+    if (!opensWell) at(null, "first-step", "steps", "the lesson opens with the Words card or a watch, so the first question comes before the Principle");
+    if (principle !== firstChoice + 1) at(null, "principle-after-read", "steps", "the Principle card comes right after the first question");
+  }
   const last = lesson.steps[lesson.steps.length - 1];
   if (!last || last.type !== "card" || last.section !== "Cue") at(null, "last-step", "steps", "the last step is the Cue card");
 

@@ -2,7 +2,7 @@ import type { ProgressStore } from "../progress/store";
 import type { Mark, SceneOpts } from "../rink/paint";
 import type { LessonHandle } from "../wasm/rink_wasm.js";
 import type { LoadedLesson } from "./content";
-import type { Answer, Caption, Graded, LessonMeta, PlayEntity, PlayEvent, PlayTeam, Step, Which } from "./types";
+import type { Answer, Caption, Grade, Graded, LessonMeta, PlayEntity, PlayEvent, PlayTeam, Step, Which } from "./types";
 
 /** What the user answered on a graded step, and how it was graded. */
 export type Answered = { answer: Answer; graded: Graded };
@@ -39,11 +39,17 @@ export class LessonSession {
   playing = $state(false);
   speed = $state(0.5);
   segment = $state<Segment | null>(null);
-  /** This run's responses, by step id. */
+  /** This run's responses, by step id: the latest answer to each step. */
   responses = $state.raw<Record<string, Answered>>({});
+  /** Option indexes a choice step was retried from, by step id. */
+  tried = $state.raw<Record<string, number[]>>({});
+  /** The grade of the first try on each graded step, which the result reports. */
+  firstGrades = $state.raw<Record<string, Grade>>({});
 
   step: Step;
   response: Answered | null;
+  /** A wrong choice gets one more try, with its feedback as the hint. */
+  canRetry: boolean;
   /** The user's player is hidden while a spot step waits for the tap. */
   hidden: string[];
   marks: Mark[];
@@ -80,6 +86,9 @@ export class LessonSession {
 
     this.step = $derived(this.steps[this.index]);
     this.response = $derived(this.responses[this.step.id] ?? null);
+    this.canRetry = $derived(
+      this.step.type === "choice" && this.response?.graded.grade === 0 && (this.tried[this.step.id] ?? []).length === 0,
+    );
     this.hidden = $derived(this.step.type === "spot" && !this.response ? [this.me] : []);
     this.marks = $derived(this.response?.graded.marks ?? []);
     this.captions = $derived(this.#captions[this.which]);
@@ -111,18 +120,29 @@ export class LessonSession {
     };
   }
 
-  /** Grade the current step's answer and record the attempt. A step is answered once per run. */
+  /** Grade the current step's answer and record the attempt. A step holds one answer at a time. */
   respond(answer: Answer) {
     const { id } = this.step;
     if (this.responses[id]) return;
     const graded: Graded = this.handle.grade(id, answer);
     this.responses = { ...this.responses, [id]: { answer, graded } };
+    if (!(id in this.firstGrades)) this.firstGrades = { ...this.firstGrades, [id]: graded.grade };
     void this.#progress.record({
       stepId: id,
       lessonId: this.meta.id,
       grade: graded.grade,
       answeredAt: new Date().toISOString(),
     });
+  }
+
+  /** Open a wrong choice for one more try. The option already tried stays out, with its feedback as the hint. */
+  retry() {
+    const { id } = this.step;
+    const r = this.responses[id];
+    if (!this.canRetry || r?.answer.kind !== "choice") return;
+    this.tried = { ...this.tried, [id]: [...(this.tried[id] ?? []), r.answer.index] };
+    const { [id]: _, ...rest } = this.responses;
+    this.responses = rest;
   }
 
   /** A tap on the rink answers a spot step that is still waiting for one. */

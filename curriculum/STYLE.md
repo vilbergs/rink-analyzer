@@ -18,13 +18,17 @@ language. Every sentence is read on a phone between two taps. These rules are wh
 
 ## Shape of a lesson
 
-Ten or eleven steps, in this order. Steps replace; they do not pile on.
+Ten or eleven steps, in this order. Steps replace; they do not pile on. The first question comes
+before the Principle: a learner who has just guessed what their LD is looking for reads the
+Principle as the answer to something, not as a rule to memorize. (Brilliant's rule for the same
+reason: "We don't teach how to do something before asking questions.")
 
-1. `card` **Principle**: the situation, what they are trying to do, and what to do about it.
+1. `card` **Words**: only when the lesson teaches Tier B terms. One line per term.
+2. `watch` to the first beat.
+3. `choice` **the read**: what are they doing, what are they looking for. Getting it wrong is
+   fine; the Principle follows.
+4. `card` **Principle**: the situation, what they are trying to do, and what to do about it.
    Three sentences or fewer, under 45 words. No rule-speak ("the winger owns the point").
-2. `card` **Words**: only when the lesson teaches Tier B terms. One line per term.
-3. `watch` to the first beat.
-4. `choice` **the read**: what are they doing, what are they looking for.
 5. `watch` to the decision.
 6. `choice` **the decision**: where are you, what do you do.
 7. `spot` at the same moment.
@@ -33,6 +37,8 @@ Ten or eleven steps, in this order. Steps replace; they do not pile on.
 10. `card` **Check yourself**: one question answered from memory, then the answer in its own
     paragraph.
 11. `card` **Cue**: one line for the ice.
+
+A lesson with no question, such as Lesson 0, starts with the Principle.
 
 ## Questions
 

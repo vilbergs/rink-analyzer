@@ -230,6 +230,37 @@ after writing a new lesson.
    rewritten in plain words.
 4. `swamp workflow run deploy-pi` ships it.
 
+## What Brilliant does, and what this app takes from it
+
+Researched 2026-11-03 from Brilliant's own pages, its design partner's case study, the founder's
+podcast interview and third-party breakdowns. The product the experience note names as a model
+turns out to rest on a short list of rules, most of which the lesson player already follows.
+
+| Brilliant's rule, in their words | Source | Here |
+| --- | --- | --- |
+| "We don't teach how to do something before asking questions." The first attempt "gives the explanation a purpose." | About page, how-we-teach page | Done 2026-11-03: the read question now comes before the Principle card in every lesson. |
+| "Guided discovery is not the same as leaving someone to guess": questions, examples, feedback and direct instruction together. | how-we-teach page | The Principle card is the direct instruction; it sits right after the first question. |
+| Learners "make decisions: move a point, test a pattern." | how-we-teach page | `spot` taps and the `choice` decision. A `freeze` (tap Go at the moment to leave) is the next decision type worth adding. |
+| Start "with the simplest useful case"; one concept per lesson; "Learners get lost in a wall of text." | About page | One play per lesson, Lesson 0 first, captions under 14 words. |
+| Feedback responds "while the learner's reasoning is still fresh", a chance "to revise rather than simply marking the attempt wrong." Two tries: a targeted hint, then the reveal. | how-we-teach page; teardown | Done 2026-11-03: a wrong choice gets one more try. The feedback is the hint; the right option is revealed after the second try. |
+| Feedback answers "Where am I going? How am I doing? What should I try next?" (Hattie and Timperley). | how-we-teach page | The three-part feedback rule in STYLE.md. |
+| Read the explanation after a right answer too. | remediation page | Every option, right ones included, carries feedback. |
+| "Confusion ... is treated as a natural part of learning, not evidence of failure." Safe to fail. | remediation page; Khim | Done 2026-11-03: the grade label reads "Not quite", not "Wrong". |
+| "In practice sets, the scaffolding falls away": no hints, no visual aids; retrieval, new contexts, spacing, interleaving. | About page, how-we-teach page | For the Phase 3 practice node: no captions, no Words card, questions drawn across lessons. |
+| "The appropriate level of challenge", "easy is boring"; game mechanics and "bing bongs" are not the point. Streaks and XP exist but the company says it keeps them from crowding the content. | Khim, Edtech Insiders | Matches the no-gamification decision. Difficulty should rise: later lessons can drop the read question's easy distractor. |
+| A single-focus step player with no site chrome, a segmented progress bar, one primary button in the same place through answer, feedback and continue. | teardown | Already the shape of the lesson screen. |
+| A learning path with "clear direction and progression while maintaining the user's freedom of choice." Free users complete a topic in order; paid users go in any order. | ustwo case study; help page | Open: the path locks lessons until the previous one is studied. Brilliant keeps the order as a recommendation, not a lock. Worth testing on yourself: unlock everything, keep "up next". |
+| In-lesson celebrations for a right answer, "moments of encouragement when learners are struggling", themed loading animations. | ustwo, Rive case studies | Not done. A small motion on a right spot tap would fit; nothing more. |
+| Topics, units, concepts; a unit ends in a 10 to 15 problem review. | help page | Modules end in a practice node (Phase 3). |
+
+Sources: https://brilliant.org/resources/choosing-brilliant/how-brilliant-teaches-math/ ,
+https://brilliant.org/about/ , https://brilliant.org/resources/choosing-brilliant/is-brilliant-good-for-remediation/ ,
+https://brilliant.org/help/features/what-are-learning-paths/ , https://ustwo.com/work/brilliant/ ,
+https://rive.app/blog/how-brilliant-org-motivates-learners-with-rive-animations ,
+https://edtechinsiders.buzzsprout.com/1877869/episodes/19457440-building-an-ai-tutor-that-gets-students-to-think-with-sue-khim-of-brilliant ,
+https://screensdesign.com/showcase/brilliant-learn-by-doing ,
+https://github.com/zhipengzhu1-dotcom/10-18-2026-Organic-Chemistry/issues/8 (an unofficial teardown; counts from it are indicative only).
+
 ## Status
 
 Landed 2026-11-03: `STYLE.md`, `glossary.json`, the `@vilbergs/curriculum` behavior (`inventory`,

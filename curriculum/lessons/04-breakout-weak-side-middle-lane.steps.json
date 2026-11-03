@@ -2,28 +2,112 @@
   "schema": 1,
   "lesson": "l4-breakout-weak-side-middle-lane",
   "steps": [
-    { "id": "l4-principle", "type": "card", "section": "Principle" },
-    { "id": "l4-words", "type": "card", "section": "Words" },
-    { "id": "l4-watch-1", "type": "watch", "from_ms": 0, "to_ms": 1500 },
-    { "id": "l4-choice-hold", "type": "choice", "at_ms": 1500, "prompt": "Our LD passes up the far wall. Their LW stays close to you. What are they waiting for?",
+    {
+      "id": "l4-words",
+      "type": "card",
+      "section": "Words"
+    },
+    {
+      "id": "l4-watch-1",
+      "type": "watch",
+      "from_ms": 0,
+      "to_ms": 1500
+    },
+    {
+      "id": "l4-choice-hold",
+      "type": "choice",
+      "at_ms": 1500,
+      "prompt": "Our LD passes up the far wall. Their LW stays close to you. What are they waiting for?",
       "options": [
-        { "text": "For me to leave my wall for the middle", "grade": 2, "fb": "Right. Their LW stays close so they can follow you. Leave now and you pull them into the middle lane, and it is covered before the puck gets there." },
-        { "text": "For a pass back across to my wall", "grade": 1, "fb": "Possible, and you are the outlet if it comes back. But their LW is mostly watching you. Leave early and they come with you, and the middle is covered." },
-        { "text": "For a chance to chase our LD behind the net", "grade": 0, "fb": "Their LW is not chasing our LD. They stay close to you, ready to follow you into the middle the moment you leave your wall." }
-      ] },
-    { "id": "l4-watch-2", "type": "watch", "from_ms": 1500, "to_ms": 2500 },
-    { "id": "l4-choice-dp", "type": "choice", "at_ms": 2500, "prompt": "The puck is moving up the far wall to our LW. Where are you?",
+        {
+          "text": "For me to leave my wall for the middle",
+          "grade": 2,
+          "fb": "Right. Their LW stays close so they can follow you. Leave now and you pull them into the middle lane, and it is covered before the puck gets there."
+        },
+        {
+          "text": "For a pass back across to my wall",
+          "grade": 1,
+          "fb": "Possible, and you are the outlet if it comes back. But their LW is mostly watching you. Leave early and they come with you, and the middle is covered."
+        },
+        {
+          "text": "For a chance to chase our LD behind the net",
+          "grade": 0,
+          "fb": "Their LW is not chasing our LD. They stay close to you, ready to follow you into the middle the moment you leave your wall."
+        }
+      ]
+    },
+    {
+      "id": "l4-principle",
+      "type": "card",
+      "section": "Principle"
+    },
+    {
+      "id": "l4-watch-2",
+      "type": "watch",
+      "from_ms": 1500,
+      "to_ms": 2500
+    },
+    {
+      "id": "l4-choice-dp",
+      "type": "choice",
+      "at_ms": 2500,
+      "prompt": "The puck is moving up the far wall to our LW. Where are you?",
       "options": [
-        { "text": "Leaving my hash marks for the middle lane", "grade": 2, "fb": "Right. You leave as the pass goes, and now their LW is too late to follow. You reach the middle lane with speed just as our LW needs you." },
-        { "text": "Still at my hash marks, waiting for control", "grade": 1, "fb": "Half a second late. The pressure reaches our LW while you are still on your wall. They have nobody in the middle, so they get hit or pass without looking." },
-        { "text": "Already in the middle, since the start", "grade": 0, "fb": "Their LW followed you. The middle lane is covered, our LW has nobody to pass to, and the pass they force is taken in front of you.", "play": "wrong" },
-        { "text": "Staying on my wall, ready for a pass", "grade": 0, "fb": "Then nobody is in the middle. Our LW is alone against the pressure, and the breakout ends on the far wall." }
-      ] },
-    { "id": "l4-spot-dp", "type": "spot", "at_ms": 2500, "prompt": "The puck is moving up the far wall. Tap where you should be.",
-      "fb": { "right": "Just off your hash marks, leaving now for the middle lane. Their LW is still on the wall.", "close": "On the right path, but a stride early or late. Early, their LW comes with you. Late, our LW waits for you.", "wrong": "Still standing on your wall, or already in the middle. One leaves our LW alone. The other brings their LW into the lane with you." } },
-    { "id": "l4-watch-3", "type": "watch", "from_ms": 2500, "to_ms": 7000 },
-    { "id": "l4-contrast", "type": "contrast", "at_ms": 2500, "section": "What wrong looks like" },
-    { "id": "l4-check", "type": "card", "section": "Check yourself" },
-    { "id": "l4-cue", "type": "card", "section": "Cue" }
+        {
+          "text": "Leaving my hash marks for the middle lane",
+          "grade": 2,
+          "fb": "Right. You leave as the pass goes, and now their LW is too late to follow. You reach the middle lane with speed just as our LW needs you."
+        },
+        {
+          "text": "Still at my hash marks, waiting for control",
+          "grade": 1,
+          "fb": "Half a second late. The pressure reaches our LW while you are still on your wall. They have nobody in the middle, so they get hit or pass without looking."
+        },
+        {
+          "text": "Already in the middle, since the start",
+          "grade": 0,
+          "fb": "Their LW followed you. The middle lane is covered, our LW has nobody to pass to, and the pass they force is taken in front of you.",
+          "play": "wrong"
+        },
+        {
+          "text": "Staying on my wall, ready for a pass",
+          "grade": 0,
+          "fb": "Then nobody is in the middle. Our LW is alone against the pressure, and the breakout ends on the far wall."
+        }
+      ]
+    },
+    {
+      "id": "l4-spot-dp",
+      "type": "spot",
+      "at_ms": 2500,
+      "prompt": "The puck is moving up the far wall. Tap where you should be.",
+      "fb": {
+        "right": "Just off your hash marks, leaving now for the middle lane. Their LW is still on the wall.",
+        "close": "On the right path, but a stride early or late. Early, their LW comes with you. Late, our LW waits for you.",
+        "wrong": "Still standing on your wall, or already in the middle. One leaves our LW alone. The other brings their LW into the lane with you."
+      }
+    },
+    {
+      "id": "l4-watch-3",
+      "type": "watch",
+      "from_ms": 2500,
+      "to_ms": 7000
+    },
+    {
+      "id": "l4-contrast",
+      "type": "contrast",
+      "at_ms": 2500,
+      "section": "What wrong looks like"
+    },
+    {
+      "id": "l4-check",
+      "type": "card",
+      "section": "Check yourself"
+    },
+    {
+      "id": "l4-cue",
+      "type": "card",
+      "section": "Cue"
+    }
   ]
 }
