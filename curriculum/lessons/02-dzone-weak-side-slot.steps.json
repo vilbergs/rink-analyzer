@@ -3,27 +3,28 @@
   "lesson": "l2-dzone-weak-side-slot",
   "steps": [
     { "id": "l2-principle", "type": "card", "section": "Principle" },
+    { "id": "l2-words", "type": "card", "section": "Words" },
     { "id": "l2-watch-1", "type": "watch", "from_ms": 0, "to_ms": 2500 },
-    { "id": "l2-choice-dp1", "type": "choice", "at_ms": 2500, "prompt": "The puck is on the far wall and their LD sneaks toward the middle. Where are you?",
+    { "id": "l2-choice-read", "type": "choice", "at_ms": 2500, "prompt": "The puck is in the far corner. Their LD slides along the blue line toward the middle. What are they looking for?",
       "options": [
-        { "text": "Inside him in the high slot, seeing him and the puck, stick in the cross-ice lane", "grade": 2, "fb": "That's the weak-side job. From inside him you see both, so a pass across or to the point gives you a short step, not a race." },
-        { "text": "Right on him at the point, a stick length off", "grade": 1, "fb": "You have your man, but you've left the slot. With your back to the puck you can't see a pass to the back door, and the high slot is empty for their C." },
-        { "text": "Middle of the slot, toward the puck side, to help", "grade": 0, "fb": "Puck-watching. He gets behind your shoulder and out of sight. On the D-to-D pass he has a free shot, and the step you took toward the puck is the step you owe back.", "play": "wrong" },
-        { "text": "Low, by the far post, in case the puck comes out front", "grade": 0, "fb": "That's our D's ice. You've given up the whole top of your side, so any pass to their LD is a free shot from the point." }
+        { "text": "A D-to-D pass from their RD", "grade": 2, "fb": "Right. Their LD is getting open for a pass from their RD and a shot. They are the player you watch, with the puck still in view." },
+        { "text": "A long pass straight from the corner", "grade": 1, "fb": "Possible, but that pass has to cross the slot, where you stand. The quick, safe pass is D-to-D from their RD." },
+        { "text": "A chance to join the fight for the puck", "grade": 0, "fb": "No. Their LD is moving away from the puck, into open ice. If you watch the puck, they slip behind you and the D-to-D pass finds them alone.", "play": "wrong" },
+        { "text": "A rebound in front of our net", "grade": 0, "fb": "Our RD and our C have the net. Their LD stays high, where a pass gives them time and a lane to shoot." }
       ] },
     { "id": "l2-watch-2", "type": "watch", "from_ms": 2500, "to_ms": 4000 },
-    { "id": "l2-choice-dp2", "type": "choice", "at_ms": 4000, "prompt": "D-to-D is coming to your point. Step out now, or hold the slot?",
+    { "id": "l2-choice-dp", "type": "choice", "at_ms": 4000, "prompt": "The D-to-D pass is on its way to their LD. You are in the high slot. What do you do?",
       "options": [
-        { "text": "Step out now, on the pass", "grade": 2, "fb": "Right. The puck takes half a second D-to-D, and that's the time it takes to get into his shot lane. You arrive as he catches it, two meters off, and the shot has to come through you." },
-        { "text": "Hold until he catches it, then close", "grade": 1, "fb": "Right movement, half a second late. He catches it with time to look, and shoots through the lane you are still skating into." },
-        { "text": "Hold the slot and block the shot from there", "grade": 0, "fb": "From the slot you are six meters off him. He shoots through an open lane, or walks in and shoots from closer." },
-        { "text": "Turn back to the puck in case it comes back across", "grade": 0, "fb": "Your back is to your man. He gets a free shot from your point, and you find out from the sound of it." }
+        { "text": "Step out toward their LD right now", "grade": 2, "fb": "Right. The pass and your skate out both take about half a second. You arrive as they catch it, two meters away, and their shot has to go through you." },
+        { "text": "Wait until they catch it, then step out", "grade": 1, "fb": "Right idea, half a second late. They catch it with time to look up, and shoot through the lane you are still skating into." },
+        { "text": "Stay in the slot and block from there", "grade": 0, "fb": "From the slot you are six meters from their LD. They shoot through an open lane, or skate in and shoot from closer." },
+        { "text": "Turn back to watch the puck in the corner", "grade": 0, "fb": "Your back is to their LD. They catch it with nobody near and shoot, and you hear the shot before you see it." }
       ] },
-    { "id": "l2-spot-dp2", "type": "spot", "at_ms": 4000, "prompt": "The D-to-D pass is in the air. Tap where you should be.",
-      "fb": { "right": "Out of the slot, on your way into his shot lane. You get there as the puck does.", "close": "Moving the right way, but a stride short of his lane. He'll have a look at the net before you arrive.", "wrong": "Still in the middle, or near the puck side. He catches it with nobody in his lane and shoots free." } },
+    { "id": "l2-spot-dp", "type": "spot", "at_ms": 4000, "prompt": "The D-to-D pass is on its way. Tap where you should be.",
+      "fb": { "right": "Out of the slot, moving into the lane between their LD and our net. You get there as the puck does.", "close": "Moving the right way, but a stride short of their lane. They get a look at the net before you arrive.", "wrong": "Still in the middle, or near the puck. They catch it with nobody in the lane and shoot." } },
     { "id": "l2-watch-3", "type": "watch", "from_ms": 4000, "to_ms": 6000 },
     { "id": "l2-contrast", "type": "contrast", "at_ms": 2500, "section": "What wrong looks like" },
-    { "id": "l2-self-check", "type": "card", "section": "Self-check" },
+    { "id": "l2-check", "type": "card", "section": "Check yourself" },
     { "id": "l2-cue", "type": "card", "section": "Cue" }
   ]
 }

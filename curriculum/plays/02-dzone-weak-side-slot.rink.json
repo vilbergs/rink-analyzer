@@ -441,7 +441,7 @@
         "home_RW"
       ],
       "note": "Puck is on the far wall. Where is your man, their LD at the point? Are you inside him, stick in the cross-ice lane, seeing both him and the puck?",
-      "answer": "Inside him, in the high slot, with the puck and my man both in view. If I drift toward the puck to help, he gets below me and the back door is open."
+      "answer": "Inside their LD in the high slot, with them and the puck both in view. If I drift toward the puck, they slip behind me."
     },
     {
       "t_ms": 3000,
@@ -470,7 +470,7 @@
         "home_RW"
       ],
       "note": "D-to-D is coming to your point. Step out now, or hold the slot?",
-      "answer": "Step out on the pass, not on the arrival. The puck takes half a second D-to-D; that's the time it takes to get into his shot lane."
+      "answer": "Step out when the pass leaves, not when it arrives. The pass and my skate out both take about half a second."
     },
     {
       "t_ms": 4800,
@@ -505,31 +505,31 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Their RW has it in our left corner, the far side. I'm in the high slot, inside their LD, between him and the net, seeing both."
+      "text": "Their RW has it in the far corner. I'm high, inside their LD."
     },
     {
       "t_ms": 2500,
-      "text": "Their LD sneaks toward the middle. I stay inside him and don't chase the puck."
+      "text": "Their LD slides toward the middle. I stay inside them, seeing both."
     },
     {
       "t_ms": 3000,
-      "text": "Pass from the corner to their RD at the left point. One step up toward my man."
+      "text": "Pass from the corner to their RD at the far point. I step up."
     },
     {
       "t_ms": 3800,
-      "text": "D-to-D to their LD. The pass is in the air, so I step out now."
+      "text": "D-to-D pass to their LD. I step out now, as it leaves."
     },
     {
       "t_ms": 4200,
-      "text": "Their LD has it at my point. Two meters off, in his shot lane."
+      "text": "Their LD catches it. I'm two meters away, in their shooting lane."
     },
     {
       "t_ms": 4800,
-      "text": "Shot. The goalie sees it. Save, rebound to the near corner."
+      "text": "Shot. Our goalie sees it and saves. Rebound to the near corner."
     },
     {
       "t_ms": 5800,
-      "text": "Our C recovers on the far side. I'm the weak-side winger on the breakout."
+      "text": "Our C gets the puck. I go to my wall for the breakout."
     }
   ]
 }

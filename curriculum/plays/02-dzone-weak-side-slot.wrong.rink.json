@@ -446,7 +446,7 @@
         "home_RW"
       ],
       "note": "Puck is on the far wall. Where is your man, their LD at the point? Are you inside him, stick in the cross-ice lane, seeing both him and the puck?",
-      "answer": "Inside him, in the high slot, with the puck and my man both in view. If I drift toward the puck to help, he gets below me and the back door is open."
+      "answer": "Inside their LD in the high slot, with them and the puck both in view. If I drift toward the puck, they slip behind me."
     },
     {
       "t_ms": 3000,
@@ -475,7 +475,7 @@
         "home_RW"
       ],
       "note": "D-to-D is coming to your point. Step out now, or hold the slot?",
-      "answer": "Step out on the pass, not on the arrival. The puck takes half a second D-to-D; that's the time it takes to get into his shot lane."
+      "answer": "Step out when the pass leaves, not when it arrives. The pass and my skate out both take about half a second."
     },
     {
       "t_ms": 4800,
@@ -510,31 +510,31 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Their RW has it in our left corner, the far side. I start drifting toward the puck to help."
+      "text": "Their RW has it in the far corner. I drift toward the puck."
     },
     {
       "t_ms": 2500,
-      "text": "I'm in the middle of the slot, puck side, watching the puck. Their LD sneaks in behind my shoulder and I can't see him."
+      "text": "I'm mid-slot, watching the puck. Their LD slips behind me, out of sight."
     },
     {
       "t_ms": 3000,
-      "text": "Pass from the corner to their RD at the left point. I'm still watching the puck."
+      "text": "Pass to their RD at the far point. I'm still watching the puck."
     },
     {
       "t_ms": 3800,
-      "text": "D-to-D to their LD. I see it late and turn back across the slot."
+      "text": "D-to-D pass to their LD. I see it late and turn back."
     },
     {
       "t_ms": 4200,
-      "text": "Their LD has it at my point with nobody in his shot lane."
+      "text": "Their LD catches it with nobody in their shooting lane."
     },
     {
       "t_ms": 4800,
-      "text": "Free shot. The step I took toward the puck is the step I owed back. Save, rebound to the near corner."
+      "text": "Free shot. Every step I took toward the puck, I now owe back."
     },
     {
       "t_ms": 5800,
-      "text": "Our C recovers on the far side. I'm in the middle, not on my wall for the breakout."
+      "text": "Our C gets the puck. I'm in the middle, far from my wall."
     }
   ]
 }
