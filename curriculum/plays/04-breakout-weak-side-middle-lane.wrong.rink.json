@@ -565,7 +565,7 @@
         "home_RW"
       ],
       "note": "The puck is on the far wall. Leave your hash marks now for the middle lane at the blue line, or hold your wall?",
-      "answer": "Leave now, on the pass up the far wall. Earlier and their F2 comes with me and the middle is dead; later and our LW has nobody in the middle when the pressure arrives."
+      "answer": "Leave now, as the pass goes up the far wall. Earlier, their LW comes with me and covers the middle. Later, our LW has nobody in the middle when the pressure arrives."
     },
     {
       "t_ms": 3000,
@@ -590,27 +590,27 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Our LD recovers behind the net on the far side. I leave my hash marks right away for the middle. Their LW comes with me."
+      "text": "Our LD gets it behind the net. I leave for the middle right away."
     },
     {
       "t_ms": 1500,
-      "text": "LD goes up the far wall to our LW. I'm already in the middle, and their LW is on my hip."
+      "text": "Our LD passes up the far wall. Their LW is right next to me."
     },
     {
       "t_ms": 2500,
-      "text": "The puck is on the far wall, moving up. The middle lane is covered: their LW is standing in it with me."
+      "text": "The middle lane is covered: their LW came with me."
     },
     {
       "t_ms": 3000,
-      "text": "Our LW is under pressure and has nobody open. He forces it to the middle anyway."
+      "text": "Our LW is under pressure with nobody open and forces it to the middle."
     },
     {
       "t_ms": 3600,
-      "text": "Their LW steps in front of me and picks it off. My wall is empty behind me."
+      "text": "Their LW steps in front of me and takes it. My wall is empty."
     },
     {
       "t_ms": 4500,
-      "text": "They're coming back at our net and I'm turning around. No breakout."
+      "text": "They come back at our net while I turn around. No breakout."
     }
   ]
 }

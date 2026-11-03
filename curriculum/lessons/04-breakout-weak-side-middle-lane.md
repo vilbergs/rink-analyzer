@@ -1,18 +1,27 @@
 ---
 id: l4-breakout-weak-side-middle-lane
 module: breakouts
-title: Breakout, I'm the weak side
+title: Breakout up the far wall
 play: 04-breakout-weak-side-middle-lane
 wrong: 04-breakout-weak-side-middle-lane.wrong
 ---
 ## Principle
-The weak-side winger leaves on the pass up the far wall, not before. Then the middle lane at the blue line.
+Our LD has the puck behind our net, on the far side. Their LW stays close, waiting to follow me into the middle. Hold my wall until the pass goes up the far wall, then skate fast to the middle at the blue line.
 
-## Cue
-Far-wall breakout: hold, hold, puck moves, go.
+## Words
+Middle lane: the middle of the ice on the way out of our zone. The weak-side winger goes there to take a pass.
+
+Outlet: the teammate a player with the puck can pass to when pressure comes.
+
+Rush: attacking with speed right after the breakout, before they are ready.
 
 ## What wrong looks like
-You leave your hash marks at the start and are in the middle of the ice by 2.0 s. Their LW follows you, so the middle lane is covered. Our LW on the far wall has nobody open, forces it to the middle, and their LW picks it off in front of you with your wall empty behind you.
+You leave your hash marks at the start and are in the middle before the puck moves. Their LW follows you, so the middle lane is covered. Our LW on the far wall has nobody open and forces a pass to the middle. Their LW takes it in front of you, and your wall is empty behind you.
 
-## Self-check
-At 1.5 s, why not leave now? At 2.5 s, where is their F2 relative to you?
+## Check yourself
+Our LD sends the puck up the far wall. Why do you wait until then to leave your wall?
+
+Their LW stays close, ready to follow you. Leave earlier and you pull them into the middle lane. Leave on the pass, and they are too late to follow.
+
+## Cue
+Breakout up the far wall: hold, hold, puck moves, go.

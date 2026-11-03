@@ -530,7 +530,7 @@
         "home_RW"
       ],
       "note": "The puck is on the far wall. Leave your hash marks now for the middle lane at the blue line, or hold your wall?",
-      "answer": "Leave now, on the pass up the far wall. Earlier and their F2 comes with me and the middle is dead; later and our LW has nobody in the middle when the pressure arrives."
+      "answer": "Leave now, as the pass goes up the far wall. Earlier, their LW comes with me and covers the middle. Later, our LW has nobody in the middle when the pressure arrives."
     },
     {
       "t_ms": 3000,
@@ -563,31 +563,31 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Our LD recovers behind the net on the far side. I'm stopped at the hash marks on my wall. Their LW sits on me."
+      "text": "Our LD gets it behind the net. I'm stopped at my hash marks."
     },
     {
       "t_ms": 1500,
-      "text": "LD goes up the far wall to our LW. I hold. Leave now and their F2 follows me into the middle."
+      "text": "Our LD passes up the far wall. I hold; their LW stays close."
     },
     {
       "t_ms": 2500,
-      "text": "The puck is on the far wall, moving up. Now I go: middle lane at the blue line."
+      "text": "The puck moves up the far wall. Now I go to the middle lane."
     },
     {
       "t_ms": 3000,
-      "text": "Our LW is under pressure on the wall and moves it to the middle. I'm in the lane with speed."
+      "text": "Our LW is under pressure and passes to the middle. I arrive with speed."
     },
     {
       "t_ms": 4000,
-      "text": "Puck arrives in the middle. Carry; C beside me, LW behind."
+      "text": "The puck reaches me in the middle. I carry it, our C beside me."
     },
     {
       "t_ms": 4800,
-      "text": "Zone exit, support on both sides."
+      "text": "Zone exit, with a teammate on each side."
     },
     {
       "t_ms": 6500,
-      "text": "Zone entry at the far blue line. It's a rush."
+      "text": "We cross their blue line with speed. It's a rush."
     }
   ]
 }
