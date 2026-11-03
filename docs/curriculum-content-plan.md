@@ -178,7 +178,6 @@ One behavior, `curriculum`, pointed at `curriculum/`. Methods, each producing on
 | `inventory` | lessons, steps, plays, glossary | `inventory`: per lesson, the terms used in each section, step and caption, with counts | nothing; it is the data the others and the report read |
 | `lint` | `inventory` via `data.latest`, `glossary.json`, `STYLE.md` rules as constants | `issues`: `{ lesson, step, rule, text }` | glossary term used before the lesson that teaches it; Tier C term present; option longer than 10 words or options whose lengths spread by more than 2x; reasoning words ("because", "so") inside an option; seconds in prose (`\d+(\.\d+)? s`); caption over 14 words; feedback over 35 words; player named by anything but a badge name; F1/F2/F3; "he/him" when the style says neutral |
 | `check` | the repo | `check`: the structural result | runs the same content checks as `cargo test -p rink-lesson` through Deno's command API, so the workflow has one status to assert on |
-| `variants` | main plays | the `.wrong.rink.json` files, and `variants` data listing what changed | replaces `scripts/gen-wrong-variants.py` once the generator moves into the type; until then this method is omitted and the script stays |
 
 Pin every `npm:` import, zod from `npm:zod@4`, and keep the lint rules as data (an array of
 `{ id, pattern, message, scope }`) so adding a rule is adding a row.
@@ -230,6 +229,15 @@ after writing a new lesson.
    runs again. New terms go into `glossary.json` with the lesson that teaches them, or get
    rewritten in plain words.
 4. `swamp workflow run deploy-pi` ships it.
+
+## Status
+
+Landed 2026-11-03: `STYLE.md`, `glossary.json`, the `@vilbergs/curriculum` behavior (`inventory`,
+`lint`), the `@vilbergs/curriculum-summary` report, the `curriculum-check` workflow nested into
+`web-build`, Lesson 0, and the rewrites of L1 to L4. `scripts/check-curriculum.py` and
+`scripts/gen-wrong-variants.py` are gone: the lint replaced the first, and the wrong plays are
+their own source now. The `check` method is not needed; the engine's check runs as
+`cargo test -p rink-lesson --test curriculum` in `web-build`.
 
 ## Order of work
 

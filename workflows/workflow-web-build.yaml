@@ -1,8 +1,8 @@
 id: 6fa7806a-0071-45eb-a3d6-c4014936dd2b
 name: web-build
 description: >-
-  Check the Rust workspace, compile rink-core to WebAssembly, and build the
-  Svelte web app. Run it from the repo root; every step runs there.
+  Check the Rust workspace and the lesson content, compile rink-core to WebAssembly, and
+  build the Svelte web app. Run it from the repo root; every step runs there.
 version: 1
 inputs:
   properties:
@@ -42,9 +42,18 @@ jobs:
           inputs:
             run: cargo test --workspace --locked
             timeout: 1800000
+  - name: curriculum
+    description: Lint the lesson content against STYLE.md and glossary.json (the curriculum-check workflow)
+    steps:
+      - name: curriculum-check
+        task:
+          type: workflow
+          workflowIdOrName: curriculum-check
   - name: wasm
     description: Compile rink-wasm for wasm32 and generate the JS bindings into web/src/lib/wasm
-    dependsOn: [{ job: check, condition: { type: succeeded } }]
+    dependsOn:
+      - { job: check, condition: { type: succeeded } }
+      - { job: curriculum, condition: { type: succeeded } }
     steps:
       - name: build
         task:
