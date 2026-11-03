@@ -467,7 +467,7 @@
         "home_RW"
       ],
       "note": "Their LD is pinching. Chip it past him or carry it out?",
-      "answer": "Carry. He pinched late and the lane up the wall is open, so I take it out with speed and it's a 3-on-2. Chip it off the glass only when he's committed to the pinch and our C is swinging through the middle to pick it up."
+      "answer": "Carry. Their LD pinched late and the wall is open, so I go out with speed and it's a 3-on-2. Chip it off the glass only when their LD has fully committed and our C is coming through the middle."
     },
     {
       "t_ms": 4600,
@@ -482,27 +482,27 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Our RD recovers behind the net. Their C forechecks him. I'm at the hash marks on my wall, stopped, back to the boards."
+      "text": "Their C forechecks our RD behind the net. I'm stopped at my hash marks."
     },
     {
       "t_ms": 1500,
-      "text": "RD rims it up my wall. I'm already stopped, so I take it with my body between the puck and their winger."
+      "text": "Our RD rims it up my wall. A shoulder check: their LW, their LD."
     },
     {
       "t_ms": 2000,
-      "text": "I have it on the wall. Their LW comes along the wall and their LD at the point starts down. Head up before it arrived."
+      "text": "The rim reaches me. Their LW comes down; their LD leaves the point."
     },
     {
       "t_ms": 3000,
-      "text": "Their LD pinches, but late. The lane up the wall is open: carry."
+      "text": "Their LD pinches, but late. The wall is open, so I carry it."
     },
     {
       "t_ms": 3500,
-      "text": "Past the pinch with speed. Our C is through the middle, our LW on the far wall."
+      "text": "I'm past their LD with speed. Our C and our LW come with me."
     },
     {
       "t_ms": 4600,
-      "text": "Zone exit. 3-on-2 the other way."
+      "text": "Zone exit. Three of us against their two defenders: a 3-on-2."
     }
   ]
 }

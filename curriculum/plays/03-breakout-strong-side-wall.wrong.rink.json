@@ -488,7 +488,7 @@
         "home_RW"
       ],
       "note": "Their LD is pinching. Chip it past him or carry it out?",
-      "answer": "Carry. He pinched late and the lane up the wall is open, so I take it out with speed and it's a 3-on-2. Chip it off the glass only when he's committed to the pinch and our C is swinging through the middle to pick it up."
+      "answer": "Carry. Their LD pinched late and the wall is open, so I go out with speed and it's a 3-on-2. Chip it off the glass only when their LD has fully committed and our C is coming through the middle."
     },
     {
       "t_ms": 5600,
@@ -503,27 +503,27 @@
   "captions": [
     {
       "t_ms": 0,
-      "text": "Our RD recovers behind the net. Their C forechecks him. I'm late, still skating out of the middle toward my wall."
+      "text": "Their C forechecks our RD. I'm late, still skating toward my wall."
     },
     {
       "t_ms": 1500,
-      "text": "RD rims it up my wall. I'm not at the hash marks yet."
+      "text": "Our RD rims it up my wall. I'm not at the hash marks yet."
     },
     {
       "t_ms": 2000,
-      "text": "The rim reaches me while I'm still moving. I take it on my skates, back to the play, with no idea who's coming."
+      "text": "The rim hits me while I move. I don't know who is coming."
     },
     {
       "t_ms": 3000,
-      "text": "I'm still turning. Their LW is above me on the wall and their LD is coming down."
+      "text": "Still turning. Their LW is above me and their LD is coming down."
     },
     {
       "t_ms": 3500,
-      "text": "I come up the wall slow, their LW in front of me and their LD stepping down. No room to carry, no time to look."
+      "text": "I go up the wall slowly. No room to carry, no time to look."
     },
     {
       "t_ms": 5500,
-      "text": "It gets out, late and slow. Our C and LW had to wait for me: no 3-on-2."
+      "text": "It gets out late. Our C and our LW waited for me: no 3-on-2."
     }
   ]
 }
