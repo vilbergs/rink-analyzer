@@ -1,0 +1,37 @@
+id: b1a36528-3c33-45c3-9185-4a2530cc8bd8
+name: curriculum-check
+description: >-
+  Inventory the lesson content under curriculum/, lint it against STYLE.md and glossary.json,
+  and fail when any issue remains. Run it from the repo root. The structural check the engine
+  itself makes runs as `cargo test -p rink-lesson --test curriculum` inside web-build.
+version: 1
+jobs:
+  - name: inventory
+    description: What each lesson uses, as data the report and the lint read
+    steps:
+      - name: inventory
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/curriculum"
+          behaviorName: curriculum
+          methodName: inventory
+          inputs:
+            dir: curriculum
+  - name: lint
+    description: Style and structure issues; zero means the content is clean
+    dependsOn: [{ job: inventory, condition: { type: succeeded } }]
+    steps:
+      - name: lint
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/curriculum"
+          behaviorName: curriculum
+          methodName: lint
+          inputs:
+            dir: curriculum
+      - name: clean
+        dependsOn: [{ step: lint, condition: { type: succeeded } }]
+        task:
+          type: assert
+          expr: data.latest("curriculum", "issues").attributes.total == 0
+          message: "the curriculum has lint issues; see `swamp report get @vilbergs/curriculum-summary --model curriculum`"
