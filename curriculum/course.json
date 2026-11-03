@@ -3,16 +3,30 @@
   "title": "Right wing",
   "modules": [
     {
+      "id": "basics",
+      "title": "Reading the rink",
+      "description": "The words the lessons use, found by tapping them on the rink.",
+      "lessons": [
+        "l0-reading-the-rink"
+      ]
+    },
+    {
       "id": "dzone",
       "title": "D-zone",
       "description": "Where to be in our own zone while they have the puck.",
-      "lessons": ["l1-dzone-strong-side-wall", "l2-dzone-weak-side-slot"]
+      "lessons": [
+        "l1-dzone-strong-side-wall",
+        "l2-dzone-weak-side-slot"
+      ]
     },
     {
       "id": "breakouts",
       "title": "Breakouts",
       "description": "Where to be when we win the puck and carry it out.",
-      "lessons": ["l3-breakout-strong-side-wall", "l4-breakout-weak-side-middle-lane"]
+      "lessons": [
+        "l3-breakout-strong-side-wall",
+        "l4-breakout-weak-side-middle-lane"
+      ]
     }
   ]
 }
