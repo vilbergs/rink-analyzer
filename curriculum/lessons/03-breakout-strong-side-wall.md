@@ -23,6 +23,11 @@ Shoulder check: a quick look over my shoulder before the puck arrives, to see wh
 
 Zone exit: the moment the puck crosses our blue line on the way out.
 
+## Shot
+Right shot: on the right wall the rim comes to your forehand. Stop with your back to the boards and your blade on the ice toward them, and the puck is on your stick as you turn up ice. The chip off the glass is a forehand flick.
+
+Left shot: on the right wall the rim comes to your backhand. Stop with your back to the boards and cup the puck; it takes a beat longer to settle, so make the carry-or-chip call before it arrives. The chip is a backhand flick, so lift it early.
+
 ## What wrong looks like
 You are late to your wall, still skating toward it when the rim arrives. It hits you while you move. You take it on your skates with your back to the play, and you are still turning when their LW gets above you on the wall and their LD comes down. You go up the wall slowly, the puck gets out late, and there is no 3-on-2.
 

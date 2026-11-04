@@ -76,6 +76,7 @@ export type Curriculum = {
 export type Kind =
   | "principle"
   | "words"
+  | "shot"
   | "wrong"
   | "check"
   | "cue"
@@ -93,6 +94,7 @@ export type Issue = { lesson: string; step: string | null; rule: string; where: 
 const SECTION_KINDS: Record<string, Kind> = {
   "Principle": "principle",
   "Words": "words",
+  "Shot": "shot",
   "What wrong looks like": "wrong",
   "Check yourself": "check",
   "Cue": "cue",
@@ -109,8 +111,11 @@ export const LIMITS = {
   principleWords: 45,
   cueWords: 15,
   promptWords: 30,
+  shotWords: 50,
   optionSpread: 2,
 };
+
+const SHOT_PREFIXES = ["Right shot:", "Left shot:"];
 
 // ---------------------------------------------------------------- loading
 
@@ -301,6 +306,19 @@ export const TEXT_RULES: TextRule[] = [
   overWords("principle", LIMITS.principleWords),
   overWords("cue", LIMITS.cueWords),
   overWords("prompt", LIMITS.promptWords),
+  {
+    id: "shot-paragraphs",
+    kinds: ["shot"],
+    check: (t) => {
+      const paragraphs = t.text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+      const missing = SHOT_PREFIXES.filter((p) => !paragraphs.some((q) => q.startsWith(p)));
+      if (missing.length) return `needs a paragraph starting with ${missing.join(" and ")}`;
+      const stray = paragraphs.find((q) => !SHOT_PREFIXES.some((p) => q.startsWith(p)));
+      if (stray) return `every paragraph starts with Right shot: or Left shot:, not "${stray.slice(0, 30)}"`;
+      const long = paragraphs.map(words).find((n) => n > LIMITS.shotWords);
+      return long ? `a paragraph has ${long} words, the limit is ${LIMITS.shotWords}` : null;
+    },
+  },
 ];
 
 // -------------------------------------------------------- structural rules

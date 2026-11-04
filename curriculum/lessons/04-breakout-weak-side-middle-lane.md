@@ -15,6 +15,11 @@ Outlet: the teammate a player with the puck can pass to when pressure comes.
 
 Rush: attacking with speed right after the breakout, before they are ready.
 
+## Shot
+Right shot: the pass from the far wall reaches you in the middle on your backhand. Take it on the backhand and keep going. Swinging wide to get it on the forehand costs the speed the lane gave you.
+
+Left shot: the pass from the far wall comes to your forehand in the middle. Take it without slowing down and carry straight up the ice, with our C beside you and our LW behind.
+
 ## What wrong looks like
 You leave your hash marks at the start and are in the middle before the puck moves. Their LW follows you, so the middle lane is covered. Our LW on the far wall has nobody open and forces a pass to the middle. Their LW takes it in front of you, and your wall is empty behind you.
 

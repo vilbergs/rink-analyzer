@@ -287,5 +287,7 @@ L1, the path will not fix it.
   A native wrapper (Tauri) is a later option, not part of this plan.
 - **Spot grading.** A tap within 2 m of the drafted position is right, within 4 m is close, further is
   wrong. Positions are placed by hand, so the radii are forgiving. A step can override them.
-- **Right wing only.** No left-wing mirroring. The plays are drafted from the right winger's view and
-  the user plays right wing.
+- **One winger course, drawn from the right wing.** The reads are mirror images on the left wing, so
+  there is no left-wing course and no mirroring. What differs between wingers is which way they
+  shoot: a `## Shot` section in a lesson carries a right-shot and a left-shot paragraph, and the
+  player shows the one for the hand set on the home screen (decided 2026-11-04).

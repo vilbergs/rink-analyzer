@@ -8,6 +8,11 @@
       "section": "Words"
     },
     {
+      "id": "l4-shot",
+      "type": "card",
+      "section": "Shot"
+    },
+    {
       "id": "l4-watch-1",
       "type": "watch",
       "from_ms": 0,

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ProgressStore } from "../progress/store";
+  import { settings, type Shot } from "../settings.svelte";
   import CourseIcon from "./CourseIcon.svelte";
   import Icon from "./Icon.svelte";
   import { loadPath, type Path } from "./path";
@@ -20,6 +21,11 @@
 
   const current = $derived(path?.modules.find((m) => m.next));
 
+  const HANDS: { value: Shot; label: string }[] = [
+    { value: "left", label: "Left" },
+    { value: "right", label: "Right" },
+  ];
+
   async function exportProgress() {
     const blob = new Blob([await progress.exportJson()], { type: "application/json" });
     const a = document.createElement("a");
@@ -39,6 +45,24 @@
     <div class="course">
       <CourseIcon />
       <h1>{path.title}</h1>
+    </div>
+    <div class="shot">
+      <span class="shot-label">I shoot</span>
+      <div class="seg" role="group" aria-label="Which way you shoot">
+        {#each HANDS as hand (hand.value)}
+          <button
+            class="segbtn"
+            class:on={settings.shot === hand.value}
+            aria-pressed={settings.shot === hand.value}
+            onclick={() => settings.setShot(settings.shot === hand.value ? null : hand.value)}
+          >
+            {hand.label}
+          </button>
+        {/each}
+      </div>
+      <span class="shot-hint">
+        {#if settings.shot}Lessons show the {settings.shot}-shot notes.{:else}Set it to see only your hand's notes.{/if}
+      </span>
     </div>
     <h2 class="eyebrow">Topics</h2>
     <ul>
@@ -114,6 +138,47 @@
   }
   h2 {
     margin: 0 0 10px;
+  }
+  .shot {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 4px 12px;
+    align-items: center;
+    margin: -16px 0 24px;
+  }
+  .shot-label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .segbtn {
+    min-width: 64px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: none;
+    background: var(--raised);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .segbtn + .segbtn {
+    border-left: 1px solid var(--border);
+  }
+  .segbtn.on {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .shot-hint {
+    grid-column: 1 / 3;
+    color: var(--text-muted);
+    font-size: 13px;
   }
   ul {
     display: grid;

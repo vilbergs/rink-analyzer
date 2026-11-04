@@ -74,7 +74,11 @@ One line, 15 words or fewer, that starts with the situation and ends with what t
 
 `## Principle` and `## Cue` are required by the engine. `## What wrong looks like` is required
 when the lesson has a wrong variant. `## Check yourself` is the retrieval card. `## Words` is
-optional. Nothing else.
+optional. `## Shot` is optional: two paragraphs, one starting `Right shot:` and one `Left shot:`,
+50 words or fewer each, for the moments where which way you shoot changes what you do with the
+puck (a rim on the forehand or the backhand, a chip, a pass taken in the middle). The player shows
+the paragraph for the hand the user set on the home screen, and both until they set one. Its
+card goes right after Words. Nothing else.
 
 ## Checking
 

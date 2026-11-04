@@ -101,6 +101,16 @@ Deno.test("the principle card follows the first question", () => {
   assertEquals(rules(curriculum([l])), ["first-step", "principle-after-read"]);
 });
 
+Deno.test("a Shot section needs a right-shot and a left-shot paragraph", () => {
+  const sections = { "Principle": "Short.", "Cue": "Look up.", "What wrong looks like": "Bad.", "Shot": "Right shot: forehand." };
+  const l = lesson({ sections });
+  l.steps.splice(1, 0, { type: "card", id: "l1-shot", section: "Shot" });
+  const found = lint(curriculum([l]));
+  assertEquals(found.map((i) => [i.rule, i.text]), [["shot-paragraphs", "needs a paragraph starting with Left shot:"]]);
+  l.sections.Shot = "Right shot: forehand.\n\nLeft shot: backhand.";
+  assertEquals(rules(curriculum([l])), []);
+});
+
 Deno.test("the inventory counts terms per lesson", () => {
   const c = curriculum([lesson({ sections: { "Principle": "The point. The point.", "Cue": "x", "What wrong looks like": "y" } })]);
   assertEquals(inventory(c)[0].terms, [{ term: "the point", tier: "A", count: 2 }]);
