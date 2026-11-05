@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn dzone_lesson_focuses_on_the_defensive_zone() {
-        let text = include_str!("../../../curriculum/plays/01-dzone-strong-side-wall.rink.json");
+        let text = include_str!("../../../curriculum/plays/l1-dzone-strong-side-wall.rink.json");
         let [x0, x1] = focus(&io::from_json(text).unwrap());
         assert!(-30.0 <= x0 && x0 < x1 && x1 <= -5.0, "{x0}..{x1}");
     }

@@ -2,8 +2,8 @@
 id: l4-breakout-weak-side-middle-lane
 module: breakouts
 title: Breakout up the far wall
-play: 04-breakout-weak-side-middle-lane
-wrong: 04-breakout-weak-side-middle-lane.wrong
+play: l4-breakout-weak-side-middle-lane
+wrong: l4-breakout-weak-side-middle-lane.wrong
 ---
 ## Principle
 Our LD has the puck behind our net, on the far side. Their LW stays close, waiting to follow me into the middle. Hold my wall until the pass goes up the far wall, then skate fast to the middle at the blue line.

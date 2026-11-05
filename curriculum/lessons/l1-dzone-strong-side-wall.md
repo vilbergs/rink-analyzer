@@ -2,8 +2,8 @@
 id: l1-dzone-strong-side-wall
 module: dzone
 title: Puck in my corner
-play: 01-dzone-strong-side-wall
-wrong: 01-dzone-strong-side-wall.wrong
+play: l1-dzone-strong-side-wall
+wrong: l1-dzone-strong-side-wall.wrong
 ---
 ## Principle
 The puck is in my corner. Their C is looking for a pass to their LD at the point. Stand between the puck and their LD before the pass goes, so it never has a free lane.

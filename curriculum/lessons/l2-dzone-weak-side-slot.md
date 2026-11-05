@@ -2,8 +2,8 @@
 id: l2-dzone-weak-side-slot
 module: dzone
 title: Puck in the far corner
-play: 02-dzone-weak-side-slot
-wrong: 02-dzone-weak-side-slot.wrong
+play: l2-dzone-weak-side-slot
+wrong: l2-dzone-weak-side-slot.wrong
 ---
 ## Principle
 The puck is in the far corner and their LD is at my point. They want a D-to-D pass and a shot through an open lane. Stay in the high slot, inside them, seeing them and the puck, and step out as the pass leaves.

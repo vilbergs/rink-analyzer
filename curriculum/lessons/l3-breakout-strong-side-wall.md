@@ -2,8 +2,8 @@
 id: l3-breakout-strong-side-wall
 module: breakouts
 title: Breakout up my wall
-play: 03-breakout-strong-side-wall
-wrong: 03-breakout-strong-side-wall.wrong
+play: l3-breakout-strong-side-wall
+wrong: l3-breakout-strong-side-wall.wrong
 ---
 ## Principle
 Our RD gets the puck behind our net, with their C chasing. Their LW and their LD want to trap it on my wall. Be stopped at the hash marks before our RD has it, and look over my shoulder to see who is coming.
