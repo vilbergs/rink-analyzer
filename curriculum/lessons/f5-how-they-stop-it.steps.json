@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "lesson": "f5-how-they-stop-it",
+  "steps": [
+    {
+      "id": "f5-words",
+      "type": "card",
+      "section": "Words"
+    },
+    {
+      "id": "f5-watch-1",
+      "type": "watch",
+      "from_ms": 0,
+      "to_ms": 2000
+    },
+    {
+      "id": "f5-choice-read",
+      "type": "choice",
+      "at_ms": 2000,
+      "prompt": "The rim reaches our RW on the right wall. Their LD leaves the point and comes down the wall. What are they doing?",
+      "options": [
+        {
+          "text": "Coming to trap the puck on our wall",
+          "grade": 2,
+          "fb": "Right. That is a pinch. Their LD wants to stop the puck before our blue line, and their LW comes down the wall too."
+        },
+        {
+          "text": "Covering our C in the middle lane",
+          "grade": 1,
+          "fb": "Someone does cover the middle, but it is their RW. Their LD comes for the puck itself, down the wall to our RW."
+        },
+        {
+          "text": "Chasing our RD behind our net",
+          "grade": 0,
+          "fb": "That is their C, the forecheck. Their LD stays on the wall where the puck is going, and comes down to meet it."
+        },
+        {
+          "text": "Going back to cover their own net",
+          "grade": 0,
+          "fb": "They are skating toward our net, not theirs. A defender who leaves the point wants the puck stopped in our zone."
+        }
+      ]
+    },
+    {
+      "id": "f5-principle",
+      "type": "card",
+      "section": "Principle"
+    },
+    {
+      "id": "f5-watch-2",
+      "type": "watch",
+      "from_ms": 2000,
+      "to_ms": 3000
+    },
+    {
+      "id": "f5-choice-past",
+      "type": "choice",
+      "at_ms": 3000,
+      "prompt": "Their LD comes down late, and our RW already has the puck. What does getting past them give us?",
+      "options": [
+        {
+          "text": "Three of us against their two defenders",
+          "grade": 2,
+          "fb": "Right. Their forwards are behind the play. Our RW, our C and our LW go up the ice with speed against two: a 3-on-2, and a rush."
+        },
+        {
+          "text": "A pass across to our LW",
+          "grade": 1,
+          "fb": "Possible later, but that pass goes past their RW in the middle. Carry it first. Past their LD, three of us attack their two defenders."
+        },
+        {
+          "text": "Nothing, their C catches our RW",
+          "grade": 0,
+          "fb": "Their C is behind now, still chasing. Once our RW is past their LD, only their two defenders are in front of three of us."
+        }
+      ]
+    },
+    {
+      "id": "f5-spot-middle",
+      "type": "spot",
+      "at_ms": 3000,
+      "prompt": "Their RW stays in the middle. Tap the middle lane where it crosses our blue line.",
+      "target": [-7.1, 0],
+      "r1_m": 3,
+      "r2_m": 6,
+      "fb": {
+        "right": "Right. The middle of the ice at our blue line. Their RW stays near it, so a pass there has to get past them.",
+        "close": "Near, but off to one side. The middle lane runs up the center of the ice, halfway between the walls.",
+        "wrong": "The middle lane is the center of the ice on the way out. Look at our blue line, halfway between the two walls."
+      }
+    },
+    {
+      "id": "f5-watch-3",
+      "type": "watch",
+      "from_ms": 3000,
+      "to_ms": 6000
+    },
+    {
+      "id": "f5-check",
+      "type": "card",
+      "section": "Check yourself"
+    },
+    {
+      "id": "f5-cue",
+      "type": "card",
+      "section": "Cue"
+    }
+  ]
+}
