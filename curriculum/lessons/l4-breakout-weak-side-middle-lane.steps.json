@@ -3,16 +3,6 @@
   "lesson": "l4-breakout-weak-side-middle-lane",
   "steps": [
     {
-      "id": "l4-words",
-      "type": "card",
-      "section": "Words"
-    },
-    {
-      "id": "l4-shot",
-      "type": "card",
-      "section": "Shot"
-    },
-    {
       "id": "l4-watch-1",
       "type": "watch",
       "from_ms": 0,
@@ -45,6 +35,11 @@
       "id": "l4-principle",
       "type": "card",
       "section": "Principle"
+    },
+    {
+      "id": "l4-shot",
+      "type": "card",
+      "section": "Shot"
     },
     {
       "id": "l4-watch-2",
