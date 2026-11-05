@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "id": "36ede6ae-f1f5-5eac-baee-c768f7687d14",
-  "title": "Reading the rink",
+  "title": "Places on the rink",
   "rink": {
     "name": "IIHF 60x30",
     "length_m": 60.0,
@@ -273,7 +273,7 @@
       "note": ""
     }
   ],
-  "notes": "Lesson 0. A frozen moment: their C has the puck in our right corner. Every spot the lessons name is tapped on this rink.",
+  "notes": "Fundamentals, places on the rink. A frozen moment: their C has the puck in our right corner. Every place the lessons name is tapped on this rink.",
   "captions": [
     {
       "t_ms": 0,
