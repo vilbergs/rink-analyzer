@@ -9,19 +9,9 @@ wrong: l3-breakout-strong-side-wall.wrong
 Our RD gets the puck behind our net, with their C chasing. Their LW and their LD want to trap it on my wall. Be stopped at the hash marks before our RD has it, and look over my shoulder to see who is coming.
 
 ## Words
-Forecheck: their forwards chasing the puck in our zone, to stop us getting it out.
-
-Rim: a hard pass along the boards, around behind our net and up to me on my wall.
-
-Pinch: their LD leaves the blue line and comes down my wall to keep the puck in our zone.
-
-Chip off the glass: a soft flick that lifts the puck up the boards, past a player who comes down to stop it.
+Chip off the glass: a soft flick that lifts the puck up the boards, past a pinching defender.
 
 Shoulder check: a quick look over my shoulder before the puck arrives, to see who is coming.
-
-3-on-2: three of us attacking two of their defenders.
-
-Zone exit: the moment the puck crosses our blue line on the way out.
 
 ## Shot
 Right shot: on the right wall the rim comes to your forehand. Stop with your back to the boards and your blade on the ice toward them, and the puck is on your stick as you turn up ice. The chip off the glass is a forehand flick.
