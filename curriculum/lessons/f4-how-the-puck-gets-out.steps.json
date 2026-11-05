@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "lesson": "f4-how-the-puck-gets-out",
+  "steps": [
+    {
+      "id": "f4-words",
+      "type": "card",
+      "section": "Words"
+    },
+    {
+      "id": "f4-watch-1",
+      "type": "watch",
+      "from_ms": 0,
+      "to_ms": 1100
+    },
+    {
+      "id": "f4-choice-read",
+      "type": "choice",
+      "at_ms": 1100,
+      "prompt": "Our RD has the puck behind our net, and their C is chasing. Where will the puck go?",
+      "options": [
+        {
+          "text": "Up the right wall to our RW",
+          "grade": 2,
+          "fb": "Right. Our RW waits at the hash marks on that wall. A rim along the boards goes away from their C and reaches our RW before the forecheck does."
+        },
+        {
+          "text": "Across to our LD on the far side",
+          "grade": 1,
+          "fb": "Possible, and it moves the puck away from their C. But it stays behind our net, and their forwards get one more chance to chase it."
+        },
+        {
+          "text": "Out in front to our C",
+          "grade": 0,
+          "fb": "That pass goes into the slot, right past their C. If they take it there, they shoot at our net from close in."
+        },
+        {
+          "text": "Up the far wall to our LW",
+          "grade": 0,
+          "fb": "Our LW is open, but the pass crosses the whole zone, through their RW in the middle. A long pass across our zone is the one they want."
+        }
+      ]
+    },
+    {
+      "id": "f4-principle",
+      "type": "card",
+      "section": "Principle"
+    },
+    {
+      "id": "f4-watch-2",
+      "type": "watch",
+      "from_ms": 1100,
+      "to_ms": 1500
+    },
+    {
+      "id": "f4-choice-outlet",
+      "type": "choice",
+      "at_ms": 1500,
+      "prompt": "Our RD is about to send it, with their C close. Who is the outlet on this side?",
+      "options": [
+        {
+          "text": "Our RW, stopped at the hash marks",
+          "grade": 2,
+          "fb": "Right. Our RW is stopped on the wall, with their back to the boards. The rim reaches them before their C can turn, and they look up the ice."
+        },
+        {
+          "text": "Our C, low in the middle",
+          "grade": 1,
+          "fb": "Our C is the next outlet if the wall is covered. Here the wall is open, and a pass to the middle has to beat their C first."
+        },
+        {
+          "text": "Our LW, on the far wall",
+          "grade": 0,
+          "fb": "Our LW is the outlet on the far side. From the right of our net, that pass crosses the whole zone, past their C and their RW."
+        }
+      ]
+    },
+    {
+      "id": "f4-spot-rw",
+      "type": "spot",
+      "at_ms": 1500,
+      "prompt": "Our RD is about to rim it. Tap where our RW waits for it.",
+      "target": [
+        -18.8,
+        -11.8
+      ],
+      "r1_m": 2.5,
+      "r2_m": 5,
+      "fb": {
+        "right": "Right. The hash marks on the right wall, stopped, back to the boards. The rim comes along the boards to them.",
+        "close": "Near, but not on the hash marks. A step off the wall, and the rim goes past our RW behind them.",
+        "wrong": "Our RW waits on their own wall, at the hash marks. Anywhere else, the rim has nobody to reach."
+      }
+    },
+    {
+      "id": "f4-watch-3",
+      "type": "watch",
+      "from_ms": 1500,
+      "to_ms": 6000
+    },
+    {
+      "id": "f4-check",
+      "type": "card",
+      "section": "Check yourself"
+    },
+    {
+      "id": "f4-cue",
+      "type": "card",
+      "section": "Cue"
+    }
+  ]
+}
