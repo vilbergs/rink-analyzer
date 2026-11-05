@@ -1,0 +1,519 @@
+{
+  "schema_version": 3,
+  "id": "d704e794-2f78-4b64-bcc2-24524092c079",
+  "title": "Five jobs in our zone",
+  "rink": {
+    "name": "IIHF 60x30",
+    "length_m": 60.0,
+    "width_m": 30.0,
+    "corner_radius_m": 8.5,
+    "goal_line_from_end_m": 4.0,
+    "blue_line_from_end_m": 22.86,
+    "line_width_m": 0.05,
+    "blue_line_width_m": 0.3,
+    "red_line_width_m": 0.3,
+    "center_circle_radius_m": 4.5,
+    "faceoff_circle_radius_m": 4.5,
+    "end_dot_from_goal_line_m": 6.0,
+    "end_dot_lateral_m": 7.0,
+    "neutral_dot_from_blue_line_m": 1.5,
+    "neutral_dot_lateral_m": 7.0,
+    "crease_radius_m": 1.8,
+    "goal_width_m": 1.83,
+    "goal_depth_m": 1.12
+  },
+  "duration_ms": 6000,
+  "teams": [
+    {
+      "side": "home",
+      "name": "Home",
+      "color": "#1f5fbf",
+      "attacks_positive_x": true
+    },
+    {
+      "side": "away",
+      "name": "Away",
+      "color": "#c8322d",
+      "attacks_positive_x": false
+    }
+  ],
+  "entities": [
+    {
+      "id": "home_LW",
+      "kind": "skater",
+      "team": "home",
+      "number": 17,
+      "role": "LW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_C",
+      "kind": "skater",
+      "team": "home",
+      "number": 19,
+      "role": "C",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_RW",
+      "kind": "skater",
+      "team": "home",
+      "number": 27,
+      "role": "RW",
+      "label": "",
+      "is_me": true
+    },
+    {
+      "id": "home_LD",
+      "kind": "skater",
+      "team": "home",
+      "number": 4,
+      "role": "LD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_RD",
+      "kind": "skater",
+      "team": "home",
+      "number": 44,
+      "role": "RD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "home_G",
+      "kind": "goalie",
+      "team": "home",
+      "number": 30,
+      "role": "G",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_LW",
+      "kind": "skater",
+      "team": "away",
+      "number": 18,
+      "role": "LW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_C",
+      "kind": "skater",
+      "team": "away",
+      "number": 20,
+      "role": "C",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_RW",
+      "kind": "skater",
+      "team": "away",
+      "number": 28,
+      "role": "RW",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_LD",
+      "kind": "skater",
+      "team": "away",
+      "number": 5,
+      "role": "LD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_RD",
+      "kind": "skater",
+      "team": "away",
+      "number": 45,
+      "role": "RD",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "away_G",
+      "kind": "goalie",
+      "team": "away",
+      "number": 31,
+      "role": "G",
+      "label": "",
+      "is_me": false
+    },
+    {
+      "id": "puck",
+      "kind": "puck",
+      "label": "",
+      "is_me": false
+    }
+  ],
+  "tracks": {
+    "away_C": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -23.0,
+          -11.0
+        ]
+      },
+      {
+        "t_ms": 2000,
+        "pos": [
+          -24.0,
+          -12.0
+        ]
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -21.0,
+          -12.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -18.0,
+          -11.0
+        ]
+      }
+    ],
+    "away_G": [
+      {
+        "t_ms": 0,
+        "pos": [
+          25.0,
+          -0.0
+        ],
+        "facing": -3.1415927
+      }
+    ],
+    "away_LD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -9.0,
+          -10.0
+        ]
+      },
+      {
+        "t_ms": 2500,
+        "pos": [
+          -10.0,
+          -9.0
+        ]
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -12.0,
+          -7.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -13.0,
+          -5.0
+        ]
+      }
+    ],
+    "away_LW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -19.0,
+          -3.0
+        ]
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -18.0,
+          -5.0
+        ]
+      }
+    ],
+    "away_RD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -9.0,
+          9.0
+        ],
+        "facing": -3.1415927
+      }
+    ],
+    "away_RW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -24.0,
+          2.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -23.0,
+          1.0
+        ]
+      }
+    ],
+    "home_C": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -22.0,
+          -4.0
+        ],
+        "facing": -2.6
+      },
+      {
+        "t_ms": 2000,
+        "pos": [
+          -22.0,
+          -6.0
+        ]
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -21.0,
+          -4.0
+        ]
+      }
+    ],
+    "home_G": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -25.0,
+          -0.0
+        ],
+        "facing": -0.0
+      }
+    ],
+    "home_LD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -24.0,
+          2.0
+        ],
+        "facing": -2.6
+      },
+      {
+        "t_ms": 5500,
+        "pos": [
+          -25.0,
+          5.0
+        ]
+      }
+    ],
+    "home_LW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -17.0,
+          3.0
+        ],
+        "facing": -2.6
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -16.0,
+          2.0
+        ]
+      }
+    ],
+    "home_RD": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -25.0,
+          -7.0
+        ]
+      },
+      {
+        "t_ms": 2000,
+        "pos": [
+          -24.0,
+          -9.0
+        ]
+      },
+      {
+        "t_ms": 3500,
+        "pos": [
+          -23.0,
+          -10.0
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -21.0,
+          -9.0
+        ]
+      }
+    ],
+    "home_RW": [
+      {
+        "t_ms": 0,
+        "pos": [
+          -15.0,
+          -9.0
+        ],
+        "facing": -2.6
+      },
+      {
+        "t_ms": 2000,
+        "pos": [
+          -14.0,
+          -9.5
+        ],
+        "facing": -2.6
+      },
+      {
+        "t_ms": 3000,
+        "pos": [
+          -12.0,
+          -9.0
+        ]
+      },
+      {
+        "t_ms": 4000,
+        "pos": [
+          -13.0,
+          -6.5
+        ]
+      },
+      {
+        "t_ms": 5000,
+        "pos": [
+          -14.0,
+          -5.0
+        ]
+      }
+    ],
+    "puck": [
+      {
+        "t_ms": 4500,
+        "pos": [
+          -24.5,
+          -0.5
+        ]
+      },
+      {
+        "t_ms": 5200,
+        "pos": [
+          -25.0,
+          5.0
+        ]
+      }
+    ]
+  },
+  "events": [
+    {
+      "t_ms": 0,
+      "kind": "puck_recovery",
+      "actors": [
+        "away_C"
+      ],
+      "note": ""
+    },
+    {
+      "t_ms": 2500,
+      "kind": "pass",
+      "actors": [
+        "away_C",
+        "away_LD"
+      ],
+      "arrive_ms": 3000,
+      "note": ""
+    },
+    {
+      "t_ms": 2500,
+      "kind": "decision_point",
+      "actors": [
+        "home_RW"
+      ],
+      "note": "Their C passes to their LD at the point. Whose job is their LD?",
+      "answer": "Our RW, the winger on that side. They are already between the puck and their LD, so the pass has to go through them."
+    },
+    {
+      "t_ms": 4200,
+      "kind": "shot",
+      "actors": [
+        "away_LD"
+      ],
+      "to": [
+        -25.5,
+        -0.3
+      ],
+      "note": ""
+    },
+    {
+      "t_ms": 4500,
+      "kind": "save",
+      "actors": [
+        "home_G"
+      ],
+      "note": ""
+    },
+    {
+      "t_ms": 5500,
+      "kind": "puck_recovery",
+      "actors": [
+        "home_LD"
+      ],
+      "note": "Rebound to the far corner"
+    }
+  ],
+  "captions": [
+    {
+      "t_ms": 0,
+      "text": "Their C has the puck in our right corner. Our RD fights for it."
+    },
+    {
+      "t_ms": 1000,
+      "text": "Our LD holds the front of our net. Our C has the slot."
+    },
+    {
+      "t_ms": 1500,
+      "text": "Our LW is in the high slot, watching their RD at the other point."
+    },
+    {
+      "t_ms": 2000,
+      "text": "Our RW stands between the puck and their LD at the point."
+    },
+    {
+      "t_ms": 2500,
+      "text": "Their C passes to the point. Our RW is already in the lane."
+    },
+    {
+      "t_ms": 3000,
+      "text": "Their LD has it. Our RW is a stick length away."
+    },
+    {
+      "t_ms": 4000,
+      "text": "Their LD skates along the blue line. Our RW slides with them."
+    },
+    {
+      "t_ms": 4200,
+      "text": "Their LD shoots through a half-closed lane, low."
+    },
+    {
+      "t_ms": 4500,
+      "text": "Save. Our LD wins the rebound on the weak side."
+    }
+  ],
+  "notes": "Fundamentals, the five jobs in our zone. Their C has the puck in our right corner. Our RD fights for it, our LD holds the front of our net, our C has the slot, our RW stands between the puck and their LD at the point, our LW watches their RD from the high slot. The pass goes to the point; the shot has to go through our RW."
+}

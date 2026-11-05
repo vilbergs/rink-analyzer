@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "lesson": "f3-five-jobs-in-our-zone",
+  "steps": [
+    {
+      "id": "f3-words",
+      "type": "card",
+      "section": "Words"
+    },
+    {
+      "id": "f3-watch-1",
+      "type": "watch",
+      "from_ms": 0,
+      "to_ms": 2000
+    },
+    {
+      "id": "f3-choice-read",
+      "type": "choice",
+      "at_ms": 2000,
+      "prompt": "Their C has the puck in our corner and looks up. What does their team want?",
+      "options": [
+        {
+          "text": "A shot with nobody in its way",
+          "grade": 2,
+          "fb": "Right. From the corner there is no angle, so the puck has to move first: up the wall to the point, or D-to-D to the other point."
+        },
+        {
+          "text": "A goal straight from the corner",
+          "grade": 0,
+          "fb": "From the corner there is almost no net to shoot at. Their C moves the puck to a player with a clear shot, most often at the point."
+        },
+        {
+          "text": "To keep the puck in the corner",
+          "grade": 1,
+          "fb": "They keep it only until a pass opens up. Keeping it scores nothing; the pass to a player with a clear shot is what they are looking for."
+        }
+      ]
+    },
+    {
+      "id": "f3-principle",
+      "type": "card",
+      "section": "Principle"
+    },
+    {
+      "id": "f3-watch-2",
+      "type": "watch",
+      "from_ms": 2000,
+      "to_ms": 2500
+    },
+    {
+      "id": "f3-choice-dp",
+      "type": "choice",
+      "at_ms": 2500,
+      "prompt": "Their C passes up the wall to their LD at the point. Whose job is their LD?",
+      "options": [
+        {
+          "text": "Our RW, the winger on that side",
+          "grade": 2,
+          "fb": "Right. Our RW is already between the puck and their LD. They arrive as the pass does, and the shot has to go through them."
+        },
+        {
+          "text": "Our RD, from the fight in the corner",
+          "grade": 0,
+          "fb": "Our RD's job is the puck in the corner. From there they are ten meters below the point, and their LD shoots while they skate."
+        },
+        {
+          "text": "Our C, out of the slot",
+          "grade": 1,
+          "fb": "Our C could get there, but late, and the slot is empty behind them. Their LW waits there for a pass and a shot from close."
+        },
+        {
+          "text": "Nobody, everyone helps at the puck",
+          "grade": 0,
+          "play": "wrong",
+          "fb": "Watch what happens. With our RW down at the puck, nobody is in the lane to the point. Their LD gets the pass alone and shoots."
+        }
+      ]
+    },
+    {
+      "id": "f3-spot-rw",
+      "type": "spot",
+      "at_ms": 2500,
+      "target": [
+        -13.0,
+        -9.25
+      ],
+      "r1_m": 2.0,
+      "r2_m": 4.0,
+      "prompt": "The pass is leaving for the point. Tap where our RW should be.",
+      "fb": {
+        "right": "Right. Above the puck, between it and their LD, in the lane up the wall. The pass has to go through our RW.",
+        "close": "Near the lane, but a stride off it. That stride gives their LD time to look up and pick a shot.",
+        "wrong": "Too far from the lane. Our RW stands between the puck and their LD, a few strides from the point."
+      }
+    },
+    {
+      "id": "f3-watch-3",
+      "type": "watch",
+      "from_ms": 2500,
+      "to_ms": 6000
+    },
+    {
+      "id": "f3-contrast",
+      "type": "contrast",
+      "at_ms": 2500,
+      "section": "What wrong looks like"
+    },
+    {
+      "id": "f3-check",
+      "type": "card",
+      "section": "Check yourself"
+    },
+    {
+      "id": "f3-cue",
+      "type": "card",
+      "section": "Cue"
+    }
+  ]
+}
