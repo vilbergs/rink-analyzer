@@ -24,7 +24,10 @@ export type Glossary = { schema: number; terms: Term[] };
 
 export type Module = { id: string; title: string; description?: string; lessons: string[] };
 
-export type Course = { schema: number; title?: string; modules: Module[] };
+export type Course = { id: string; title: string; description?: string; requires?: string[]; modules: Module[] };
+
+/** `courses.json`: the courses in order; a course lists the courses it builds on, which come before it. */
+export type Catalog = { schema: number; courses: Course[] };
 
 export type Play = {
   id: string;
@@ -66,10 +69,10 @@ export type Lesson = {
 };
 
 export type Curriculum = {
-  course: Course;
+  catalog: Catalog;
   glossary: Glossary;
   lessons: Lesson[];
-  /** Lesson ids in course order. */
+  /** Lesson ids in catalog order: course by course, module by module. */
   order: string[];
 };
 
@@ -121,7 +124,7 @@ const SHOT_PREFIXES = ["Right shot:", "Left shot:"];
 
 export async function loadCurriculum(dir: string): Promise<Curriculum> {
   const json = async (path: string) => JSON.parse(await Deno.readTextFile(path));
-  const course = await json(`${dir}/course.json`) as Course;
+  const catalog = await json(`${dir}/courses.json`) as Catalog;
   const glossary = await json(`${dir}/glossary.json`) as Glossary;
   const stems: string[] = [];
   for await (const entry of Deno.readDir(`${dir}/lessons`)) {
@@ -148,7 +151,11 @@ export async function loadCurriculum(dir: string): Promise<Curriculum> {
       variant,
     });
   }
-  return { course, glossary, lessons, order: course.modules.flatMap((m) => m.lessons) };
+  return { catalog, glossary, lessons, order: modules(catalog).flatMap((m) => m.lessons) };
+}
+
+export function modules(catalog: Catalog): Module[] {
+  return catalog.courses.flatMap((c) => c.modules);
 }
 
 /** Frontmatter `key: value` lines between `---` lines, then `## ` sections. */
@@ -398,9 +405,9 @@ function structure(lesson: Lesson, c: Curriculum): Issue[] {
   }
 
   const listed = c.order.filter((id) => id === lesson.id).length;
-  if (listed === 0) at(null, "course-unlisted", "course.json", "the lesson is not in any module");
-  if (listed > 1) at(null, "course-duplicate", "course.json", `the lesson is listed ${listed} times`);
-  const module = c.course.modules.find((m) => m.lessons.includes(lesson.id));
+  if (listed === 0) at(null, "course-unlisted", "courses.json", "the lesson is not in any module");
+  if (listed > 1) at(null, "course-duplicate", "courses.json", `the lesson is listed ${listed} times`);
+  const module = modules(c.catalog).find((m) => m.lessons.includes(lesson.id));
   if (module && module.id !== lesson.module) {
     at(null, "course-module", "module", `listed under ${module.id} but declares ${lesson.module}`);
   }
@@ -409,11 +416,32 @@ function structure(lesson: Lesson, c: Curriculum): Issue[] {
 
 // ------------------------------------------------------------------- lint
 
+/** Course and module ids are unique, and a course builds only on courses listed before it. */
+export function catalog(cat: Catalog): Issue[] {
+  const out: Issue[] = [];
+  const at = (lesson: string, rule: string, where: string, text: string) => out.push({ lesson, step: null, rule, where, text });
+  const seen = new Set<string>();
+  const before = new Set<string>();
+  for (const course of cat.courses) {
+    if (before.has(course.id)) at(course.id, "course-id", "courses.json", "two courses share this id");
+    for (const id of course.requires ?? []) {
+      if (!before.has(id)) at(course.id, "course-requires", "requires", `${id} is not a course listed before this one`);
+    }
+    for (const m of course.modules) {
+      if (seen.has(m.id)) at(course.id, "module-id", `module ${m.id}`, "a module in another course has this id");
+      seen.add(m.id);
+    }
+    before.add(course.id);
+  }
+  return out;
+}
+
 export function lint(c: Curriculum): Issue[] {
   const out: Issue[] = [];
+  out.push(...catalog(c.catalog));
   const known = new Set(c.lessons.map((l) => l.id));
-  for (const id of c.course.modules.flatMap((m) => m.lessons)) {
-    if (!known.has(id)) out.push({ lesson: id, step: null, rule: "course-missing", where: "course.json", text: "no lesson has this id" });
+  for (const id of modules(c.catalog).flatMap((m) => m.lessons)) {
+    if (!known.has(id)) out.push({ lesson: id, step: null, rule: "course-missing", where: "courses.json", text: "no lesson has this id" });
   }
   for (const lesson of c.lessons) {
     out.push(...structure(lesson, c));

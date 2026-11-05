@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "courses": [
+    {
+      "id": "fundamentals",
+      "title": "Hockey fundamentals",
+      "description": "The rink, the words, and who does what when the puck is in our end. For every position.",
+      "modules": [
+        {
+          "id": "rink",
+          "title": "The rink",
+          "description": "The places and the words the lessons use, found by tapping them on the rink.",
+          "lessons": [
+            "f1-places-on-the-rink",
+            "f2-where-things-are"
+          ]
+        },
+        {
+          "id": "in-our-zone",
+          "title": "In our zone",
+          "description": "What they want when they have the puck in our end, and who covers what.",
+          "lessons": [
+            "f3-five-jobs-in-our-zone"
+          ]
+        },
+        {
+          "id": "out-of-our-zone",
+          "title": "Out of our zone",
+          "description": "How the puck gets out once we win it, and how they try to stop it.",
+          "lessons": [
+            "f4-how-the-puck-gets-out",
+            "f5-how-they-stop-it"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "winger",
+      "title": "Winger",
+      "description": "Where a winger stands and what they watch, drawn from the right wing. Builds on Hockey fundamentals.",
+      "requires": [
+        "fundamentals"
+      ],
+      "modules": [
+        {
+          "id": "dzone",
+          "title": "D-zone",
+          "description": "Where to be in our own zone while they have the puck.",
+          "lessons": [
+            "l1-dzone-strong-side-wall",
+            "l2-dzone-weak-side-slot"
+          ]
+        },
+        {
+          "id": "breakouts",
+          "title": "Breakouts",
+          "description": "Where to be when we win the puck and carry it out.",
+          "lessons": [
+            "l3-breakout-strong-side-wall",
+            "l4-breakout-weak-side-middle-lane"
+          ]
+        }
+      ]
+    }
+  ]
+}

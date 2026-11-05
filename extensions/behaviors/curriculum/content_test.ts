@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
-import { type Curriculum, inventory, type Lesson, lint, parseMarkdown } from "./content.ts";
+import { catalog, type Curriculum, inventory, type Lesson, lint, parseMarkdown } from "./content.ts";
 
 const glossary = {
   schema: 1,
@@ -46,7 +46,7 @@ function lesson(over: Partial<Lesson> = {}): Lesson {
 
 function curriculum(lessons: Lesson[]): Curriculum {
   return {
-    course: { schema: 1, modules: [{ id: "m", title: "M", lessons: lessons.map((l) => l.id) }] },
+    catalog: { schema: 1, courses: [{ id: "c", title: "C", modules: [{ id: "m", title: "M", lessons: lessons.map((l) => l.id) }] }] },
     glossary,
     lessons,
     order: ["l0-basics", ...lessons.map((l) => l.id), "l3-later"],
@@ -120,4 +120,15 @@ Deno.test("markdown frontmatter and sections parse", () => {
   const { meta, sections } = parseMarkdown("---\nid: a\ntitle: \"B\"\n---\n## Principle\nOne.\n\nTwo.\n## Cue\nGo.\n");
   assertEquals(meta, { id: "a", title: "B" });
   assertEquals(sections, { Principle: "One.\n\nTwo.", Cue: "Go." });
+});
+
+Deno.test("a course may build only on a course listed before it, and module ids are unique", () => {
+  const issues = catalog({
+    schema: 1,
+    courses: [
+      { id: "winger", title: "W", requires: ["fundamentals"], modules: [{ id: "dzone", title: "D", lessons: [] }] },
+      { id: "fundamentals", title: "F", modules: [{ id: "dzone", title: "D", lessons: [] }] },
+    ],
+  });
+  assertEquals(issues.map((i) => i.rule), ["course-requires", "module-id"]);
 });

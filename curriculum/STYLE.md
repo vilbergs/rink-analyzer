@@ -7,8 +7,9 @@ language. Every sentence is read on a phone between two taps. These rules are wh
 ## Words
 
 - A hockey term is used only after it has been taught. `glossary.json` says where each term is
-  taught: Tier A in Lesson 0, Tier B by the Words card of the lesson named in `taught_in`.
-  Tier C terms are never used; the glossary names the plain words that replace them.
+  taught, in `taught_in`: Tier A by tapping it in a Fundamentals rink lesson, Tier B by the Words
+  card of a lesson. A term may be used from that lesson on, in catalog order. Tier C terms are
+  never used; the glossary names the plain words that replace them.
 - A new Tier B term gets a row in the glossary and a line in the lesson's `## Words` section.
 - Players are named as their badge on the rink reads, with whose they are: "their LD", "our C",
   "their LW". Never "point man", "my man", "F2", "their D".
@@ -38,7 +39,7 @@ reason: "We don't teach how to do something before asking questions.")
     paragraph.
 11. `card` **Cue**: one line for the ice.
 
-A lesson with no question, such as Lesson 0, starts with the Principle.
+A lesson with no question, such as the rink lessons in Fundamentals, starts with the Principle.
 
 ## Questions
 
@@ -79,6 +80,19 @@ optional. `## Shot` is optional: two paragraphs, one starting `Right shot:` and 
 puck (a rim on the forehand or the backhand, a chip, a pass taken in the middle). The player shows
 the paragraph for the hand the user set on the home screen, and both until they set one. Its
 card goes right after Words. Nothing else.
+
+## Courses
+
+`courses.json` lists the courses in order. **Hockey fundamentals** carries what every position needs:
+the places and words on the rink, what the other team wants in our zone and who covers what, and how
+the puck gets out of our zone and how they stop it. A position course such as **Winger** builds on it
+(`requires`) and teaches only that position's reads: where I stand, who I watch, when I go. A word
+that any player needs is taught in Fundamentals; a word for a tool only this position uses, such as
+the chip off the glass, is taught in the position lesson that needs it. A position lesson does not
+re-explain what Fundamentals taught; one clause as a reminder is fine ("that corner is our RD's job").
+
+The lessons of a module are listed in order; each opens when the one before it is studied. Courses
+do not lock: a course that builds on another says so in its description.
 
 ## Checking
 

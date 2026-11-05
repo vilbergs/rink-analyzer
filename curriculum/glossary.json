@@ -1,73 +1,438 @@
 {
   "schema": 1,
-  "about": "Every hockey term the lessons may use. Tier A is taught in Lesson 0 and used freely after it. Tier B is taught by a Words card in the lesson named in taught_in and may be used from that lesson on. Tier C is never used; the lint flags it and names the plain words to use instead. match lists the spellings the lint looks for, whole words, any case.",
+  "about": "Every hockey term the lessons may use. Tier A is a place or a relation on the rink, taught by tapping it in the Fundamentals rink lessons. Tier B is taught by a Words card in the lesson named in taught_in. A term may be used from its taught_in lesson on, in catalog order (courses.json). Tier C is never used; the lint flags it and names the plain words to use instead. match lists the spellings the lint looks for, whole words, any case.",
   "terms": [
-    { "term": "the point", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["point", "points"],
-      "gloss": "Just inside our blue line, near the boards, where their defenders stand when they attack." },
-    { "term": "the slot", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["slot", "high slot", "low slot"],
-      "gloss": "The ice in front of our net, between the two circles. The high slot is the top of it, toward the blue line." },
-    { "term": "the wall", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["wall", "boards", "glass"],
-      "gloss": "The side of the rink. My wall is the right-hand side when our net is at the bottom of the screen." },
-    { "term": "hash marks", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["hash marks"],
-      "gloss": "The short lines beside each faceoff circle. On the wall, they mark where a winger waits for the puck." },
-    { "term": "strong side", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["strong side", "strong-side"],
-      "gloss": "The half of the rink the puck is in." },
-    { "term": "weak side", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["weak side", "weak-side", "far side", "far wall", "far corner"],
-      "gloss": "The half of the rink the puck is not in. Also called the far side." },
-    { "term": "above and below the puck", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["above the puck", "below the puck", "above them", "below them", "above you", "below you", "above me", "below me", "uphill"],
-      "gloss": "Above the puck is further from our net than the puck. Below it is closer to our net. On the phone, above is higher on the screen." },
-    { "term": "a lane", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["lane", "lanes"],
-      "gloss": "The straight line a pass or a shot would travel. Standing in a lane blocks it." },
-    { "term": "inside", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["inside"],
-      "gloss": "Between an opponent and our net. Inside is where a defender wants to be." },
-    { "term": "blue line", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["blue line"],
-      "gloss": "The line that marks the edge of our zone." },
-    { "term": "our zone", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["our zone", "their zone", "the zone", "d-zone", "neutral zone"],
-      "gloss": "The end of the rink with our net in it. Their zone is the other end." },
-    { "term": "breakout", "tier": "A", "taught_in": "l0-reading-the-rink", "match": ["breakout", "breakouts", "break out"],
-      "gloss": "Getting the puck out of our zone after we win it." },
-
-    { "term": "D-to-D", "tier": "B", "taught_in": "l2-dzone-weak-side-slot", "match": ["d-to-d", "d to d"],
-      "gloss": "A pass between their two defenders along the blue line." },
-    { "term": "forecheck", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["forecheck", "forechecks", "forechecker", "forechecking"],
-      "gloss": "Their forwards chasing the puck in our zone to stop our breakout." },
-    { "term": "rim", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["rim", "rims", "rimmed"],
-      "gloss": "A hard pass along the boards, around the curve of the end, up to the winger on the wall." },
-    { "term": "pinch", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["pinch", "pinches", "pinched", "pinching"],
-      "gloss": "Their defender leaving the blue line and coming down the wall to stop the puck getting out." },
-    { "term": "chip off the glass", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["chip", "chip it", "off the glass"],
-      "gloss": "A soft flick that sends the puck high along the boards, past a pinching defender." },
-    { "term": "3-on-2", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["3-on-2", "2-on-1", "odd-man rush"],
-      "gloss": "Three of us attacking against two of their defenders." },
-    { "term": "shoulder check", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["shoulder check", "shoulder checking"],
-      "gloss": "A quick look over your shoulder before the puck arrives, to see who is coming." },
-    { "term": "zone exit", "tier": "B", "taught_in": "l3-breakout-strong-side-wall", "match": ["zone exit", "zone entry"],
-      "gloss": "The moment the puck crosses the blue line out of our zone." },
-    { "term": "middle lane", "tier": "B", "taught_in": "l4-breakout-weak-side-middle-lane", "match": ["middle lane"],
-      "gloss": "The middle of the ice on the way out of our zone, where the weak-side winger goes to take a pass." },
-    { "term": "outlet", "tier": "B", "taught_in": "l4-breakout-weak-side-middle-lane", "match": ["outlet"],
-      "gloss": "The teammate a puck carrier can pass to when pressure comes." },
-    { "term": "rush", "tier": "B", "taught_in": "l4-breakout-weak-side-middle-lane", "match": ["rush"],
-      "gloss": "Attacking with speed straight after the breakout, before they get set." },
-
-    { "term": "point man", "tier": "C", "match": ["point man", "my point man", "point men"], "replace_with": "their LD at the point" },
-    { "term": "your man", "tier": "C", "match": ["your man", "my man", "his man", "their man"], "replace_with": "the player you are watching" },
-    { "term": "inside shoulder", "tier": "C", "match": ["inside shoulder", "inside him", "inside her"], "replace_with": "between them and our net" },
-    { "term": "own the point", "tier": "C", "match": ["owns the point", "own the point", "owning the point"], "replace_with": "the point is your job" },
-    { "term": "walk the line", "tier": "C", "match": ["walk the line", "walks the line", "walking the line"], "replace_with": "skate along the blue line" },
-    { "term": "back door", "tier": "C", "match": ["back door", "backdoor"], "replace_with": "the far post" },
-    { "term": "puck-watching", "tier": "C", "match": ["puck-watching", "puck watching"], "replace_with": "watching the puck instead of your player" },
-    { "term": "F1, F2, F3", "tier": "C", "match": ["f1", "f2", "f3"], "replace_with": "their LW, C or RW, whoever it is" },
-    { "term": "their D", "tier": "C", "match": ["their d", "our d", "the d"], "replace_with": "their LD, their RD, or their defenders" },
-    { "term": "sits on you", "tier": "C", "match": ["sits on", "sitting on", "on my hip", "on your hip"], "replace_with": "stays right next to you" },
-    { "term": "eats it", "tier": "C", "match": ["eats it", "eat it", "throws it blind", "throw it blind"], "replace_with": "gets hit, or passes without looking" },
-    { "term": "dead lane", "tier": "C", "match": ["is dead", "dead lane"], "replace_with": "is covered" },
-    { "term": "level with", "tier": "C", "match": ["level with"], "replace_with": "beside" },
-    { "term": "in stride", "tier": "C", "match": ["in stride"], "replace_with": "without slowing down" },
-    { "term": "the battle", "tier": "C", "match": ["the battle", "corner battle"], "replace_with": "the fight for the puck" },
-    { "term": "sneaks", "tier": "C", "match": ["sneaks", "sneaking"], "replace_with": "moves quietly, or slips" },
-    { "term": "stick in the lane", "tier": "C", "match": ["stick in the lane", "stick in the cross-ice lane", "stick on the ice"], "replace_with": "blocking the lane" },
-    { "term": "head up", "tier": "C", "match": ["head up", "heads up", "head on a swivel"], "replace_with": "looking around" },
-    { "term": "clean", "tier": "C", "match": ["clean pass", "gets it clean", "it's clean", "is clean"], "replace_with": "nobody is in the way" }
+    {
+      "term": "the point",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "point",
+        "points"
+      ],
+      "gloss": "Just inside our blue line, near the boards, where their defenders stand when they attack."
+    },
+    {
+      "term": "the slot",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "slot",
+        "high slot",
+        "low slot"
+      ],
+      "gloss": "The ice in front of our net, between the two circles. The high slot is the top of it, toward the blue line."
+    },
+    {
+      "term": "the wall",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "wall",
+        "boards",
+        "glass"
+      ],
+      "gloss": "The side of the rink. My wall is the right-hand side when our net is at the bottom of the screen."
+    },
+    {
+      "term": "hash marks",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "hash marks"
+      ],
+      "gloss": "The short lines beside each faceoff circle. On the wall, they mark where a winger waits for the puck."
+    },
+    {
+      "term": "strong side",
+      "tier": "A",
+      "taught_in": "f2-where-things-are",
+      "match": [
+        "strong side",
+        "strong-side"
+      ],
+      "gloss": "The half of the rink the puck is in."
+    },
+    {
+      "term": "weak side",
+      "tier": "A",
+      "taught_in": "f2-where-things-are",
+      "match": [
+        "weak side",
+        "weak-side",
+        "far side",
+        "far wall",
+        "far corner"
+      ],
+      "gloss": "The half of the rink the puck is not in. Also called the far side."
+    },
+    {
+      "term": "above and below the puck",
+      "tier": "A",
+      "taught_in": "f2-where-things-are",
+      "match": [
+        "above the puck",
+        "below the puck",
+        "above them",
+        "below them",
+        "above you",
+        "below you",
+        "above me",
+        "below me",
+        "uphill"
+      ],
+      "gloss": "Above the puck is further from our net than the puck. Below it is closer to our net. On the phone, above is higher on the screen."
+    },
+    {
+      "term": "a lane",
+      "tier": "A",
+      "taught_in": "f2-where-things-are",
+      "match": [
+        "lane",
+        "lanes"
+      ],
+      "gloss": "The straight line a pass or a shot would travel. Standing in a lane blocks it."
+    },
+    {
+      "term": "inside",
+      "tier": "A",
+      "taught_in": "f2-where-things-are",
+      "match": [
+        "inside"
+      ],
+      "gloss": "Between an opponent and our net. Inside is where a defender wants to be."
+    },
+    {
+      "term": "blue line",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "blue line"
+      ],
+      "gloss": "The line that marks the edge of our zone."
+    },
+    {
+      "term": "our zone",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "our zone",
+        "their zone",
+        "the zone",
+        "d-zone",
+        "neutral zone"
+      ],
+      "gloss": "The end of the rink with our net in it. Their zone is the other end."
+    },
+    {
+      "term": "breakout",
+      "tier": "A",
+      "taught_in": "f1-places-on-the-rink",
+      "match": [
+        "breakout",
+        "breakouts",
+        "break out"
+      ],
+      "gloss": "Getting the puck out of our zone after we win it."
+    },
+    {
+      "term": "D-to-D",
+      "tier": "B",
+      "taught_in": "f3-five-jobs-in-our-zone",
+      "match": [
+        "d-to-d",
+        "d to d"
+      ],
+      "gloss": "A pass between their two defenders along the blue line."
+    },
+    {
+      "term": "forecheck",
+      "tier": "B",
+      "taught_in": "f4-how-the-puck-gets-out",
+      "match": [
+        "forecheck",
+        "forechecks",
+        "forechecker",
+        "forechecking"
+      ],
+      "gloss": "Their forwards chasing the puck in our zone to stop our breakout."
+    },
+    {
+      "term": "rim",
+      "tier": "B",
+      "taught_in": "f4-how-the-puck-gets-out",
+      "match": [
+        "rim",
+        "rims",
+        "rimmed"
+      ],
+      "gloss": "A hard pass along the boards, around the curve of the end, up to the winger on the wall."
+    },
+    {
+      "term": "pinch",
+      "tier": "B",
+      "taught_in": "f5-how-they-stop-it",
+      "match": [
+        "pinch",
+        "pinches",
+        "pinched",
+        "pinching"
+      ],
+      "gloss": "Their defender leaving the blue line and coming down the wall to stop the puck getting out."
+    },
+    {
+      "term": "chip off the glass",
+      "tier": "B",
+      "taught_in": "l3-breakout-strong-side-wall",
+      "match": [
+        "chip",
+        "chip it",
+        "off the glass"
+      ],
+      "gloss": "A soft flick that sends the puck high along the boards, past a pinching defender."
+    },
+    {
+      "term": "3-on-2",
+      "tier": "B",
+      "taught_in": "f5-how-they-stop-it",
+      "match": [
+        "3-on-2",
+        "2-on-1",
+        "odd-man rush"
+      ],
+      "gloss": "Three of us attacking against two of their defenders."
+    },
+    {
+      "term": "shoulder check",
+      "tier": "B",
+      "taught_in": "l3-breakout-strong-side-wall",
+      "match": [
+        "shoulder check",
+        "shoulder checking"
+      ],
+      "gloss": "A quick look over your shoulder before the puck arrives, to see who is coming."
+    },
+    {
+      "term": "zone exit",
+      "tier": "B",
+      "taught_in": "f4-how-the-puck-gets-out",
+      "match": [
+        "zone exit",
+        "zone entry"
+      ],
+      "gloss": "The moment the puck crosses the blue line out of our zone."
+    },
+    {
+      "term": "middle lane",
+      "tier": "B",
+      "taught_in": "f5-how-they-stop-it",
+      "match": [
+        "middle lane"
+      ],
+      "gloss": "The middle of the ice on the way out of our zone, where the weak-side winger goes to take a pass."
+    },
+    {
+      "term": "outlet",
+      "tier": "B",
+      "taught_in": "f4-how-the-puck-gets-out",
+      "match": [
+        "outlet"
+      ],
+      "gloss": "The teammate a puck carrier can pass to when pressure comes."
+    },
+    {
+      "term": "rush",
+      "tier": "B",
+      "taught_in": "f5-how-they-stop-it",
+      "match": [
+        "rush"
+      ],
+      "gloss": "Attacking with speed straight after the breakout, before they get set."
+    },
+    {
+      "term": "point man",
+      "tier": "C",
+      "match": [
+        "point man",
+        "my point man",
+        "point men"
+      ],
+      "replace_with": "their LD at the point"
+    },
+    {
+      "term": "your man",
+      "tier": "C",
+      "match": [
+        "your man",
+        "my man",
+        "his man",
+        "their man"
+      ],
+      "replace_with": "the player you are watching"
+    },
+    {
+      "term": "inside shoulder",
+      "tier": "C",
+      "match": [
+        "inside shoulder",
+        "inside him",
+        "inside her"
+      ],
+      "replace_with": "between them and our net"
+    },
+    {
+      "term": "own the point",
+      "tier": "C",
+      "match": [
+        "owns the point",
+        "own the point",
+        "owning the point"
+      ],
+      "replace_with": "the point is your job"
+    },
+    {
+      "term": "walk the line",
+      "tier": "C",
+      "match": [
+        "walk the line",
+        "walks the line",
+        "walking the line"
+      ],
+      "replace_with": "skate along the blue line"
+    },
+    {
+      "term": "back door",
+      "tier": "C",
+      "match": [
+        "back door",
+        "backdoor"
+      ],
+      "replace_with": "the far post"
+    },
+    {
+      "term": "puck-watching",
+      "tier": "C",
+      "match": [
+        "puck-watching",
+        "puck watching"
+      ],
+      "replace_with": "watching the puck instead of your player"
+    },
+    {
+      "term": "F1, F2, F3",
+      "tier": "C",
+      "match": [
+        "f1",
+        "f2",
+        "f3"
+      ],
+      "replace_with": "their LW, C or RW, whoever it is"
+    },
+    {
+      "term": "their D",
+      "tier": "C",
+      "match": [
+        "their d",
+        "our d",
+        "the d"
+      ],
+      "replace_with": "their LD, their RD, or their defenders"
+    },
+    {
+      "term": "sits on you",
+      "tier": "C",
+      "match": [
+        "sits on",
+        "sitting on",
+        "on my hip",
+        "on your hip"
+      ],
+      "replace_with": "stays right next to you"
+    },
+    {
+      "term": "eats it",
+      "tier": "C",
+      "match": [
+        "eats it",
+        "eat it",
+        "throws it blind",
+        "throw it blind"
+      ],
+      "replace_with": "gets hit, or passes without looking"
+    },
+    {
+      "term": "dead lane",
+      "tier": "C",
+      "match": [
+        "is dead",
+        "dead lane"
+      ],
+      "replace_with": "is covered"
+    },
+    {
+      "term": "level with",
+      "tier": "C",
+      "match": [
+        "level with"
+      ],
+      "replace_with": "beside"
+    },
+    {
+      "term": "in stride",
+      "tier": "C",
+      "match": [
+        "in stride"
+      ],
+      "replace_with": "without slowing down"
+    },
+    {
+      "term": "the battle",
+      "tier": "C",
+      "match": [
+        "the battle",
+        "corner battle"
+      ],
+      "replace_with": "the fight for the puck"
+    },
+    {
+      "term": "sneaks",
+      "tier": "C",
+      "match": [
+        "sneaks",
+        "sneaking"
+      ],
+      "replace_with": "moves quietly, or slips"
+    },
+    {
+      "term": "stick in the lane",
+      "tier": "C",
+      "match": [
+        "stick in the lane",
+        "stick in the cross-ice lane",
+        "stick on the ice"
+      ],
+      "replace_with": "blocking the lane"
+    },
+    {
+      "term": "head up",
+      "tier": "C",
+      "match": [
+        "head up",
+        "heads up",
+        "head on a swivel"
+      ],
+      "replace_with": "looking around"
+    },
+    {
+      "term": "clean",
+      "tier": "C",
+      "match": [
+        "clean pass",
+        "gets it clean",
+        "it's clean",
+        "is clean"
+      ],
+      "replace_with": "nobody is in the way"
+    }
   ]
 }
