@@ -31,7 +31,7 @@ crates/
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
   rink-wasm/   # rink-core and rink-lesson for the browser: play and lesson handles, scene, hit test, grading
 web/           # Svelte app (Vite): lesson player and play viewer over rink-wasm
-curriculum/    # the course: lessons (Markdown + steps JSON), plays, glossary.json, STYLE.md
+curriculum/    # the courses: courses.json, lessons (Markdown + steps JSON), plays, glossary.json, STYLE.md
 extensions/    # swamp: the @vilbergs/curriculum lint behavior and its summary report
 workflows/     # swamp: web-build, deploy-pi, curriculum-check
 rinks/         # rink presets (IIHF 60x30, NHL 61x26) as JSON
@@ -161,8 +161,9 @@ npm run dev                 # http://localhost:5173
 service worker so a phone can add it to the home screen and run it offline. `web/public/curriculum` links
 to `curriculum/` and `web/public/plays` to `examples/`; both are served as static files.
 
-- `#/` is the course home from `curriculum/course.json`: one card per topic with a segment per lesson,
-  and the topic in progress shows its next lesson with Continue. "Export progress" downloads attempts and
+- `#/` is the home from `curriculum/courses.json`: the courses in order, each with its title and
+  description, then one card per topic with a segment per lesson. The first topic in progress shows its
+  next lesson with Continue. "Export progress" downloads attempts and
   studied lessons as JSON.
 - `#/topic/<id>` is the topic's path: lessons in order, studied, current or locked. A lesson unlocks when
   the one before it is studied; studied lessons stay open.

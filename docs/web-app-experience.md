@@ -144,15 +144,15 @@ should assume it: no native plugins, no app store, storage that works in a brows
 ## Content model
 
 The repo is the source. The vault is not. Each lesson is a Markdown file for the prose and a JSON
-file for the interaction, with the same stem, under `curriculum/`. The curriculum ships with the app.
+file for the interaction, named by the lesson's id, under `curriculum/`. The curriculum ships with the app.
 
 ```text
 curriculum/
-  course.json                                  module order, lesson order, the check-in text
-  lessons/01-dzone-strong-side-wall.md         frontmatter + prose: principle, cue, what wrong looks like, self-check
-  lessons/01-dzone-strong-side-wall.steps.json the steps
-  plays/01-dzone-strong-side-wall.rink.json
-  plays/01-dzone-strong-side-wall.wrong.rink.json
+  courses.json                                 course order, module order, lesson order
+  lessons/l1-dzone-strong-side-wall.md         frontmatter + prose: principle, cue, what wrong looks like, self-check
+  lessons/l1-dzone-strong-side-wall.steps.json the steps
+  plays/l1-dzone-strong-side-wall.rink.json
+  plays/l1-dzone-strong-side-wall.wrong.rink.json
 ```
 
 Markdown holds what a person reads and edits in sentences. JSON holds what the player executes and
@@ -165,8 +165,8 @@ tables already were through `rink transcript --md`.
 id: l1-dzone-strong-side-wall
 module: dzone
 title: Puck in my corner (strong side)
-play: 01-dzone-strong-side-wall
-wrong: 01-dzone-strong-side-wall.wrong
+play: l1-dzone-strong-side-wall
+wrong: l1-dzone-strong-side-wall.wrong
 ---
 ## Principle
 The strong-side winger owns the point. Be inside their D before the pass goes there.
@@ -182,7 +182,7 @@ At 2.5 s, were you between the puck and their LD, or below the puck? ...
 ```
 
 ```jsonc
-// curriculum/lessons/01-dzone-strong-side-wall.steps.json
+// curriculum/lessons/l1-dzone-strong-side-wall.steps.json
 {
   "schema": 1,
   "lesson": "l1-dzone-strong-side-wall",
@@ -291,3 +291,6 @@ L1, the path will not fix it.
   there is no left-wing course and no mirroring. What differs between wingers is which way they
   shoot: a `## Shot` section in a lesson carries a right-shot and a left-shot paragraph, and the
   player shows the one for the hand set on the home screen (decided 2026-11-04).
+- **Two courses, Hockey fundamentals before Winger.** `courses.json` lists them in order. Winger's
+  `requires` names Fundamentals, but that is information for the lint, the engine check and the course
+  description: no course locks. A lesson's id is its file stem (decided 2026-11-05).

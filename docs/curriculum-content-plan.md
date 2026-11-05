@@ -270,6 +270,9 @@ Landed 2026-11-03: `STYLE.md`, `glossary.json`, the `@vilbergs/curriculum` behav
 their own source now. The `check` method is not needed; the engine's check runs as
 `cargo test -p rink-lesson --test curriculum` in `web-build`.
 
+On 2026-11-05 the fundamentals moved out of the Winger course into their own Hockey fundamentals
+course before it, and `curriculum/courses.json` replaced `course.json` as the list of courses.
+
 ## Order of work
 
 1. Write `STYLE.md` and `glossary.json`. Half a day, content only. Everything else checks
