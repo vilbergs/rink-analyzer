@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "lesson": "f2-where-things-are",
+  "steps": [
+    {
+      "id": "f2-principle",
+      "type": "card",
+      "section": "Principle"
+    },
+    {
+      "id": "f2-words",
+      "type": "card",
+      "section": "Words"
+    },
+    {
+      "id": "f2-spot-strong",
+      "type": "spot",
+      "at_ms": 0,
+      "target": [
+        -20.0,
+        -7.0
+      ],
+      "r1_m": 4.0,
+      "r2_m": 8.0,
+      "prompt": "The puck is in our right corner. Tap the strong side, near the faceoff dot.",
+      "fb": {
+        "right": "That is the strong side: the half of the rink the puck is in. It changes when the puck changes sides.",
+        "close": "Nearly. The strong side is the whole half the puck is in. Tap closer to the dot.",
+        "wrong": "The strong side is the half of the rink the puck is in. Right now that is the right half."
+      }
+    },
+    {
+      "id": "f2-spot-weak",
+      "type": "spot",
+      "at_ms": 0,
+      "target": [
+        -20.0,
+        7.0
+      ],
+      "r1_m": 4.0,
+      "r2_m": 8.0,
+      "prompt": "Now tap the weak side, near the other faceoff dot.",
+      "fb": {
+        "right": "That is the weak side: the half without the puck. Our LD and our LW are on it right now.",
+        "close": "Nearly. The weak side is the whole half without the puck. Tap closer to the dot.",
+        "wrong": "The weak side is the half of the rink the puck is not in. Right now that is the left half."
+      }
+    },
+    {
+      "id": "f2-spot-above",
+      "type": "spot",
+      "at_ms": 0,
+      "target": [
+        -15.0,
+        0.0
+      ],
+      "r1_m": 5.0,
+      "r2_m": 8.0,
+      "prompt": "Tap a spot above the puck, in the middle of the ice.",
+      "fb": {
+        "right": "That is above the puck: further from our net than the puck, so higher on the screen.",
+        "close": "Nearly. Above the puck means further from our net than the puck is.",
+        "wrong": "Above the puck is further from our net than the puck, so higher on the screen. Below is closer to our net."
+      }
+    },
+    {
+      "id": "f2-spot-inside",
+      "type": "spot",
+      "at_ms": 0,
+      "target": [
+        -11.5,
+        -10.5
+      ],
+      "r1_m": 2.5,
+      "r2_m": 5.0,
+      "prompt": "Tap the spot just inside their LD, between them and our net.",
+      "fb": {
+        "right": "That is inside: between an opponent and our net. From here, a pass or a shot from their LD has to go through you.",
+        "close": "Nearly. Inside is between their LD and our net, close enough to reach them with your stick.",
+        "wrong": "Inside means between their LD and our net, a stick length away from them."
+      }
+    },
+    {
+      "id": "f2-spot-lane",
+      "type": "spot",
+      "at_ms": 0,
+      "target": [
+        -16.0,
+        -11.5
+      ],
+      "r1_m": 2.5,
+      "r2_m": 5.0,
+      "prompt": "Tap halfway along the lane from the puck to their LD.",
+      "fb": {
+        "right": "That is the lane: the straight line a pass from their C to their LD would travel. Standing in it blocks it.",
+        "close": "Nearly. The lane is the straight line between the puck and their LD.",
+        "wrong": "The lane is the straight line from the puck to their LD, up the wall. A pass travels along it."
+      }
+    },
+    {
+      "id": "f2-check",
+      "type": "card",
+      "section": "Check yourself"
+    },
+    {
+      "id": "f2-cue",
+      "type": "card",
+      "section": "Cue"
+    }
+  ]
+}
