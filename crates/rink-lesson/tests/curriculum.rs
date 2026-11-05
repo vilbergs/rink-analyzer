@@ -1,11 +1,11 @@
 //! Every lesson under `<repo>/curriculum/` parses, passes `check`, and the
-//! course lists each one exactly once.
+//! catalog in `courses.json` lists each one exactly once.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use rink_core::io::from_json;
-use rink_lesson::{check, Course, Lesson, Plays};
+use rink_lesson::{check, Catalog, Lesson, Plays};
 
 fn read(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
@@ -19,12 +19,12 @@ fn load_play(dir: &Path, stem: &str) -> rink_core::Play {
 #[test]
 fn every_lesson_checks_clean_and_is_in_the_course() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../curriculum");
-    let course_path = root.join("course.json");
-    if !course_path.exists() {
-        eprintln!("no {}, nothing to check", course_path.display());
+    let catalog_path = root.join("courses.json");
+    if !catalog_path.exists() {
+        eprintln!("no {}, nothing to check", catalog_path.display());
         return;
     }
-    let course = Course::parse(&read(&course_path)).unwrap_or_else(|e| panic!("course.json: {e}"));
+    let catalog = Catalog::parse(&read(&catalog_path)).unwrap_or_else(|e| panic!("courses.json: {e}"));
 
     let mut md_files: Vec<PathBuf> = fs::read_dir(root.join("lessons"))
         .expect("curriculum/lessons/")
@@ -54,7 +54,7 @@ fn every_lesson_checks_clean_and_is_in_the_course() {
         }
         lessons.push(lesson);
     }
-    failures.extend(course.check(&lessons).into_iter().map(|i| format!("course.json: {}", i.message)));
+    failures.extend(catalog.check(&lessons).into_iter().map(|i| format!("courses.json: {}", i.message)));
     assert!(failures.is_empty(), "{} lesson(s):\n{}", lessons.len(), failures.join("\n"));
     eprintln!("{} lessons checked", lessons.len());
 }

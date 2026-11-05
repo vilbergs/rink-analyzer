@@ -8,7 +8,7 @@ mod grade;
 mod lesson;
 
 pub use check::{check, Issue};
-pub use course::{Course, Module};
+pub use course::{Catalog, Course, Module};
 pub use grade::{grade, Answer, Graded, SpotFacts, WatchOn};
 pub use lesson::{Choice, ChoiceOption, Grade, Lesson, LessonMeta, Spot, SpotFeedback, Step, SCHEMA};
 
