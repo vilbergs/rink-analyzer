@@ -1,4 +1,4 @@
-import { loadCourse, type CourseModule, type LessonSummary } from "../lesson/content";
+import { loadCatalog, type Course, type CourseModule, type LessonSummary } from "../lesson/content";
 import type { ProgressStore } from "../progress/store";
 
 export type LessonState = "studied" | "open" | "locked";
@@ -6,7 +6,8 @@ export type LessonState = "studied" | "open" | "locked";
 export type PathLesson = LessonSummary & { n: number; state: LessonState };
 /** `next` is the first lesson not studied yet, or null once the module is done. */
 export type PathModule = Omit<CourseModule, "lessons"> & { lessons: PathLesson[]; studied: number; next: PathLesson | null };
-export type Path = { title: string; modules: PathModule[] };
+export type PathCourse = Omit<Course, "modules"> & { modules: PathModule[] };
+export type Path = { courses: PathCourse[] };
 
 /** Lesson i of a module is open when i is 0 or lesson i-1 is studied. Studied lessons stay open. */
 export function pathState(modules: CourseModule[], studied: Record<string, string>): PathModule[] {
@@ -27,7 +28,19 @@ export function pathState(modules: CourseModule[], studied: Record<string, strin
   });
 }
 
+/** The first module, across courses in order, that `match` accepts; `index` is its place within its course. */
+export function findModule<C extends { modules: { id: string }[] }>(
+  courses: C[],
+  match: (module: C["modules"][number]) => boolean,
+): { course: C; module: C["modules"][number]; index: number } | null {
+  for (const course of courses) {
+    const index = course.modules.findIndex(match);
+    if (index >= 0) return { course, module: course.modules[index], index };
+  }
+  return null;
+}
+
 export async function loadPath(progress: ProgressStore): Promise<Path> {
-  const [course, studied] = await Promise.all([loadCourse(), progress.studied()]);
-  return { title: course.title, modules: pathState(course.modules, studied) };
+  const [catalog, studied] = await Promise.all([loadCatalog(), progress.studied()]);
+  return { courses: catalog.courses.map((course) => ({ ...course, modules: pathState(course.modules, studied) })) };
 }

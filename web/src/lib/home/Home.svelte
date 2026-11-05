@@ -19,7 +19,7 @@
     );
   });
 
-  const current = $derived(path?.modules.find((m) => m.next));
+  const current = $derived(path?.courses.flatMap((c) => c.modules).find((m) => m.next));
 
   const HANDS: { value: Shot; label: string }[] = [
     { value: "left", label: "Left" },
@@ -38,65 +38,69 @@
 
 <main class="home">
   <header>
-    <span class="eyebrow">Rink Replay</span>
     <a href="#/viewer">Play viewer</a>
   </header>
-  {#if path}
-    <div class="course">
-      <CourseIcon />
-      <h1>{path.title}</h1>
-    </div>
-    <div class="shot">
-      <span class="shot-label">I shoot</span>
-      <div class="seg" role="group" aria-label="Which way you shoot">
-        {#each HANDS as hand (hand.value)}
-          <button
-            class="segbtn"
-            class:on={settings.shot === hand.value}
-            aria-pressed={settings.shot === hand.value}
-            onclick={() => settings.setShot(settings.shot === hand.value ? null : hand.value)}
-          >
-            {hand.label}
-          </button>
-        {/each}
-      </div>
-      <span class="shot-hint">
-        {#if settings.shot}Lessons show the {settings.shot}-shot notes.{:else}Set it to see only your hand's notes.{/if}
-      </span>
-    </div>
-    <h2 class="eyebrow">Topics</h2>
-    <ul>
-      {#each path.modules as module (module.id)}
-        <li class="card">
-          <a class="topic" href="#/topic/{module.id}">
-            <ZoneGlyph module={module.id} />
-            <span class="text">
-              <span class="title">{module.title}</span>
-              <span class="sub">
-                {#if module.studied > 0}
-                  {module.studied} of {module.lessons.length} studied
-                {:else}
-                  {module.lessons.length} lessons · start with “{module.lessons[0]?.title}”
-                {/if}
-              </span>
-            </span>
-            <span class="chevron"><Icon name="chevron" /></span>
-            <span class="bar"><Segments lessons={module.lessons} /></span>
-          </a>
-          {#if module === current && module.next}
-            <div class="next">
-              <div>
-                <span class="eyebrow accent">Up next · Lesson {module.next.n}</span>
-                <span class="title">{module.next.title}</span>
-              </div>
-              <a class="btn primary" href="#/lesson/{module.next.id}">Continue</a>
-            </div>
-          {/if}
-        </li>
+  <div class="app">
+    <CourseIcon />
+    <h1>Rink Replay</h1>
+  </div>
+  <div class="shot">
+    <span class="shot-label">I shoot</span>
+    <div class="seg" role="group" aria-label="Which way you shoot">
+      {#each HANDS as hand (hand.value)}
+        <button
+          class="segbtn"
+          class:on={settings.shot === hand.value}
+          aria-pressed={settings.shot === hand.value}
+          onclick={() => settings.setShot(settings.shot === hand.value ? null : hand.value)}
+        >
+          {hand.label}
+        </button>
       {/each}
-    </ul>
+    </div>
+    <span class="shot-hint">
+      {#if settings.shot}Lessons show the {settings.shot}-shot notes.{:else}Set it to see only your hand's notes.{/if}
+    </span>
+  </div>
+  {#if path}
+    {#each path.courses as course (course.id)}
+      <section class="course">
+        <h2>{course.title}</h2>
+        {#if course.description}<p class="description">{course.description}</p>{/if}
+        <ul>
+          {#each course.modules as module (module.id)}
+            <li class="card">
+              <a class="topic" href="#/topic/{module.id}">
+                <ZoneGlyph module={module.id} />
+                <span class="text">
+                  <span class="title">{module.title}</span>
+                  <span class="sub">
+                    {#if module.studied > 0}
+                      {module.studied} of {module.lessons.length} studied
+                    {:else}
+                      {module.lessons.length} {module.lessons.length === 1 ? "lesson" : "lessons"} · start with “{module.lessons[0]?.title}”
+                    {/if}
+                  </span>
+                </span>
+                <span class="chevron"><Icon name="chevron" /></span>
+                <span class="bar"><Segments lessons={module.lessons} /></span>
+              </a>
+              {#if module === current && module.next}
+                <div class="next">
+                  <div>
+                    <span class="eyebrow accent">Up next · Lesson {module.next.n}</span>
+                    <span class="title">{module.next.title}</span>
+                  </div>
+                  <a class="btn primary" href="#/lesson/{module.next.id}">Continue</a>
+                </div>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/each}
   {:else if loadError}
-    <p class="status">Could not load the course: {loadError}</p>
+    <p class="status">Could not load the courses: {loadError}</p>
   {:else}
     <p class="status">Loading…</p>
   {/if}
@@ -116,7 +120,7 @@
   header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     height: 44px;
   }
   header a {
@@ -126,7 +130,7 @@
     color: var(--text-muted);
     font-size: 13px;
   }
-  .course {
+  .app {
     display: flex;
     gap: 14px;
     align-items: center;
@@ -136,8 +140,18 @@
     margin: 0;
     font-size: 24px;
   }
+  .course + .course {
+    margin-top: 32px;
+  }
   h2 {
-    margin: 0 0 10px;
+    margin: 0;
+    font-size: 20px;
+  }
+  .description {
+    margin: 4px 0 12px;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.4;
   }
   .shot {
     display: grid;

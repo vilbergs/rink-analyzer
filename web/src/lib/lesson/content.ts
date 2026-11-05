@@ -4,12 +4,18 @@ import type { PlayEntity, PlayTeam } from "./types";
 
 export type LessonSummary = { id: string; title: string; principle: string; stepCount: number };
 export type CourseModule = { id: string; title: string; description: string; lessons: LessonSummary[] };
-export type Course = { title: string; modules: CourseModule[] };
+export type Course = { id: string; title: string; description: string; requires: string[]; modules: CourseModule[] };
+export type Catalog = { courses: Course[] };
 
-type CourseFile = {
+type CatalogFile = {
   schema: number;
-  title?: string;
-  modules: { id: string; title: string; description?: string; lessons: string[] }[];
+  courses: {
+    id: string;
+    title: string;
+    description?: string;
+    requires?: string[];
+    modules: { id: string; title: string; description?: string; lessons: string[] }[];
+  }[];
 };
 
 export type LoadedLesson = {
@@ -21,42 +27,41 @@ export type LoadedLesson = {
   hasWrong: boolean;
 };
 
-/** `l1-dzone-strong-side-wall` is stored as `01-dzone-strong-side-wall`. */
-export function lessonStem(id: string): string {
-  const m = /^l(\d+)-(.+)$/.exec(id);
-  if (!m) throw new Error(`lesson id \`${id}\` is not \`l<n>-<name>\``);
-  return `${m[1].padStart(2, "0")}-${m[2]}`;
-}
-
-/** The course title and its modules in order, each lesson with its title, principle and step count. */
-export async function loadCourse(): Promise<Course> {
-  const course: CourseFile = JSON.parse(await fetchText("curriculum/course.json"));
+/** The courses in order, each with its modules in order, each lesson with its title, principle and step count. */
+export async function loadCatalog(): Promise<Catalog> {
+  const file: CatalogFile = JSON.parse(await fetchText("curriculum/courses.json"));
   return {
-    title: course.title ?? "",
-    modules: await Promise.all(
-      course.modules.map(async ({ id, title, description, lessons }) => ({
+    courses: await Promise.all(
+      file.courses.map(async ({ id, title, description, requires, modules }) => ({
         id,
         title,
         description: description ?? "",
-        lessons: await Promise.all(lessons.map(summary)),
+        requires: requires ?? [],
+        modules: await Promise.all(
+          modules.map(async (module) => ({
+            id: module.id,
+            title: module.title,
+            description: module.description ?? "",
+            lessons: await Promise.all(module.lessons.map(summary)),
+          })),
+        ),
       })),
     ),
   };
 }
 
-let cachedCourse: Promise<Course> | null = null;
+let cachedCatalog: Promise<Catalog> | null = null;
 
-/** `loadCourse()`, fetched once per page load. */
-export function course(): Promise<Course> {
-  cachedCourse ??= loadCourse();
-  return cachedCourse;
+/** `loadCatalog()`, fetched once per page load. */
+export function catalog(): Promise<Catalog> {
+  cachedCatalog ??= loadCatalog();
+  return cachedCatalog;
 }
 
 async function summary(id: string): Promise<LessonSummary> {
-  const stem = lessonStem(id);
   const [md, steps] = await Promise.all([
-    fetchText(`curriculum/lessons/${stem}.md`),
-    fetchText(`curriculum/lessons/${stem}.steps.json`),
+    fetchText(`curriculum/lessons/${id}.md`),
+    fetchText(`curriculum/lessons/${id}.steps.json`),
   ]);
   return {
     id,
@@ -67,13 +72,12 @@ async function summary(id: string): Promise<LessonSummary> {
 }
 
 export async function loadLesson(id: string): Promise<LoadedLesson> {
-  const stem = lessonStem(id);
   const [md, steps] = await Promise.all([
-    fetchText(`curriculum/lessons/${stem}.md`),
-    fetchText(`curriculum/lessons/${stem}.steps.json`),
+    fetchText(`curriculum/lessons/${id}.md`),
+    fetchText(`curriculum/lessons/${id}.steps.json`),
   ]);
   const { play, wrong } = frontmatter(md);
-  if (!play) throw new Error(`${stem}.md names no play`);
+  if (!play) throw new Error(`${id}.md names no play`);
   const playFile = (stem: string) => fetchText(`curriculum/plays/${stem}.rink.json`);
   const [main, wrongJson] = await Promise.all([playFile(play), wrong ? playFile(wrong) : null, wasmReady()]);
   const file = JSON.parse(main);

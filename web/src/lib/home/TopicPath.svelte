@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ProgressStore } from "../progress/store";
   import Icon from "./Icon.svelte";
-  import { loadPath, type Path } from "./path";
+  import { findModule, loadPath, type Path } from "./path";
   import Segments from "./Segments.svelte";
 
   let { id, progress }: { id: string; progress: ProgressStore } = $props();
@@ -16,15 +16,15 @@
     );
   });
 
-  const index = $derived(path?.modules.findIndex((m) => m.id === id) ?? -1);
-  const module = $derived(path?.modules[index]);
+  const found = $derived(path && findModule(path.courses, (m) => m.id === id));
+  const module = $derived(found?.module);
   const firstLocked = $derived(module?.lessons.find((l) => l.state === "locked"));
 </script>
 
 <main class="topic">
-  <a class="back" href="#/"><Icon name="back" size={18} />{path?.title ?? "Home"}</a>
-  {#if path && module}
-    <span class="eyebrow">Topic {index + 1} of {path.modules.length}</span>
+  <a class="back" href="#/"><Icon name="back" size={18} />Home</a>
+  {#if found && module}
+    <span class="eyebrow">{found.course.title} · Topic {found.index + 1} of {found.course.modules.length}</span>
     <h1>{module.title}</h1>
     <p class="description">{module.description}</p>
     <div class="progress">
@@ -64,7 +64,7 @@
       {/each}
     </ol>
   {:else if loadError}
-    <p class="status">Could not load the course: {loadError}</p>
+    <p class="status">Could not load the courses: {loadError}</p>
   {:else if path}
     <p class="status">There is no topic “{id}”.</p>
   {:else}

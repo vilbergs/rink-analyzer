@@ -1,7 +1,8 @@
 <script lang="ts">
   import RinkCanvas from "../rink/RinkCanvas.svelte";
   import type { ProgressStore } from "../progress/store";
-  import { course, loadLesson, type CourseModule } from "./content";
+  import { findModule } from "../home/path";
+  import { catalog, loadLesson, type CourseModule } from "./content";
   import ContrastToggle from "./ContrastToggle.svelte";
   import Icon from "./Icon.svelte";
   import LessonLane from "./LessonLane.svelte";
@@ -39,7 +40,7 @@
       },
       (e: Error) => (loadError = e.message),
     );
-    course().then((c) => (module = c.modules.find((m) => m.lessons.some((l) => l.id === id)) ?? null));
+    catalog().then((c) => (module = findModule(c.courses, (m) => m.lessons.some((l) => l.id === id))?.module ?? null));
     return () => {
       closed = true;
       open?.close();
