@@ -3,11 +3,6 @@
   "lesson": "l2-dzone-weak-side-slot",
   "steps": [
     {
-      "id": "l2-words",
-      "type": "card",
-      "section": "Words"
-    },
-    {
       "id": "l2-watch-1",
       "type": "watch",
       "from_ms": 0,
