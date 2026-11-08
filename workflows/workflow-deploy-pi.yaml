@@ -37,7 +37,7 @@ jobs:
               sleep 5;
               curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/ &&
               curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/manifest.webmanifest &&
-              curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/curriculum/course.json
+              curl -fsS --resolve rink.vilberg.dev:443:100.72.119.74 -o /dev/null -w '%{http_code} %{content_type}\n' https://rink.vilberg.dev/curriculum/courses.json
             timeout: 120000
       - name: answers
         dependsOn: [{ step: fetch, condition: { type: succeeded } }]
