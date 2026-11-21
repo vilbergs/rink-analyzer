@@ -174,7 +174,8 @@ to `curriculum/` and `web/public/plays` to `examples/`; both are served as stati
   wrong variant with the playhead kept. The result shows the cue and the graded steps below 2.
 - Progress (append-only attempts, studied lessons) lives in IndexedDB behind a `ProgressStore` interface.
 - `#/footage` opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
-  Step back or forward five seconds, or click a timestamp to revisit it. Reopen the same file in this browser
+  Click a timestamp to pause on it, or choose **Play lead-in** to watch from five seconds earlier.
+  **Undo** restores the most recently removed moment. Reopen the same file in this browser
   to resume at your last position with your notes, or use **Export notes**
   for a chronological text copy. The recording stays on the device.
 - `#/viewer` plays the breakout example. Space plays and pauses, ← → step 100 ms, Home / End jump, a click

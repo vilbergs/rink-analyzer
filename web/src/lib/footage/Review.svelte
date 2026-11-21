@@ -12,6 +12,8 @@
   let moments = $state<Moment[]>([]);
   let notesList: HTMLOListElement;
   let savedPosition = 0;
+  let lastRemoved = $state<Moment | null>(null);
+  let playbackMessage = $state("");
 
   function restorePosition() {
     if (!video) return;
@@ -79,12 +81,33 @@
       storageError = true;
     }
     moments = moments.filter((m) => m.id !== moment.id);
+    lastRemoved = moment;
+  }
+
+  function undoRemove() {
+    if (!lastRemoved) return;
+    moments = [...moments, lastRemoved].sort((a, b) => a.ms - b.ms);
+    save(lastRemoved);
+    lastRemoved = null;
   }
 
   function seek(seconds: number) {
     if (!ready || !video) return;
     video.pause();
     video.currentTime = Math.max(0, Math.min(seconds, video.duration));
+  }
+
+  async function playLeadIn(moment: Moment) {
+    if (!ready || !video) return;
+    video.currentTime = Math.max(0, moment.ms / 1000 - 5);
+    try {
+      await video.play();
+    } catch (error) {
+      // Changing recordings or pausing can interrupt a pending play request.
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        playbackMessage = "Press Play in the video controls to start the lead-in.";
+      }
+    }
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -105,7 +128,7 @@
       <!-- The recording is supplied locally by the reviewer. -->
       <!-- svelte-ignore a11y_media_has_caption -->
       <video bind:this={video} src={url} controls playsinline preload="metadata"
-        onloadedmetadata={restorePosition}
+        onloadedmetadata={restorePosition} onplaying={() => playbackMessage = ""}
         ontimeupdate={() => rememberPosition()} onpause={() => rememberPosition(true)}
         onseeked={() => rememberPosition(true)} onended={() => rememberPosition(true)}
         onerror={() => { ready = false; videoError = true; }}></video>
@@ -113,6 +136,7 @@
     {#if videoError}
       <p role="alert">This browser could not play the recording. Choose another video or open it in a browser that supports its format.</p>
     {/if}
+    {#if playbackMessage}<p role="status">{playbackMessage}</p>{/if}
     <div class="tools">
       <button class="btn" disabled={!ready} onclick={() => seek((video?.currentTime ?? 0) - 5)}>Back 5s</button>
       <button class="btn" disabled={!ready} onclick={() => seek((video?.currentTime ?? 0) + 5)}>Forward 5s</button>
@@ -129,12 +153,20 @@
     {:else}
       <p>Reopen this video in this browser to resume with your notes.</p>
     {/if}
+    {#if lastRemoved}
+      <div class="row undo">
+        <span role="status">Removed {timestamp(lastRemoved.ms)}</span>
+        <button class="btn" onclick={undoRemove}>Undo</button>
+      </div>
+    {/if}
     <ol bind:this={notesList}>
       {#each moments as moment (moment.id)}
         <li>
           <div class="row">
             <button class="time" disabled={!ready} aria-label={'Go to ' + timestamp(moment.ms)}
               onclick={() => seek(moment.ms / 1000)}>{timestamp(moment.ms)}</button>
+            <button class="lead-in" disabled={!ready} aria-label={'Play from five seconds before ' + timestamp(moment.ms)}
+              onclick={() => playLeadIn(moment)}>Play lead-in</button>
             <button class="remove" aria-label={'Remove moment at ' + timestamp(moment.ms)} onclick={() => remove(moment)}>Remove</button>
           </div>
           <input data-moment={moment.id} aria-label={'Note at ' + timestamp(moment.ms)} placeholder="What happened?"
@@ -159,8 +191,11 @@
   [role="alert"] { color: var(--warn); }
   ol { list-style: none; margin: 0; padding: 0; max-height: 55vh; overflow: auto; }
   li { border-top: 1px solid var(--border); padding: 6px 2px 12px; }
-  .time, .remove { border: 0; background: none; font: inherit; cursor: pointer; min-height: 40px; }
+  .time, .lead-in, .remove { border: 0; background: none; font: inherit; cursor: pointer; min-height: 40px; }
   .time { font-variant-numeric: tabular-nums; color: var(--accent-soft); text-decoration: underline; }
+  .lead-in { color: var(--text-soft); }
+  .remove { margin-left: auto; }
+  .undo { margin: 12px 0; }
   .remove { color: var(--text-muted); }
   input { width: 100%; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--raised); color: var(--text); font: inherit; }
   @media (max-width: 760px) { .review { grid-template-columns: minmax(0, 1fr); } }
