@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 rink-core.workspace = true
+rink-footage = { path = "../rink-footage" }
 gpui = "=0.2.2"
 anyhow.workspace = true
 env_logger = "0.11"

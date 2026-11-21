@@ -29,6 +29,7 @@ crates/
   rink-lesson/ # lessons over plays: the lesson and step model, grading, content checks
   rink-app/    # GPUI binary: rink-replay
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
+  rink-footage/ # extract timestamped JPEGs from HEVC footage for manual tracing
   rink-wasm/   # rink-core and rink-lesson for the browser: play and lesson handles, scene, hit test, grading
 web/           # Svelte app (Vite): lesson player and play viewer over rink-wasm
 curriculum/    # the courses: courses.json, lessons (Markdown + steps JSON), plays, glossary.json, STYLE.md
@@ -66,6 +67,98 @@ was.
 - Each suggestion records a fingerprint of the play's motion. If you edit the play afterwards, the app greys out
   that ghost and marks it "play edited since", and `rink review` reports `"stale": true`. Then ask for a fresh
   review.
+
+## Recreate a play from footage
+
+`rink-footage` extracts upright JPEGs from HEVC MOV and MP4 clips using Rust. The arguments after the
+output directory are the longest image edge in pixels and one or more source timestamps in milliseconds.
+The command prints the presentation time of each saved frame.
+
+```sh
+cargo run --release -p rink-footage -- ~/Documents/Footage/IMG_2900.MOV /tmp/rink-frames 1200 5000 6000 7000
+cargo run -q -p rink-cli -- check examples/footage/img-2900-corner-turn.rink.json
+cargo run --release -p rink-app -- examples/footage/img-2900-corner-turn.rink.json
+```
+
+Use visible landmarks to estimate skater positions in rink meters, then record them as keyframes at
+times relative to the start of the replay. Add captions where the angle or an obstruction makes the
+trace uncertain. Pass the resulting `.rink.json` to the desktop app to open it.
+The [workflow diagram](docs/footage-workflow.svg) shows how this produced the
+[corner-turn replay](examples/footage/img-2900-corner-turn.rink.json).
+
+### Import footage in Rink Replay
+
+Choose **File → Footage Sessions…** (⌘⇧O), or click **Footage** in the toolbar. Drop a batch of
+HEVC MOV or MP4 files into the panel or select them with **Import Footage…**. The app copies
+the originals into the local library's `footage/` folder and shows an upright start frame
+and duration for each clip. Reopen **Footage Sessions…** to return to a saved batch.
+Tracking and coaching exports still use the commands below.
+
+### Preview skater tracking
+
+`rink-track-preview` overlays a baseline color-patch tracker on extracted footage. The first CSV
+point for each skater seeds the tracker. Later points are manual checks that never update its
+predictions. Leave both coordinate fields blank to mark a check where the skater is off screen.
+The preview briefly holds each check frame and displays the distance in image pixels.
+
+The following example uses the [IMG_2896 checkpoints](examples/footage/img-2896-tracking.csv).
+Run the extraction in a fresh output directory and supply a local TrueType font to the preview.
+
+```sh
+frames_dir="$(mktemp -d)"
+frame_times=()
+for ((i=0; i<135; i++)); do
+  frame_times+=("$((3000 + (1000*i+7)/15))")
+done
+cargo run --release -p rink-footage -- ~/Documents/Footage/IMG_2896.MOV "$frames_dir" 900 "${frame_times[@]}"
+mkdir -p artifacts/footage
+cargo run --release -p rink-footage --features tracking-preview --bin rink-track-preview -- \
+  "$frames_dir" IMG_2896 3000 12000 15 examples/footage/img-2896-tracking.csv \
+  "/System/Library/Fonts/Supplemental/Arial.ttf" artifacts/footage/img-2896-cv-overlay.mp4
+```
+
+On macOS, use `--auto` to label skaters across a whole clip without supplying manual checkpoints.
+It uses Apple's Vision person detector on the full frame and on overlapping crops of the rink, then
+links detections by motion, overlap and jersey color. IDs start over in each clip and can change
+after a missed detection or an occlusion. Dashed boxes
+show short predictions between detections. The exported MP4 is silent.
+
+```sh
+frames_dir="$(mktemp -d)"
+cargo run --release -p rink-footage -- ~/Documents/Footage/IMG_2900.MOV "$frames_dir" 900 --fps 15
+mkdir -p artifacts/footage/skater-ids
+cargo run --release -p rink-footage --features auto-tracking --bin rink-track-preview -- \
+  --auto "$frames_dir" IMG_2900 15 "/System/Library/Fonts/Supplemental/Arial.ttf" \
+  artifacts/footage/skater-ids/IMG_2900-skater-ids.mp4
+```
+
+For a coaching montage, extract upright source frames at 15 fps into one directory per
+clip stem. Prepare a TSV with the header below and one row per play. Use a source start at a
+whole second and mark the focus player in the JPEG nearest to the play's decision point.
+Each play needs one current positioning suggestion in its adjacent `.review.json`.
+
+```text
+clip	start_ms	play	x1	y1	x2	y2	cue	condition
+```
+
+```sh
+cargo run --release -p rink-footage --features coaching-montage --bin rink-track-preview -- \
+  --montage "$frames_root" "$plays_dir" "$montage_tsv" "$font_path" "$output_mp4"
+```
+
+Supply an optional guides TSV after the output path to draw on the footage and hold additional
+source frames. Coordinates refer to the upright JPEG. Guide kinds are `lane`, `reference`,
+`adjustment`, `spacing`, and `player`. A `hold` row uses its label and detail as the coaching cue
+and leaves the coordinates blank. Multiple rows can share one source timestamp.
+
+```text
+clip	source_ms	kind	x1	y1	x2	y2	label_x	label_y	label	detail
+```
+
+An output directory after the guides file also creates a Coaching Film Room. Open its
+`index.html` locally to play the annotated `footage.mp4` above a full rink drawn from
+rink-analyzer scenes. The timeline and feedback sidebar use the same video clock, including
+freeze frames. Keep the exported files together when moving the room.
 
 ## Position feedback
 
@@ -196,6 +289,80 @@ swamp workflow run deploy-pi
 
 A new DNS name is cached as missing by the tailnet's Pi-hole until the deploy flushes it; a Mac that
 looked the name up before that keeps the stale answer for up to 30 minutes.
+
+### Hosted footage sessions
+
+The [application architecture diagram](docs/footage-application-architecture.svg) follows an
+upload from the Pi through Furulid tracking and reviewed export.
+
+Open [Footage Sessions](https://rink.vilberg.dev/footage/) on the tailnet. The Pi accepts a batch
+of up to 32 H.264 or HEVC MOV or MP4 clips totaling 1 GiB, saves the originals, and decodes an
+upright preview of each clip. The Pi serves the same recent-session list to every browser on the
+tailnet. Uploaded media lives in the service's local state directory. The Pi and Furulid use
+FFmpeg when a clip needs a decoder fallback.
+
+```sh
+scripts/deploy-footage-pi.sh
+```
+
+The Pi hosts uploads, the tracking queue, and the preview player. Every imported clip is queued
+for tracking when `RINK_FOOTAGE_WORKER_TOKEN` is configured. Furulid claims work over the tailnet,
+does person detection on its GPU, and uses the Rust tracker and encoder to return a silent
+annotated MP4 with timestamped track data. Use **Review skater IDs** on the saved clip to play
+the preview. IDs are local to each clip.
+
+In a tracked clip, choose **Pick yourself**, scrub to a clear frame, and tap your skater or
+their ID. Use **Correct track** after an ID switch. The Pi saves your selections with the
+session. With gear data from another confirmed clip, **Suggest match** offers a candidate
+based on helmet, jersey, and sock colors. Confirm it against the footage before saving.
+
+**Open Coaching Film Room** appears when a saved skater selection has a reviewed export.
+The room includes synchronized footage and rink replay, freeze frames, feedback, a single
+montage MP4, and downloadable rink-analyzer plays. Changing the saved selection marks the
+review for rebuilding.
+
+To build a reviewed export, give the Rust renderer the saved track records, the clip's
+selection snapshot, and a recipe with source windows, checked rink landmarks, and coaching
+cues. The renderer solves the camera geometry, projects the selected skater's skates, checks
+the suggested routes, and produces both formats. Publish the generated room with the same
+selection snapshot on the Pi:
+
+```sh
+rink-track-preview --coach-review "$recipe" "$track_data" "$focus_snapshot" "$frames_root" "$font_path" "$new_export"
+sudo rink-footage-web --attach-coaching /var/lib/rink-footage "$session_id" "$clip_id" "$new_export/room" "$focus_snapshot"
+```
+
+For puck tracking, add `puck_seeds` to a recipe window. Each entry supplies the source
+timestamp of an extracted 15 fps frame and the puck center in upright source-image pixels.
+The [sample recipe](examples/footage/img-2914-review.json) marks the puck at 43.000 s and
+again at 43.533 s after it passes a stick. Use the same frame dimensions as the calibration.
+
+The renderer searches near the projected position using local grayscale contrast and
+camera motion. Cyan brackets mark the puck in the footage, and a cyan-rimmed dot shows
+its estimated position on the ice. Tracking stops when the match is weak or ambiguous.
+A later seed starts it again. In the Film Room, **Jump to puck** seeks to the first
+tracked frame in the sequence. **Puck detail** shows a 3× contrast-enhanced crop from
+the source image. The editable play contains the selected skater's route.
+
+Update the worker with `scripts/deploy-footage-worker.sh`. The Pi's `/etc/rink-footage.env` and
+Furulid's `~/.config/rink-footage-worker.env` must both set the same
+`RINK_FOOTAGE_WORKER_TOKEN`. The Furulid user service expects its ONNX Runtime GPU environment
+and model under `~/.local/share/rink-detector`. No LLM is called by this pipeline.
+
+The [YOLOX-S ONNX checkpoint](https://github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0)
+and [ONNX Runtime CUDA provider](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html)
+produce one JSON record of person boxes per upright frame. To run the detector on Furulid with
+the checkpoint saved as `yolox_s.onnx`:
+
+```sh
+cd ~/.local/share/rink-detector
+.venv/bin/python detect-yolox.py yolox_s.onnx frame-000000.jpg frame-000067.jpg
+```
+
+For rink landmarks, `scripts/detect-rink-keypoints.py` runs the
+[HockeyRink checkpoint](https://huggingface.co/SimulaMet-HOST/HockeyRink) exported to ONNX
+at 640 × 640. It reports indexed image landmarks on Furulid. A reviewed camera recipe still
+supplies the rink coordinates and checks which landmarks are usable.
 
 ## Controls
 

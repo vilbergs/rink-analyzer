@@ -1,0 +1,383 @@
+{
+  "clip": "IMG_2914",
+  "image": [
+    850,
+    478
+  ],
+  "windows": [
+    {
+      "start_ms": 1000,
+      "end_ms": 2600,
+      "focus_ms": 1800,
+      "title": "Keep an outside outlet through the neutral zone",
+      "cue": "Carry speed through the outside lane.",
+      "condition": "Hold the outside lane when the middle is occupied. Look inside before you change lanes.",
+      "feedback": [
+        "You skate through the neutral zone on the camera side with your stick on the ice. The black jerseys along the far boards already occupy that side, so you give the group another lane.",
+        "As you pass center, keep the next push underneath you and check inside without steering toward the far-side group. The angle is from the stands and the puck is hard to follow.",
+        "Aim one stride farther toward the camera-side lane if that ice is clear. Keep your blade in front and preserve your speed. Stay on your current line if the outside lane is occupied."
+      ],
+      "adjustment_m": [
+        -0.7,
+        -1.3
+      ],
+      "arrow_label": "HOLD THE OUTSIDE LANE",
+      "reference": [
+        0.0,
+        -9.5,
+        1.5
+      ],
+      "calibration": [
+        {
+          "source_ms": 1000,
+          "points": [
+            [
+              -7.14,
+              15,
+              140,
+              214
+            ],
+            [
+              0,
+              15,
+              281,
+              202
+            ],
+            [
+              7.14,
+              15,
+              425,
+              195
+            ],
+            [
+              5.64,
+              -7,
+              647,
+              333
+            ]
+          ],
+          "lines": [
+            [
+              0,
+              281,
+              202,
+              423,
+              477
+            ],
+            [
+              7.14,
+              425,
+              195,
+              849,
+              381
+            ]
+          ]
+        },
+        {
+          "source_ms": 1800,
+          "points": [
+            [
+              -7.14,
+              15,
+              270,
+              201
+            ],
+            [
+              0,
+              15,
+              420,
+              193
+            ],
+            [
+              7.14,
+              15,
+              585,
+              186
+            ],
+            [
+              -5.64,
+              -7,
+              199,
+              374
+            ],
+            [
+              5.64,
+              -7,
+              811,
+              334
+            ]
+          ],
+          "lines": [
+            [
+              -7.14,
+              270,
+              201,
+              28,
+              477
+            ],
+            [
+              0,
+              420,
+              193,
+              580,
+              477
+            ],
+            [
+              7.14,
+              585,
+              186,
+              849,
+              295
+            ]
+          ]
+        },
+        {
+          "source_ms": 2600,
+          "points": [
+            [
+              -7.14,
+              15,
+              425,
+              188
+            ],
+            [
+              0,
+              15,
+              584,
+              184
+            ],
+            [
+              7.14,
+              15,
+              758,
+              179
+            ],
+            [
+              -5.64,
+              -7,
+              359,
+              351
+            ]
+          ],
+          "lines": [
+            [
+              -7.14,
+              425,
+              188,
+              149,
+              477
+            ],
+            [
+              0,
+              584,
+              184,
+              736,
+              477
+            ],
+            [
+              7.14,
+              758,
+              179,
+              849,
+              219
+            ]
+          ]
+        }
+      ],
+      "reference_text": "Blue dashes mark the center red line, a fixed reference for the camera angle.",
+      "heads_right": false
+    },
+    {
+      "start_ms": 43000,
+      "end_ms": 45000,
+      "focus_ms": 44000,
+      "title": "Show an option outside the traffic",
+      "cue": "Take one stride into the clear lane.",
+      "condition": "Use that lane only when the play is moving right and the space outside you is available.",
+      "feedback": [
+        "You get your feet moving as the group heads right. Your stick is down and your route keeps you close enough to support the play.",
+        "At the freeze frame the orange skater is just ahead and inside your lane. A small move toward the camera side would open more space for your next push and give the puck carrier a different angle.",
+        "Scan outside before the next stride. If that space is open, move one stride right and slightly toward the camera-side boards. If your team is defending or the lane is occupied, keep the inside option."
+      ],
+      "adjustment_m": [
+        1.0,
+        -1.5
+      ],
+      "arrow_label": "ONE STRIDE OUTSIDE",
+      "reference": [
+        0.0,
+        -8.0,
+        2.0
+      ],
+      "calibration": [
+        {
+          "source_ms": 43000,
+          "points": [
+            [
+              -7.14,
+              15,
+              438,
+              174
+            ],
+            [
+              0,
+              15,
+              615,
+              181
+            ],
+            [
+              7.14,
+              15,
+              788,
+              188
+            ],
+            [
+              -5.64,
+              -7,
+              359,
+              338
+            ]
+          ],
+          "lines": [
+            [
+              -7.14,
+              438,
+              174,
+              146,
+              477
+            ],
+            [
+              0,
+              615,
+              181,
+              762,
+              477
+            ]
+          ]
+        },
+        {
+          "source_ms": 44000,
+          "points": [
+            [
+              -7.14,
+              15,
+              354,
+              185
+            ],
+            [
+              0,
+              15,
+              538,
+              185
+            ],
+            [
+              7.14,
+              15,
+              718,
+              185
+            ],
+            [
+              -5.64,
+              -7,
+              313,
+              350
+            ]
+          ],
+          "lines": [
+            [
+              -7.14,
+              354,
+              185,
+              99,
+              477
+            ],
+            [
+              0,
+              538,
+              185,
+              675,
+              477
+            ],
+            [
+              7.14,
+              718,
+              185,
+              849,
+              270
+            ]
+          ]
+        },
+        {
+          "source_ms": 45000,
+          "points": [
+            [
+              -7.14,
+              15,
+              213,
+              187
+            ],
+            [
+              0,
+              15,
+              384,
+              186
+            ],
+            [
+              7.14,
+              15,
+              540,
+              184
+            ],
+            [
+              -5.64,
+              -7,
+              145,
+              365
+            ]
+          ],
+          "lines": [
+            [
+              -7.14,
+              213,
+              187,
+              0,
+              425
+            ],
+            [
+              0,
+              384,
+              186,
+              536,
+              477
+            ],
+            [
+              7.14,
+              540,
+              184,
+              849,
+              350
+            ]
+          ]
+        }
+      ],
+      "reference_text": "Blue dashes mark the center red line, a fixed reference for the camera angle.",
+      "heads_right": true,
+      "puck_seeds": [
+        {
+          "source_ms": 43000,
+          "xy": [
+            525,
+            193
+          ]
+        },
+        {
+          "source_ms": 43533,
+          "xy": [
+            592,
+            193
+          ]
+        }
+      ]
+    }
+  ]
+}

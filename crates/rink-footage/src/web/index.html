@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Footage Sessions · Rink Replay</title>
+<link rel="stylesheet" href="/footage/import.css">
+<script src="/footage/identity.js" defer></script>
+<script src="/footage/import.js" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <a href="/">Rink Replay</a>
+    <h1>Footage Sessions</h1>
+  </header>
+  <div class="layout">
+    <div>
+      <form id="import">
+        <div id="drop">
+          <h2>Import footage</h2>
+          <p>Choose videos from Photos or Files, or drop MOV and MP4 clips here.</p>
+          <label for="files">Choose clips</label>
+          <input id="files" type="file" multiple accept="video/*,.mov,.mp4">
+        </div>
+        <ul id="selected" hidden></ul>
+        <div class="actions">
+          <button id="submit" type="submit" disabled>Import session</button>
+          <span>Up to 32 clips and 1 GiB per batch</span>
+        </div>
+        <progress id="progress" max="100" hidden aria-label="Upload progress"></progress>
+        <p id="status" role="status"></p>
+        <ul id="failures" hidden></ul>
+      </form>
+      <section id="session" aria-labelledby="session-title" hidden>
+        <header>
+          <div>
+            <h2 id="session-title">Saved session</h2>
+            <p id="session-detail"></p>
+          </div>
+          <button id="delete" type="button">Delete session</button>
+        </header>
+        <div id="clips"></div>
+        <section id="tracking-review" hidden aria-labelledby="tracking-title">
+          <h3 id="tracking-title"></h3>
+          <div id="tracking-stage">
+            <video id="tracking-video" controls playsinline preload="metadata"></video>
+            <canvas id="skater-overlay" aria-hidden="true"></canvas>
+          </div>
+          <div id="skater-editor">
+            <h4>Your skater</h4>
+            <p id="skater-status" role="status"></p>
+            <div class="skater-actions">
+              <button id="pick-skater" type="button" disabled>Pick yourself</button>
+              <button id="suggest-skater" type="button" hidden>Suggest match</button>
+              <button id="clear-skater" type="button" hidden>Remove this selection</button>
+            </div>
+            <div id="skater-picking" hidden>
+              <label for="skater-frame">Frame</label>
+              <input id="skater-frame" type="range" min="0" step="1" value="0" aria-label="Frame for skater selection">
+              <output id="skater-time" for="skater-frame"></output>
+              <div id="skater-candidates" class="skater-actions" aria-label="Detected skaters in this frame"></div>
+            </div>
+            <div id="skater-anchors" class="skater-actions" aria-label="Saved skater selections"></div>
+            <div id="coaching-step" hidden>
+              <a id="coaching-room" hidden>Open Coaching Film Room</a>
+              <p id="coaching-state" role="status"></p>
+            </div>
+          </div>
+          <p>Skater IDs are local to each clip. Dashed boxes are predictions.</p>
+          <a id="tracking-data" download="tracks.ndjson">Download track data</a>
+        </section>
+      </section>
+    </div>
+    <aside aria-labelledby="recent-title">
+      <h2 id="recent-title">Recent sessions</h2>
+      <p id="empty" role="status">Loading recent sessions…</p>
+      <ul id="recent"></ul>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

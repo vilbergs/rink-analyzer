@@ -10,6 +10,7 @@ use gpui::{
     MenuItem, PromptLevel, SharedString, SystemMenuType, Task, Window,
 };
 
+use crate::footage::FootageView;
 use crate::inspector::InspectorView;
 use crate::library::{self, Entry, TEMPLATES};
 use crate::rink_canvas::RinkCanvas;
@@ -47,6 +48,7 @@ actions!(
         JumpStart,
         JumpEnd,
         OpenLibrary,
+        OpenFootage,
         PickerUp,
         PickerDown,
         PickerConfirm,
@@ -71,6 +73,7 @@ actions!(
 );
 
 const CONTEXT: &str = "Workspace";
+const FOOTAGE_CONTEXT: &str = "FootageSessions";
 /// How far Alt-arrow moves the selected player, in meters.
 const NUDGE_M: f32 = 0.5;
 const FRAME: Duration = Duration::from_millis(16);
@@ -113,6 +116,10 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-right", JumpEnd, Some(CONTEXT)),
         KeyBinding::new("cmd-o", OpenLibrary, Some(CONTEXT)),
         KeyBinding::new("ctrl-o", OpenLibrary, Some(CONTEXT)),
+        KeyBinding::new("cmd-shift-o", OpenFootage, Some(CONTEXT)),
+        KeyBinding::new("cmd-o", OpenLibrary, Some(FOOTAGE_CONTEXT)),
+        KeyBinding::new("cmd-shift-o", OpenFootage, Some(FOOTAGE_CONTEXT)),
+        KeyBinding::new("escape", CloseDialog, Some(FOOTAGE_CONTEXT)),
         KeyBinding::new("up", PickerUp, Some(CONTEXT)),
         KeyBinding::new("down", PickerDown, Some(CONTEXT)),
         KeyBinding::new("enter", PickerConfirm, Some(CONTEXT)),
@@ -171,7 +178,11 @@ pub fn menus() -> Vec<Menu> {
         },
         Menu {
             name: "File".into(),
-            items: vec![MenuItem::action("Open Play…", OpenLibrary), MenuItem::action("Save", Save)],
+            items: vec![
+                MenuItem::action("Open Play…", OpenLibrary),
+                MenuItem::action("Footage Sessions…", OpenFootage),
+                MenuItem::action("Save", Save),
+            ],
         },
         Menu {
             name: "Edit".into(),
@@ -240,6 +251,8 @@ pub struct Workspace {
     published: Option<AppState>,
     /// The open play picker, if it's showing.
     picker: Option<Picker>,
+    footage: Entity<FootageView>,
+    show_footage: bool,
     /// The keyboard shortcut sheet is showing.
     show_shortcuts: bool,
     /// The inspector panel is showing; hidden, the rink takes its width.
@@ -290,6 +303,8 @@ impl Workspace {
             last_request_ms: started,
             published: None,
             picker: None,
+            footage: cx.new(|_| FootageView::new(io::library_dir().join("footage"))),
+            show_footage: false,
             show_shortcuts: false,
             show_inspector: true,
         }
@@ -369,6 +384,7 @@ impl Workspace {
 
     fn open_library(&mut self, _: &OpenLibrary, _: &mut Window, cx: &mut Context<Self>) {
         self.show_shortcuts = false;
+        self.show_footage = false;
         if self.picker.take().is_none() {
             let entries = library::scan(&io::library_dir());
             let current = self.state.read(cx).path.clone();
@@ -378,8 +394,19 @@ impl Workspace {
         cx.notify();
     }
 
+    fn open_footage(&mut self, _: &OpenFootage, _: &mut Window, cx: &mut Context<Self>) {
+        self.picker = None;
+        self.show_shortcuts = false;
+        self.show_footage = true;
+        self.footage.update(cx, |view, cx| view.refresh(cx));
+        cx.notify();
+    }
+
     fn close_dialog(&mut self, _: &CloseDialog, _: &mut Window, cx: &mut Context<Self>) {
-        if self.picker.take().is_some() || std::mem::take(&mut self.show_shortcuts) {
+        let picker = self.picker.take().is_some();
+        let shortcuts = std::mem::take(&mut self.show_shortcuts);
+        let footage = std::mem::take(&mut self.show_footage);
+        if picker || shortcuts || footage {
             cx.notify();
         }
     }
@@ -387,6 +414,7 @@ impl Workspace {
     fn toggle_shortcuts(&mut self, _: &ToggleShortcuts, _: &mut Window, cx: &mut Context<Self>) {
         self.show_shortcuts = !self.show_shortcuts;
         self.picker = None;
+        self.show_footage = false;
         cx.notify();
     }
 
@@ -480,6 +508,7 @@ impl Workspace {
             .on_click(cx.listener(|ws, _, _, cx| {
                 ws.picker = None;
                 ws.show_shortcuts = false;
+                ws.show_footage = false;
                 cx.notify();
             }))
             .child(panel.id("dialog").on_click(|_, _, cx| cx.stop_propagation()));
@@ -1035,8 +1064,9 @@ impl Render for Workspace {
         let banner = self.banner(cx);
         let picker = self.picker_overlay(cx).map(IntoElement::into_any_element);
         let shortcuts = self.show_shortcuts.then(|| self.dialog(shortcuts::sheet(), cx).into_any_element());
+        let footage = self.show_footage.then(|| self.dialog(div().child(self.footage.clone()), cx).into_any_element());
         div()
-            .key_context(CONTEXT)
+            .key_context(if self.show_footage { FOOTAGE_CONTEXT } else { CONTEXT })
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::toggle_play))
             .on_action(cx.listener(Self::step_forward))
@@ -1058,6 +1088,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::jump_start))
             .on_action(cx.listener(Self::jump_end))
             .on_action(cx.listener(Self::open_library))
+            .on_action(cx.listener(Self::open_footage))
             .on_action(cx.listener(Self::close_dialog))
             .on_action(cx.listener(Self::toggle_shortcuts))
             .on_action(cx.listener(Self::add_decision_point))
@@ -1118,6 +1149,7 @@ impl Render for Workspace {
             .child(self.timeline.clone())
             .children(picker)
             .children(shortcuts)
+            .children(footage)
     }
 }
 
@@ -1321,6 +1353,10 @@ mod tests {
         assert!(cx.update(|_, cx| ws.read(cx).show_shortcuts));
         cx.simulate_keystrokes("escape");
         assert!(!cx.update(|_, cx| ws.read(cx).show_shortcuts));
+        cx.simulate_keystrokes("cmd-shift-o");
+        assert!(cx.update(|_, cx| ws.read(cx).show_footage));
+        cx.simulate_keystrokes("escape");
+        assert!(!cx.update(|_, cx| ws.read(cx).show_footage));
     }
 
     #[gpui::test]

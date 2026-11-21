@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coaching Film Room</title>
+<link rel="stylesheet" href="coaching.css">
+<script src="timeline.js" defer></script>
+<script src="feedback.js" defer></script>
+<script src="coaching.js" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Coaching Film Room</h1>
+    <nav id="sequences" aria-label="Coaching sequences"></nav>
+    <nav id="exports" aria-label="Download the review" hidden></nav>
+  </header>
+  <div class="room">
+    <section class="replay" aria-label="Synchronized replay">
+      <figure class="footage-view">
+        <figcaption><strong>Footage</strong><span id="source"></span></figcaption>
+        <video id="footage" src="footage.mp4" muted playsinline preload="auto" aria-label="Annotated hockey footage"></video>
+      </figure>
+      <figure class="rink-view">
+        <figcaption><strong>Rink replay</strong><span>Camera-side boards at bottom</span></figcaption>
+        <canvas id="rink" role="img" aria-label="Full rink replay synchronized with footage"></canvas>
+      </figure>
+      <p id="error" hidden>Could not load this replay. Open the page from the folder containing its footage and timeline files.</p>
+    </section>
+    <div class="review-column">
+      <section class="timeline" aria-labelledby="timeline-title">
+        <div class="transport">
+          <button id="play" type="button" aria-controls="footage rink" aria-keyshortcuts="Space" title="Play or pause (Space)">Play</button>
+          <h2 id="timeline-title">Timeline</h2>
+          <output id="clock" for="scrub"></output>
+          <label class="speed">Speed
+            <select id="speed">
+              <option value=".5">0.5×</option>
+              <option value=".75">0.75×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.5">1.5×</option>
+            </select>
+          </label>
+        </div>
+        <div class="lanes" id="lanes">
+          <span></span><div id="ruler" class="track"></div>
+          <span>Events</span><div id="events" class="track" aria-label="Events and captions"></div>
+          <span>Feedback</span><div id="feedback-lane" class="track" aria-label="Coaching feedback markers"></div>
+          <span>You</span><div id="keys" class="track" aria-label="Your position keyframes"></div>
+          <div class="playhead-track" aria-hidden="true"><div id="playhead"></div></div>
+          <span></span><input id="scrub" type="range" min="0" step="1" aria-label="Scrub rink-analyzer timeline">
+        </div>
+        <p id="caption"></p>
+      </section>
+      <aside aria-labelledby="feedback-title">
+        <div class="feedback">
+          <h2 id="feedback-title">Feedback</h2>
+          <div id="moments" aria-label="Freeze frames in this sequence"></div>
+          <div id="review" aria-live="polite"></div>
+          <section id="puck-panel" hidden aria-label="Puck tracking">
+            <canvas id="puck-detail" width="40" height="24" role="img" aria-label="Magnified black and white source pixels around the puck"></canvas>
+            <div><strong>Puck detail</strong>
+              <p id="puck-status"></p>
+              <button type="button" id="find-puck">Jump to puck</button>
+            </div>
+          </section>
+          <details class="legend">
+            <summary>Annotation legend</summary>
+            <ul id="legend"></ul>
+          </details>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+</body>
+</html>

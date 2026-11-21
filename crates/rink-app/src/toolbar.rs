@@ -9,7 +9,9 @@ use gpui::{
 
 use crate::state::PlayState;
 use crate::theme::{self, button, primary_button};
-use crate::workspace::{FlipEnds, OpenLibrary, Redo, ResetZoom, Save, ToggleGhosts, ToggleInspector, Undo, Workspace};
+use crate::workspace::{
+    FlipEnds, OpenFootage, OpenLibrary, Redo, ResetZoom, Save, ToggleGhosts, ToggleInspector, Undo, Workspace,
+};
 
 pub struct ToolbarView {
     state: Entity<PlayState>,
@@ -137,6 +139,7 @@ impl Render for ToolbarView {
                     .child(button("flip", "Flip ends", s.flipped).on_click(dispatch(FlipEnds)))
                     .child(button("fit", "Fit rink", false).on_click(dispatch(ResetZoom)))
                     .child(button("inspector", "Inspector", inspector_shown).on_click(dispatch(ToggleInspector)))
+                    .child(button("footage", "Footage", false).on_click(dispatch(OpenFootage)))
                     .child(primary_button("save", "Save").on_click(dispatch(Save))),
             )
     }

@@ -1,0 +1,47 @@
+[package]
+name = "rink-footage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Extract timestamped reference frames for manually tracing hockey footage."
+default-run = "rink-footage"
+
+[dependencies]
+anyhow.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+mp4 = "0.14"
+rust_h265 = "0.4.1"
+serde.workspace = true
+serde_json.workspace = true
+tempfile = "3"
+uuid.workspace = true
+ab_glyph = { version = "0.2", optional = true }
+rusty_h264-common = { version = "0.16.1", optional = true }
+rusty_h264-encoder = { version = "0.16.1", optional = true }
+rink-core = { workspace = true, optional = true }
+tiny-skia = { version = "0.12", optional = true }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "multipart", "tokio"], optional = true }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync"], optional = true }
+tokio-util = { version = "0.7", features = ["io"], optional = true }
+http-body-util = { version = "0.1", optional = true }
+
+[features]
+tracking-preview = ["dep:ab_glyph", "dep:rusty_h264-common", "dep:rusty_h264-encoder"]
+auto-tracking = ["tracking-preview", "dep:objc2", "dep:objc2-foundation", "dep:objc2-vision"]
+coaching-montage = ["tracking-preview", "dep:rink-core", "dep:tiny-skia"]
+web-import = ["dep:axum", "dep:tokio", "dep:tokio-util", "dep:http-body-util"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", optional = true }
+objc2-foundation = { version = "0.3", optional = true, default-features = false, features = ["std", "NSArray", "NSData", "NSDictionary", "NSError", "NSString", "NSURL"] }
+objc2-vision = { version = "0.3", optional = true, default-features = false, features = ["std", "VNDetectHumanRectanglesRequest", "VNObservation", "VNRequest", "VNRequestHandler", "VNTypes", "objc2-core-foundation"] }
+
+[[bin]]
+name = "rink-track-preview"
+path = "src/annotate/main.rs"
+required-features = ["tracking-preview"]
+
+[[bin]]
+name = "rink-footage-web"
+path = "src/web/main.rs"
+required-features = ["web-import"]

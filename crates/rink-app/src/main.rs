@@ -8,6 +8,7 @@
 //! `rink_core::session::parse_open_url`).
 
 mod activation;
+mod footage;
 mod inspector;
 mod library;
 mod paint;

@@ -304,12 +304,30 @@ impl Builder<'_> {
 pub fn build(frame: &Frame<'_>, t: &RinkTransform) -> Scene {
     let mut b = Builder { t, shapes: Vec::new() };
     rink(&mut b, &frame.play.rink);
-    suggestion_zones(&mut b, frame.play, frame.ghosts);
-    orders(&mut b, frame);
-    entities(&mut b, frame);
-    ghosts(&mut b, frame.play, frame.snapshot, frame.ghosts);
-    marks(&mut b, frame.marks);
+    play_layer(&mut b, frame);
     Scene { shapes: b.shapes }
+}
+
+/// The boards and markings, which stay fixed while a replay advances.
+pub fn build_rink(spec: &RinkSpec, t: &RinkTransform) -> Scene {
+    let mut b = Builder { t, shapes: Vec::new() };
+    rink(&mut b, spec);
+    Scene { shapes: b.shapes }
+}
+
+/// The moving parts of a replay, drawn over a scene from [build_rink].
+pub fn build_play_layer(frame: &Frame<'_>, t: &RinkTransform) -> Scene {
+    let mut b = Builder { t, shapes: Vec::new() };
+    play_layer(&mut b, frame);
+    Scene { shapes: b.shapes }
+}
+
+fn play_layer(b: &mut Builder<'_>, frame: &Frame<'_>) {
+    suggestion_zones(b, frame.play, frame.ghosts);
+    orders(b, frame);
+    entities(b, frame);
+    ghosts(b, frame.play, frame.snapshot, frame.ghosts);
+    marks(b, frame.marks);
 }
 
 fn rink(b: &mut Builder<'_>, rink: &RinkSpec) {
@@ -444,15 +462,15 @@ fn entities(b: &mut Builder<'_>, frame: &Frame<'_>) {
         b.text(state.pos, entity.mark(), size, WHITE);
     }
 
-    if play.puck().is_some_and(|p| hidden.contains(&p.id)) {
+    let Some(puck_entity) = play.puck().filter(|p| !hidden.contains(&p.id)) else {
         return;
-    }
+    };
     let scale = b.t.scale();
     let puck_r = PUCK_RADIUS_M.max(3.5 / scale);
     let puck = puck_draw_pos(play, snapshot);
     b.fill(&circle(puck, puck_r + 1.5 / scale), WHITE);
     b.fill(&circle(puck, puck_r), PUCK);
-    if selected.is_some_and(|id| play.entity(id).is_some_and(|e| e.is_puck())) {
+    if selected == Some(&puck_entity.id) {
         b.stroke(&circle(puck, puck_r + 0.4), true, 2.0, SELECTED_RING);
     }
 }
@@ -638,6 +656,32 @@ mod tests {
         let me_at = t.to_screen(snap.entity(&me.id).unwrap().pos);
         assert!(labels.iter().all(|at| at.distance(me_at) > 1.0), "no label on the hidden player");
         assert!(!scene.shapes.iter().any(|s| matches!(s, Shape::Stroke { color, .. } if *color == opaque(ME_RING))));
+    }
+
+    #[test]
+    fn a_play_without_a_puck_entity_does_not_draw_one() {
+        let mut play = template(Template::Breakout, RinkSpec::iihf());
+        let t =
+            RinkTransform::fit(&play.rink, &Viewport::new(Vec2::ZERO, Vec2::new(1248.0, 648.0)), ViewZoom::default());
+        let puck_drawn = |play: &Play| {
+            let snapshot = sample(play, 0);
+            let frame = Frame {
+                play,
+                snapshot: &snapshot,
+                playhead_ms: 0,
+                selected: None,
+                ghosts: &[],
+                hidden: &[],
+                marks: &[],
+            };
+            build(&frame, &t)
+                .shapes
+                .iter()
+                .any(|shape| matches!(shape, Shape::Fill { color, .. } if *color == opaque(PUCK)))
+        };
+        assert!(puck_drawn(&play));
+        play.entities.retain(|entity| !entity.is_puck());
+        assert!(!puck_drawn(&play));
     }
 
     #[test]

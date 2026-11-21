@@ -1,0 +1,21 @@
+[Unit]
+Description=Rink Replay footage importer
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/rink-footage-web
+Environment=RINK_FOOTAGE_DIR=/var/lib/rink-footage
+Environment=RINK_FOOTAGE_ORIGIN=https://rink.vilberg.dev
+EnvironmentFile=-/etc/rink-footage.env
+DynamicUser=yes
+StateDirectory=rink-footage
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

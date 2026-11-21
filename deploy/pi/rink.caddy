@@ -13,5 +13,7 @@ rink.vilberg.dev {
 	@entry path / /index.html /sw.js /registerSW.js /manifest.webmanifest
 	header @entry Cache-Control "no-cache"
 	header /manifest.webmanifest Content-Type application/manifest+json
+	redir /footage /footage/ 308
+	reverse_proxy /footage/* 127.0.0.1:8794
 	file_server
 }

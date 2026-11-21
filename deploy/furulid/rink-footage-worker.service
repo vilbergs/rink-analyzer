@@ -1,0 +1,16 @@
+[Unit]
+Description=Rink Replay GPU footage worker
+
+[Service]
+WorkingDirectory=%h/.local/share/rink-detector
+Environment=RINK_FOOTAGE_API=https://rink.vilberg.dev
+Environment=RINK_FOOTAGE_FONT=/usr/share/fonts/noto/NotoSans-Regular.ttf
+EnvironmentFile=%h/.config/rink-footage-worker.env
+ExecStart=%h/.local/share/rink-detector/.venv/bin/python %h/.local/share/rink-detector/footage-worker.py
+UMask=0077
+NoNewPrivileges=yes
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

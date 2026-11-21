@@ -24,6 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        navigateFallbackDenylist: [/^\/footage(?:\/|$)/],
         globPatterns: ["**/*.{js,css,html,wasm,png}"],
         globIgnores: ["curriculum/**", "plays/**"],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
