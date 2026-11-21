@@ -266,7 +266,8 @@ to `curriculum/` and `web/public/plays` to `examples/`; both are served as stati
   target zones with the facts for your tap and the target, and a contrast flips between the play and its
   wrong variant with the playhead kept. The result shows the cue and the graded steps below 2.
 - Progress (append-only attempts, studied lessons) lives in IndexedDB behind a `ProgressStore` interface.
-- `#/footage` opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
+- **Footage Sessions** opens the hosted importer at `/footage/`. The earlier `#/footage` link also opens it.
+- **Local video notes** (`#/local-notes`) opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
   Click a timestamp to pause on it, or choose **Play lead-in** to watch from five seconds earlier.
   **Undo** restores the most recently removed moment. Reopen the same file in this browser
   to resume at your last position with your notes, or use **Export notes**

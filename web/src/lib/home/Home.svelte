@@ -38,7 +38,7 @@
 
 <main class="home">
   <header>
-    <a href="#/footage">Footage review</a>
+    <a href="/footage/">Footage Sessions</a>
     <a href="#/viewer">Play viewer</a>
   </header>
   <div class="app">
@@ -106,6 +106,7 @@
     <p class="status">Loading…</p>
   {/if}
   <footer>
+    <a class="link" href="#/local-notes">Local video notes</a>
     <button class="link" onclick={exportProgress}>Export progress</button>
     <p>Progress is kept in this browser.</p>
   </footer>
