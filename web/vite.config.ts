@@ -5,6 +5,9 @@ import { VitePWA } from "vite-plugin-pwa";
 const BACKGROUND = "#0f1115";
 
 export default defineConfig({
+  server: {
+    proxy: { "^/footage(?:/|\\?|$)": "http://127.0.0.1:8794" },
+  },
   plugins: [
     svelte(),
     VitePWA({

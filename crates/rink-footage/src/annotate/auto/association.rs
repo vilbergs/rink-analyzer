@@ -43,6 +43,7 @@ impl Bounds {
 pub struct Detection {
     pub bounds: Bounds,
     jersey: [f32; 3],
+    gear: Option<[[f32; 5]; 3]>,
 }
 
 impl Detection {
@@ -67,7 +68,9 @@ impl Detection {
                 jersey[bin] += 1.0 / 16.0;
             }
         }
-        Self { bounds, jersey }
+        let gear = (bounds.h >= 30.0 && bounds.w >= 12.0)
+            .then(|| super::gear(image, bounds).map(|zone| zone.map(|n| f32::from(n) / 20.)));
+        Self { bounds, jersey, gear }
     }
 }
 
@@ -77,6 +80,7 @@ pub struct Track {
     pub age_since_match: u32,
     hits: u32,
     jersey: [f32; 3],
+    gear: Option<[[f32; 5]; 3]>,
     velocity: [f32; 2],
 }
 
@@ -88,7 +92,15 @@ impl Track {
         let scale = predicted.h.max(detection.bounds.h);
         let distance = (x - nx).hypot(y - ny) / scale;
         let size = (predicted.h / detection.bounds.h).ln().abs();
-        let appearance: f32 = self.jersey.iter().zip(detection.jersey).map(|(a, b)| (a - b).abs()).sum();
+        let appearance: f32 = match (self.gear, detection.gear) {
+            (Some(previous), Some(current)) => previous
+                .iter()
+                .zip(current)
+                .zip([0.4, 0.4, 0.2])
+                .map(|((a, b), weight)| a.iter().zip(b).map(|(x, y)| (x - y).abs()).sum::<f32>() * weight)
+                .sum(),
+            _ => self.jersey.iter().zip(detection.jersey).map(|(a, b)| (a - b).abs()).sum(),
+        };
         let cost = distance
             + 0.30 * (1.0 - predicted.iou(detection.bounds))
             + 0.42 * appearance
@@ -108,6 +120,14 @@ impl Track {
             *old = *old * 0.80 + new * 0.20;
         }
         self.age_since_match = 0;
+        if let Some(gear) = detection.gear {
+            let previous = self.gear.get_or_insert(gear);
+            for (zone, sample) in previous.iter_mut().zip(gear) {
+                for (old, new) in zone.iter_mut().zip(sample) {
+                    *old = *old * 0.8 + new * 0.2;
+                }
+            }
+        }
         self.hits += 1;
         self.bounds = detection.bounds;
     }
@@ -126,26 +146,14 @@ pub struct Tracks {
 impl Tracks {
     pub fn advance(&mut self, mut detections: Vec<Detection>) {
         detections.sort_by(|a, b| a.bounds.x.total_cmp(&b.bounds.x));
-        let mut candidates = Vec::new();
-        for (track_index, track) in self.active.iter().enumerate() {
-            for (detection_index, detection) in detections.iter().enumerate() {
-                if let Some(cost) = track.cost(*detection) {
-                    candidates.push((cost, track_index, detection_index));
-                }
-            }
-        }
-        candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let mut assigned_tracks = vec![false; self.active.len()];
         let mut assigned_detections = vec![false; detections.len()];
-        for (_, track, detection) in candidates {
-            if !assigned_tracks[track] && !assigned_detections[detection] {
-                self.active[track].update(detections[detection]);
-                assigned_tracks[track] = true;
-                assigned_detections[detection] = true;
-            }
-        }
-        for (track, matched) in self.active.iter_mut().zip(assigned_tracks) {
-            if !matched {
+        let costs =
+            self.active.iter().map(|track| detections.iter().map(|d| track.cost(*d)).collect()).collect::<Vec<_>>();
+        for (track, matched) in self.active.iter_mut().zip(assign(&costs)) {
+            if let Some(index) = matched {
+                track.update(detections[index]);
+                assigned_detections[index] = true;
+            } else {
                 track.age_since_match += 1;
             }
         }
@@ -159,6 +167,7 @@ impl Tracks {
                     age_since_match: 0,
                     hits: 1,
                     jersey: detection.jersey,
+                    gear: detection.gear,
                     velocity: [0.0; 2],
                 });
             }
@@ -170,12 +179,102 @@ impl Tracks {
     }
 }
 
+/// Minimum-cost bipartite assignment (Hungarian algorithm). Extra columns let
+/// each track miss a frame without consuming another skater's detection.
+fn assign(costs: &[Vec<Option<f32>>]) -> Vec<Option<usize>> {
+    let tracks = costs.len();
+    let detections = costs.first().map_or(0, Vec::len);
+    if detections == 0 {
+        return vec![None; tracks];
+    }
+    let columns = detections + tracks;
+    let mut track_price = vec![0.; tracks + 1];
+    let mut column_price = vec![0.; columns + 1];
+    let mut owner = vec![0; columns + 1];
+    let mut parent = vec![0; columns + 1];
+    for track in 1..=tracks {
+        owner[0] = track;
+        let mut col = 0;
+        let mut distance = vec![f64::INFINITY; columns + 1];
+        let mut visited = vec![false; columns + 1];
+        loop {
+            visited[col] = true;
+            let row = owner[col];
+            let mut next = 0;
+            for j in 1..=columns {
+                if visited[j] {
+                    continue;
+                }
+                let cost = if j > detections { 1.31 } else { f64::from(costs[row - 1][j - 1].unwrap_or(100.)) };
+                let reduced = cost - track_price[row] - column_price[j];
+                if reduced < distance[j] {
+                    distance[j] = reduced;
+                    parent[j] = col;
+                }
+                if distance[j] < distance[next] {
+                    next = j;
+                }
+            }
+            let delta = distance[next];
+            for j in 0..=columns {
+                if visited[j] {
+                    track_price[owner[j]] += delta;
+                    column_price[j] -= delta;
+                } else {
+                    distance[j] -= delta;
+                }
+            }
+            col = next;
+            if owner[col] == 0 {
+                break;
+            }
+        }
+        while col != 0 {
+            let prev = parent[col];
+            owner[col] = owner[prev];
+            col = prev;
+        }
+    }
+    let mut matches = vec![None; tracks];
+    for (col, &track) in owner.iter().enumerate().take(detections + 1).skip(1) {
+        if track != 0 {
+            matches[track - 1] = Some(col - 1);
+        }
+    }
+    matches
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn detection(x: f32, jersey: [f32; 3]) -> Detection {
-        Detection { bounds: Bounds { x, y: 50.0, w: 20.0, h: 40.0 }, jersey }
+        Detection { bounds: Bounds { x, y: 50.0, w: 20.0, h: 40.0 }, jersey, gear: None }
+    }
+
+    #[test]
+    fn crossing_tracks_share_the_available_detections() {
+        let costs = [vec![Some(0.10), Some(0.15)], vec![Some(0.12), None]];
+        assert_eq!(assign(&costs), [Some(1), Some(0)]);
+        assert_eq!(assign(&[vec![None], vec![None]]), [None, None]);
+    }
+
+    #[test]
+    fn gear_distinguishes_matching_jerseys_as_players_cross() {
+        let skater = |x, helmet| {
+            let mut player = detection(x, [0., 1., 0.]);
+            let mut profile = [[0.; 5]; 3];
+            profile[0][helmet] = 1.;
+            profile[1][2] = 1.;
+            profile[2][helmet] = 1.;
+            player.gear = Some(profile);
+            player
+        };
+        let mut tracks = Tracks::default();
+        tracks.advance(vec![skater(10., 2), skater(18., 3)]);
+        tracks.advance(vec![skater(16., 2), skater(12., 3)]);
+        let positions = tracks.visible().map(|t| (t.id, t.bounds.x)).collect::<Vec<_>>();
+        assert_eq!(positions, [(1, 16.), (2, 12.)]);
     }
 
     #[test]

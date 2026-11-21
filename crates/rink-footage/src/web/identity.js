@@ -8,7 +8,24 @@
   const pick = element('pick-skater');
   const clear = element('clear-skater');
   const suggest = element('suggest-skater');
+  const subject = element('study-player');
+  const partner = element('study-partner');
+  const ranges = element('study-ranges');
+  const alias = element('study-name');
   let review;
+
+  function showInspector(study) {
+    element('player-study').hidden = !study;
+    element('self-panel').hidden = study;
+    element('show-study').setAttribute('aria-pressed', String(study));
+    element('show-self').setAttribute('aria-pressed', String(!study));
+    if (review?.players) {
+      review.picking = review.studyPicking = false;
+      repaint(review);
+    }
+  }
+  element('show-study').addEventListener('click', () => showInspector(true));
+  element('show-self').addEventListener('click', () => showInspector(false));
 
   const label = id => 'S' + String(id).padStart(2, '0');
   const clock = ms => {
@@ -27,6 +44,11 @@
 
   function close() {
     review = undefined;
+    slider.disabled = true;
+    slider.value = 0;
+    element('skater-time').textContent = '0:00.0';
+    element('inspector-nav').hidden = true;
+    showInspector(false);
     context.clearRect(0, 0, overlay.width, overlay.height);
     overlay.classList.remove('picking');
     pick.disabled = true;
@@ -54,6 +76,8 @@
       next.hasGear = records.some(frame => frame.tracks.some(track => track.gear));
       [overlay.width, overlay.height] = [records[0].width, records[0].height];
       slider.max = records.length - 1;
+      slider.disabled = false;
+      initStudy(next);
       showAnchors(next);
       draw(video.currentTime);
     } catch (error) {
@@ -65,6 +89,170 @@
     return item.selections?.[item.clip.id] ?? [];
   }
 
+  function initStudy(item) {
+    item.players = new Map();
+    for (const frame of item.records) {
+      for (const track of frame.tracks) {
+        if (track.predicted) continue;
+        if (!item.players.has(track.id)) item.players.set(track.id, {colors:[0,0,0,0,0]});
+        const player = item.players.get(track.id);
+        track.gear?.[1]?.forEach((count, i) => player.colors[i] += count);
+      }
+    }
+    for (const [id, player] of item.players) {
+      const peak = Math.max(...player.colors);
+      const total = player.colors.reduce((sum,n) => sum+n,0);
+      if (peak > total * 0.55) player.jersey = ['red/orange','blue','dark','light',null][player.colors.indexOf(peak)];
+      try { player.name = localStorage.getItem(aliasKey(item,id)) ?? ''; } catch { player.name = ''; }
+    }
+    item.studyId = null;
+    item.partnerId = null;
+    item.notes = [];
+    try {
+      const prefix = 'rink.study-note.' + item.clip.id + '.';
+      for (const key of Object.keys(localStorage).filter(k => k.startsWith(prefix))) {
+        try {
+          const note = JSON.parse(localStorage.getItem(key));
+          if (item.players.has(note.player) && Number.isInteger(note.index) && item.records[note.index] &&
+              typeof note.text === 'string') item.notes.push({...note,key});
+        } catch {}
+      }
+    } catch {}
+    element('note-text').value = '';
+    showNotes(item);
+    element('inspector-nav').hidden = false;
+    showInspector(true);
+  }
+
+  function aliasKey(item,id) { return 'rink.study.' + item.clip.id + '.' + id; }
+  element('pick-study').addEventListener('click', () => {
+    const item = review;
+    if (!item?.players) return;
+    video.pause();
+    item.picking = false;
+    item.studyPicking = !item.studyPicking;
+    element('study-status').textContent = item.studyPicking ? 'Tap a solid box. Use the player list if boxes overlap.' : '';
+    if (!item.studyPicking) updateRanges(item);
+    repaint(item);
+  });
+  function playerLabel(item,id) {
+    const player = item.players.get(id);
+    return [label(id),player.name || (player.jersey && player.jersey + ' jersey')].filter(Boolean).join(' · ');
+  }
+  function studyOptions(item) {
+    subject.replaceChildren(new Option('Select a player',''));
+    partner.replaceChildren(new Option('Player alone',''));
+    if (anchors(item).length) partner.add(new Option('Your saved skater','you'));
+    for (const id of [...item.players.keys()].sort((a,b)=>a-b)) {
+      subject.add(new Option(playerLabel(item,id),String(id)));
+      if (id !== item.studyId) partner.add(new Option(playerLabel(item,id),String(id)));
+    }
+    subject.value = item.studyId ?? '';
+    partner.value = item.partnerId ?? '';
+    partner.disabled = alias.disabled = item.studyId == null;
+    alias.value = item.players.get(item.studyId)?.name ?? '';
+  }
+  function companion(item, frame) {
+    if (item.partnerId !== 'you') return item.partnerId;
+    const saved = anchors(item);
+    return (saved.findLast(a => a.source_ms <= frame.source_ms) ?? saved[0])?.track_id;
+  }
+  function updateRanges(item) {
+    item.stopBefore = null;
+    const runs = [];
+    let last;
+    for (let i=0; item.studyId != null && i<item.records.length; i++) {
+      const frame = item.records[i];
+      const other = companion(item,frame);
+      const seen = id => frame.tracks.some(t => t.id === id && !t.predicted);
+      if (!seen(item.studyId) || (item.partnerId != null && (other === item.studyId || !seen(other)))) continue;
+      if (!last || last.end !== i-1) { last = {start:i,end:i}; runs.push(last); }
+      last.end = i;
+    }
+    item.runs = runs;
+    element('study-note').hidden = item.studyId == null;
+    ranges.replaceChildren(...runs.map((run,i) => new Option(
+      clock(item.records[run.start].source_ms) + ' – ' + clock(item.records[run.end].source_ms),String(i))));
+    element('study-next').disabled = ranges.disabled = !runs.length;
+    element('study-status').textContent = item.studyId == null ? 'Select a track to review its appearances.' :
+      !runs.length ? 'No frames show both selected tracks together.' :
+      item.partnerId == null ? 'Watch the strides and scans before the player changes direction.' :
+      'Watch when the gap opens or closes. Where could you move to offer support or cover the lane?';
+  }
+  function showNotes(item) {
+    item.notes.sort((a,b) => a.index-b.index);
+    element('study-notes').replaceChildren(...item.notes.map(note => {
+      const row = document.createElement('li');
+      const frame = item.records[note.index];
+      const jump = button(clock(frame.source_ms) + ' · ' + label(note.player), () => {
+        item.studyId = note.player;
+        item.partnerId = note.partner === 'you' && !anchors(item).length ? null : note.partner;
+        studyOptions(item); updateRanges(item);
+        video.pause(); item.lastIndex = undefined; seek(item,note.index);
+      });
+      const copy = document.createElement('p');
+      copy.textContent = note.text;
+      const remove = button('Remove', () => {
+        try { localStorage.removeItem(note.key); }
+        catch { element('study-status').textContent = 'Could not remove the saved moment.'; return; }
+        item.notes = item.notes.filter(n => n !== note);
+        showNotes(item);
+      });
+      row.append(jump,remove,copy);
+      return row;
+    }));
+  }
+  element('note-text').addEventListener('focus', () => video.pause());
+  element('study-note').addEventListener('submit', event => {
+    event.preventDefault();
+    const item = review;
+    const field = element('note-text');
+    if (item?.studyId == null || !field.value.trim()) return;
+    const note = {player:item.studyId,partner:item.partnerId,index:indexAt(item.records,video.currentTime),text:field.value.trim()};
+    try {
+      const key = 'rink.study-note.' + item.clip.id + '.' + crypto.randomUUID();
+      localStorage.setItem(key, JSON.stringify(note));
+      item.notes.push({...note,key});
+      field.value = '';
+      showNotes(item);
+    } catch { element('study-status').textContent = 'Could not save this moment on this device.'; }
+  });
+  subject.addEventListener('change', () => {
+    const item = review;
+    if (!item?.players) return;
+    item.studyPicking = false;
+    item.studyId = subject.value ? Number(subject.value) : null;
+    if (item.studyId == null || item.partnerId === item.studyId) item.partnerId = null;
+    studyOptions(item); updateRanges(item); repaint(item);
+  });
+  partner.addEventListener('change', () => {
+    if (!review?.players) return;
+    review.partnerId = partner.value === 'you' ? 'you' : partner.value ? Number(partner.value) : null;
+    updateRanges(review); repaint(review);
+  });
+  alias.addEventListener('change', () => {
+    const item = review;
+    if (item?.studyId == null) return;
+    const name = alias.value.trim();
+    item.players.get(item.studyId).name = name;
+    studyOptions(item); repaint(item);
+    try { localStorage.setItem(aliasKey(item,item.studyId),name); }
+    catch { element('study-status').textContent = 'Player label is available until you leave this clip.'; }
+  });
+  element('study-next').addEventListener('click', () => {
+    const item = review;
+    const run = item?.runs?.[Number(ranges.value)];
+    if (!run) return;
+    video.pause();
+    seek(item,run.start);
+    item.stopBefore = run.end+1;
+    video.play().catch(() => {
+      if (review !== item) return;
+      item.stopBefore = null;
+      element('study-status').textContent = 'Press Play in the video to review this appearance.';
+    });
+  });
+
   function reference(item) {
     return Object.entries(item.selections).find(([clipId, saved]) =>
       clipId !== item.clip.id && saved.some(anchor => anchor.gear))?.[1].find(anchor => anchor.gear);
@@ -72,6 +260,11 @@
 
   function showAnchors(item) {
     const entries = anchors(item);
+    if (item.players) {
+      if (!entries.length && item.partnerId === 'you') item.partnerId = null;
+      studyOptions(item);
+      updateRanges(item);
+    }
     element('skater-anchors').replaceChildren(...entries.map(anchor =>
       button(label(anchor.track_id) + ' · ' + clock(anchor.source_ms), () => {
         video.pause();
@@ -112,13 +305,18 @@
     const item = review;
     if (!item?.records) return;
     const index = indexAt(item.records, seconds);
+    if (item.stopBefore != null && index >= item.stopBefore) {
+      const end = item.stopBefore - 1;
+      item.stopBefore = null;
+      video.pause(); seek(item,end); return;
+    }
     if (item.lastIndex === index) return;
     item.lastIndex = index;
     const frame = item.records[index];
     const saved = anchors(item);
     item.anchor = saved.findLast(entry => entry.source_ms <= frame.source_ms) ?? saved[0];
     const confirmed = frame.tracks.find(track => track.id === item.anchor?.track_id);
-    const candidates = item.picking ? frame.tracks.filter(track => !track.predicted) : [];
+    const candidates = item.picking || item.studyPicking ? frame.tracks.filter(track => !track.predicted) : [];
     const proposal = item.proposal?.source_ms === frame.source_ms ? item.proposal : null;
     item.candidates = candidates;
     slider.value = index;
@@ -127,7 +325,8 @@
     pick.textContent = item.picking ? 'Done picking' : saved.length ? 'Correct track' : 'Pick yourself';
     clear.hidden = !item.anchor || item.picking;
     clear.disabled = item.saving === true;
-    overlay.classList.toggle('picking', item.picking === true);
+    overlay.classList.toggle('picking', Boolean(item.picking || item.studyPicking));
+    element('pick-study').setAttribute('aria-pressed', String(Boolean(item.studyPicking)));
     element('skater-picking').hidden = !item.picking;
 
     const candidateButtons = candidates.map(track => {
@@ -151,6 +350,21 @@
     context.clearRect(0, 0, overlay.width, overlay.height);
     for (const track of candidates) {
       drawBox(track, track.id === proposal?.id ? '#ffd260' : '#b7e5ff', 2, label(track.id), false);
+    }
+    if (!item.picking && item.studyId != null) {
+      const watched = frame.tracks.find(t => t.id === item.studyId);
+      const other = frame.tracks.find(t => t.id === companion(item,frame) && t.id !== item.studyId);
+      if (watched && other && !watched.predicted && !other.predicted) {
+        context.beginPath();
+        for (const [i,t] of [watched,other].entries()) {
+          const [left,,right,y] = t.xyxy;
+          if (i === 0) context.moveTo((left+right)/2,y); else context.lineTo((left+right)/2,y);
+        }
+        context.setLineDash([5,4]); context.strokeStyle='#b0f4dd'; context.lineWidth=2; context.stroke(); context.setLineDash([]);
+      }
+      for (const [t,color] of [[watched,'#a9f2c7'],[other,'#c9baff']]) {
+        if (t && t.id !== confirmed?.id) drawBox(t,color,3,item.players.get(t.id)?.name || label(t.id),t.predicted);
+      }
     }
     if (confirmed) {
       drawBox(confirmed, '#ffd260', 3, 'YOU · ' + label(confirmed.id), confirmed.predicted);
@@ -213,6 +427,7 @@
     const item = review;
     if (!item?.records) return;
     video.pause();
+    item.studyPicking = false;
     item.picking = !item.picking;
     item.proposal = item.message = undefined;
     repaint(item);
@@ -221,11 +436,11 @@
     if (review?.anchor) save(review, review.anchor.source_ms, null);
   });
   slider.addEventListener('input', () => {
-    if (review?.records) seek(review, Number(slider.value));
+    if (review?.records) { review.stopBefore = null; video.pause(); seek(review, Number(slider.value)); }
   });
   overlay.addEventListener('click', event => {
     const item = review;
-    if (!item?.picking || item.saving || video.seeking) return;
+    if (!(item?.picking || item?.studyPicking) || item.saving || video.seeking) return;
     const bounds = overlay.getBoundingClientRect();
     const x = (event.clientX - bounds.left) * overlay.width / bounds.width;
     const y = (event.clientY - bounds.top) * overlay.height / bounds.height;
@@ -233,6 +448,13 @@
       const [l, t, r, b] = track.xyxy;
       return x >= l && x <= r && y >= t && y <= b;
     });
+    if (item.studyPicking) {
+      if (matches.length === 1) {
+        subject.value = String(matches[0].id);
+        subject.dispatchEvent(new Event('change'));
+      }
+      return;
+    }
     if (matches.length === 1) save(item, item.records[item.lastIndex].source_ms, matches[0].id);
     else if (matches.length > 1) {
       item.message = 'Those boxes overlap. Choose an ID below the footage.';
@@ -287,7 +509,8 @@
     video.addEventListener(event, () => draw(video.currentTime));
   }
   video.addEventListener('play', () => {
-    if (!review?.picking) return;
+    if (!(review?.picking || review?.studyPicking)) return;
+    review.studyPicking = false;
     review.picking = false;
     review.message = undefined;
     repaint(review);

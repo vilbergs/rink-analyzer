@@ -21,28 +21,72 @@ const write = (tag, value) => {
 };
 const date = ms => new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'}).format(ms);
 
+const dialog = element('import-dialog');
+element('new-session').addEventListener('click', () => dialog.showModal());
+element('close-import').addEventListener('click', () => dialog.close());
+dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+
+let sessions = [];
+function showLibrary() {
+  const query = element('search').value.trim().toLocaleLowerCase();
+  const matches = sessions.filter(session => session.name.toLocaleLowerCase().includes(query));
+  element('library-summary').textContent = sessions.length + (sessions.length === 1 ? ' saved session' : ' saved sessions');
+  element('empty').hidden = matches.length > 0;
+  element('empty').textContent = sessions.length ? 'No sessions match this name.' : 'Import game footage to start your first session.';
+  element('recent').replaceChildren(...matches.map(session => {
+    const row = document.createElement('li');
+    const link = document.createElement('a');
+    link.href = '?session=' + session.id;
+    const count = session.clip_count + (session.clip_count === 1 ? ' clip' : ' clips');
+    const preview = clip => api + '/' + session.id + '/clips/' + clip + '/preview';
+    const [first,...rest] = session.preview_clips;
+    const sheet = thumbnail(preview(first), count);
+    sheet.classList.add('sheet-' + session.preview_clips.length);
+    for (const clip of rest) {
+      const still = document.createElement('img');
+      still.src = preview(clip);
+      still.alt = '';
+      still.loading = 'lazy';
+      sheet.append(still);
+    }
+    const seconds = Math.floor(session.duration_ms / 1000);
+    const duration = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2,'0');
+    link.append(sheet, cardInfo(session.name, date(session.created_ms) + ' · ' + duration + ' total'));
+    row.append(link);
+    return row;
+  }));
+}
+function thumbnail(src, badge) {
+  const thumb = document.createElement('div');
+  thumb.className = 'thumb';
+  const image = document.createElement('img');
+  image.src = src;
+  image.alt = '';
+  image.loading = 'lazy';
+  thumb.append(image, write('small', badge));
+  return thumb;
+}
+function cardInfo(title, detail) {
+  const info = document.createElement('div');
+  info.className = 'card-info';
+  info.append(write('strong',title),write('span',detail));
+  return info;
+}
+element('search').addEventListener('input', showLibrary);
+
 async function loadRecent() {
   const request = ++recentRequest;
-  const empty = element('empty');
   try {
     const response = await fetch(api);
-    if (!response.ok) throw new Error('Recent sessions could not be loaded.');
+    if (!response.ok) throw new Error();
     const recent = await response.json();
     if (request !== recentRequest) return;
-    empty.hidden = recent.length > 0;
-    empty.textContent = 'No saved sessions yet.';
-    element('recent').replaceChildren(...recent.map(session => {
-      const row = document.createElement('li');
-      const link = write('a', session.name);
-      link.href = '#' + session.id;
-      const count = session.clip_count + (session.clip_count === 1 ? ' clip' : ' clips');
-      row.append(link, document.createTextNode(count + ' · ' + date(session.created_ms)));
-      return row;
-    }));
+    sessions = recent;
+    showLibrary();
   } catch {
     if (request !== recentRequest) return;
-    empty.hidden = false;
-    empty.textContent = 'Recent sessions could not be loaded.';
+    element('empty').hidden = false;
+    element('empty').textContent = 'The session library could not be loaded. Refresh to retry.';
   }
 }
 
@@ -51,20 +95,18 @@ function showSession(session) {
   resetTracking();
   activeSession = session;
   element('session').hidden = false;
+  element('library').hidden = true;
+  element('session-title').textContent = new Intl.DateTimeFormat(undefined, {month:'long',day:'numeric'}).format(session.created_ms) + ' session';
   element('session-detail').textContent =
     session.clips.length + (session.clips.length === 1 ? ' clip · ' : ' clips · ') + date(session.created_ms);
   element('clips').replaceChildren(...session.clips.map(clip => {
     const card = document.createElement('article');
     card.className = 'clip';
-    const image = document.createElement('img');
-    image.src = api + '/' + session.id + '/clips/' + clip.id + '/preview';
-    image.alt = 'First frame from ' + clip.name;
-    image.loading = 'lazy';
     const seconds = Math.floor(clip.duration_ms / 1000);
-    const progress = write('span', 'Checking tracking status…');
-    progress.className = 'track-status';
-    progress.id = 'track-status-' + clip.id;
-    const review = write('button', 'Review skater IDs');
+    const duration = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+    const info = cardInfo(clip.name, 'Checking tracking status…');
+    info.lastChild.id = 'track-status-' + clip.id;
+    const review = write('button', 'Review players');
     review.type = 'button';
     review.hidden = true;
     review.id = 'track-review-' + clip.id;
@@ -73,8 +115,9 @@ function showSession(session) {
     coaching.className = 'clip-coaching';
     coaching.id = 'coaching-' + clip.id;
     coaching.hidden = true;
-    card.append(image, write('strong', clip.name), write('span',
-      Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0')), progress, review, coaching);
+    info.append(review,coaching);
+    card.dataset.clip = clip.id;
+    card.append(thumbnail(api + '/' + session.id + '/clips/' + clip.id + '/preview',duration),info);
     return card;
   }));
   pollTracking(session);
@@ -93,7 +136,10 @@ async function pollTracking(session) {
   let pending = true;
   try {
     const response = await fetch(api + '/' + session.id + '/tracking');
-    if (response.status === 404) return;
+    if (response.status === 404) {
+      if (activeSession === session) for (const clip of session.clips) element('track-status-' + clip.id).textContent = labels.disabled;
+      return;
+    }
     if (!response.ok) throw new Error('Could not load tracking status.');
     const states = await response.json();
     if (activeSession !== session) return;
@@ -122,6 +168,8 @@ function resetTracking() {
 
 function openTracking(session, clip) {
   activeClip = clip.id;
+  element('coaching-step').hidden = true;
+  for (const card of element('clips').children) card.classList.toggle('selected', card.dataset.clip === clip.id);
   const video = element('tracking-video');
   const base = api + '/' + session.id + '/clips/' + clip.id + '/tracks';
   video.src = base + '.mp4';
@@ -130,8 +178,8 @@ function openTracking(session, clip) {
   element('tracking-review').hidden = false;
   window.skaterReview.open(session, clip, base);
   refreshCoaching(session);
-  video.focus();
-  video.play().catch(() => {});
+  element('tracking-review').scrollIntoView({block:'start'});
+  video.focus({preventScroll:true});
 }
 
 async function refreshCoaching(session) {
@@ -162,17 +210,18 @@ async function refreshCoaching(session) {
 }
 
 async function loadSession() {
-  const id = location.hash.slice(1);
+  const selectedId = () => new URLSearchParams(location.search).get('session') ?? location.hash.slice(1);
+  const id = selectedId();
   if (!uuid.test(id) || activeSession?.id === id) return;
   try {
     const response = await fetch(api + '/' + id);
-    if (location.hash.slice(1) !== id) return;
+    if (selectedId() !== id) return;
     if (response.status === 404) loadRecent();
     if (!response.ok) throw new Error('This session could not be opened.');
     const session = await response.json();
-    if (location.hash.slice(1) === id) showSession(session);
+    if (selectedId() === id) showSession(session);
   } catch (error) {
-    status.textContent = error.message;
+    element('page-status').textContent = error.message;
   }
 }
 
@@ -246,6 +295,7 @@ element('import').addEventListener('submit', async event => {
   progress.hidden = false;
   status.textContent = 'Uploading clips…';
   busy = true;
+  element('close-import').disabled = true;
   submit.disabled = input.disabled = true;
   try {
     const result = await upload(body);
@@ -253,7 +303,7 @@ element('import').addEventListener('submit', async event => {
     if (result.session) {
       showSession(result.session);
       loadRecent();
-      location.hash = result.session.id;
+      history.pushState(null,'','?session=' + result.session.id);
       input.value = '';
       files = [];
       element('selected').hidden = true;
@@ -262,11 +312,16 @@ element('import').addEventListener('submit', async event => {
     failures.replaceChildren(...(result.failures ?? []).map(failure => write('li', failure)));
     failures.hidden = !failures.children.length;
     status.textContent = message;
+    if (result.session && failures.hidden) {
+      dialog.close();
+      element('page-status').textContent = message;
+    }
   } catch (error) {
     status.textContent = error.message;
   } finally {
     progress.hidden = true;
     busy = false;
+    element('close-import').disabled = false;
     input.disabled = false;
     submit.disabled = files.length === 0;
   }
@@ -286,9 +341,10 @@ element('delete').addEventListener('click', async () => {
       element('session').hidden = true;
       history.replaceState(null, '', location.pathname);
     }
-    status.textContent = 'Session deleted.';
+    element('library').hidden = false;
+    element('page-status').textContent = 'Session deleted.';
   } catch (error) {
-    status.textContent = error.message;
+    element('page-status').textContent = error.message;
   }
 });
 
@@ -298,6 +354,15 @@ window.addEventListener('focus', () => refreshCoaching(activeSession));
 window.addEventListener('skater-selection-saved', () => refreshCoaching(activeSession));
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) loadRecent();
+});
+window.addEventListener('popstate', () => {
+  if (location.hash || location.search) { loadSession(); return; }
+  clearTimeout(trackingPoll);
+  activeSession = undefined;
+  resetTracking();
+  element('session').hidden = true;
+  element('library').hidden = false;
+  loadRecent();
 });
 window.addEventListener('hashchange', loadSession);
 loadSession();

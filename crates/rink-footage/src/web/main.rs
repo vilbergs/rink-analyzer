@@ -46,6 +46,8 @@ struct Imported {
 
 #[derive(Serialize)]
 struct RecentSession {
+    preview_clips: Vec<Uuid>,
+    duration_ms: u64,
     id: Uuid,
     name: String,
     created_ms: u64,
@@ -84,6 +86,7 @@ async fn main() -> Result<()> {
         worker_token: env::var("RINK_FOOTAGE_WORKER_TOKEN").ok().filter(|token| !token.is_empty()),
     };
     let routes = Router::new()
+        .route("/footage", get(|| async { axum::response::Redirect::permanent("/footage/") }))
         .route("/footage/", get(|| async { Html(include_str!("index.html")) }))
         .route(
             "/footage/import.css",
@@ -249,6 +252,8 @@ async fn recent(State(app): State<App>) -> Result<Json<Vec<RecentSession>>, ApiE
             .into_iter()
             .filter_map(|session| {
                 Some(RecentSession {
+                    preview_clips: session.clips.iter().take(3).map(|clip| clip.id).collect(),
+                    duration_ms: session.clips.iter().map(|clip| clip.duration_ms).sum(),
                     id: session.id,
                     name: session.clips.first()?.name.clone(),
                     created_ms: session.created_ms,

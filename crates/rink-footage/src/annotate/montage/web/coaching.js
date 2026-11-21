@@ -57,6 +57,12 @@ if (!data?.chapters?.length) {
 }
 
 function start({fps, rinkSize, chapters}) {
+  const hostedSession = location.pathname.match(/^\/footage\/room\/([\da-f-]{36})\//i);
+  if (hostedSession) {
+    const back = element('back-session');
+    back.href = '/footage/?session=' + hostedSession[1];
+    back.hidden = false;
+  }
   const footage = element('footage');
   const rink = element('rink');
   const context = rink.getContext('2d');

@@ -309,10 +309,17 @@ scripts/deploy-footage-pi.sh
 The Pi hosts uploads, the tracking queue, and the preview player. Every imported clip is queued
 for tracking when `RINK_FOOTAGE_WORKER_TOKEN` is configured. Furulid claims work over the tailnet,
 does person detection on its GPU, and uses the Rust tracker and encoder to return a silent
-annotated MP4 with timestamped track data. Use **Review skater IDs** on the saved clip to play
+annotated MP4 with timestamped track data. Use **Review players** on the saved clip to play
 the preview. IDs are local to each clip.
 
-In a tracked clip, choose **Pick yourself**, scrub to a clear frame, and tap your skater or
+Open a session from the footage library and select **Review players** on a tracked clip.
+In **Player study**, choose any track by ID or pause and use **Pick on ice**. You can
+label that track on your device, compare it with another player or your saved skater,
+and replay intervals where both were detected. Save a timestamped observation to return
+to the players and frame later. A track can change ID after an obstruction. The connector
+between skates shows their positions in the camera view, without estimating distance on ice.
+
+In **Your skater**, choose **Pick yourself**, scrub to a clear frame, and tap your skater or
 their ID. Use **Correct track** after an ID switch. The Pi saves your selections with the
 session. With gear data from another confirmed clip, **Suggest match** offers a candidate
 based on helmet, jersey, and sock colors. Confirm it against the footage before saving.

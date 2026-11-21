@@ -9,18 +9,62 @@
 <script src="/footage/import.js" defer></script>
 </head>
 <body>
+<header class="mast"><div class="mast-inner">
+  <a class="brand" href="/"><i class="rink-mark" aria-hidden="true"></i>Rink Replay</a>
+  <nav aria-label="Workspace"><a href="/footage/" aria-current="page">Footage</a><a href="/#/local-notes">Local notes</a></nav>
+</div></header>
 <main>
-  <header>
-    <a href="/">Rink Replay</a>
-    <h1>Footage Sessions</h1>
-  </header>
-  <div class="layout">
-    <div>
-      <form id="import">
+  <section id="library" aria-labelledby="library-title">
+    <div class="page-head"><div><h1 id="library-title">Footage library</h1><p id="library-summary">Your recorded sessions</p></div>
+      <button class="primary" id="new-session" type="button"><b aria-hidden="true">+</b> Import footage</button></div>
+    <div class="library-bar"><h2>Sessions</h2><input type="search" id="search" aria-label="Filter sessions by name" placeholder="Filter by name"></div>
+    <p id="empty" role="status">Loading sessions…</p><ul id="recent"></ul>
+  </section>
+  <section id="session" aria-labelledby="session-title" hidden>
+    <a class="back" href="/footage/">← Footage library</a>
+    <div class="page-head"><div><h1 id="session-title">Session</h1><p id="session-detail"></p></div>
+      <button id="delete" type="button">Delete session</button></div>
+    <section id="tracking-review" hidden aria-labelledby="tracking-title">
+      <div class="review-layout"><div class="monitor">
+        <div class="monitor-head"><h2 id="tracking-title"></h2><a id="tracking-data" download="tracks.ndjson">Track data ↓</a></div>
+        <div class="screen"><div id="tracking-stage"><video id="tracking-video" controls playsinline preload="metadata"></video>
+          <canvas id="skater-overlay" aria-hidden="true"></canvas></div></div>
+        <div class="transport"><label for="skater-frame">Frame</label><input id="skater-frame" type="range" min="0" step="1" value="0" disabled><output id="skater-time" for="skater-frame">0:00.0</output></div>
+      </div>
+      <aside id="skater-editor">
+        <div class="inspector-nav" id="inspector-nav" hidden><button id="show-study" aria-controls="player-study">Player study</button><button id="show-self" aria-controls="self-panel">Your skater</button></div>
+        <section id="self-panel"><h3>Your skater</h3><p id="skater-status" role="status"></p>
+          <div class="skater-actions"><button id="pick-skater" disabled>Pick yourself</button><button id="suggest-skater" hidden>Suggest match</button><button id="clear-skater" hidden>Remove selection</button></div>
+          <div id="skater-picking" hidden><div id="skater-candidates" class="skater-actions" aria-label="Detected skaters"></div></div>
+          <div id="skater-anchors" class="skater-actions" aria-label="Saved skater selections"></div>
+        </section>
+        <section id="player-study" hidden><h3>Player study</h3>
+          <label for="study-player">Follow player</label><div class="select-row"><select id="study-player"></select><button type="button" id="pick-study" aria-pressed="false">Pick on ice</button></div>
+          <label for="study-name">Player label on this device</label><input id="study-name" maxlength="40" placeholder="Name or jersey number" disabled>
+          <label for="study-partner">Compare with</label><select id="study-partner"></select>
+          <label for="study-ranges">Visible appearances</label><select id="study-ranges"></select>
+          <p id="study-status" role="status"></p>
+          <button id="study-next" disabled>Replay appearance</button>
+          <form id="study-note" hidden><label for="note-text">Observation at playhead</label>
+            <textarea id="note-text" maxlength="600" rows="2" placeholder="What created space here?"></textarea>
+            <button>Save moment</button>
+          </form>
+          <ul id="study-notes" aria-label="Study moments on this device"></ul>
+          <p class="hint">IDs belong to this clip. Dashed boxes indicate predicted positions.</p>
+        </section>
+        <section id="coaching-step" hidden><h3>Coaching review</h3><p id="coaching-state" role="status"></p><a id="coaching-room" class="primary" hidden>Open Coaching Film Room ↗</a></section>
+      </aside></div>
+    </section>
+    <div class="library-bar"><h2>Clips</h2></div><div id="clips"></div>
+  </section>
+  <p id="page-status" role="status"></p>
+</main>
+<dialog id="import-dialog" aria-labelledby="import-title"><div class="dialog-head"><h2 id="import-title">Import a session</h2>
+<button id="close-import" aria-label="Close import">×</button></div><form id="import">
         <div id="drop">
-          <h2>Import footage</h2>
+          <span class="upload-symbol" aria-hidden="true">↑</span>
           <p>Choose videos from Photos or Files, or drop MOV and MP4 clips here.</p>
-          <label for="files">Choose clips</label>
+          <label class="choose-files" for="files">Choose clips</label>
           <input id="files" type="file" multiple accept="video/*,.mov,.mp4">
         </div>
         <ul id="selected" hidden></ul>
@@ -31,53 +75,5 @@
         <progress id="progress" max="100" hidden aria-label="Upload progress"></progress>
         <p id="status" role="status"></p>
         <ul id="failures" hidden></ul>
-      </form>
-      <section id="session" aria-labelledby="session-title" hidden>
-        <header>
-          <div>
-            <h2 id="session-title">Saved session</h2>
-            <p id="session-detail"></p>
-          </div>
-          <button id="delete" type="button">Delete session</button>
-        </header>
-        <div id="clips"></div>
-        <section id="tracking-review" hidden aria-labelledby="tracking-title">
-          <h3 id="tracking-title"></h3>
-          <div id="tracking-stage">
-            <video id="tracking-video" controls playsinline preload="metadata"></video>
-            <canvas id="skater-overlay" aria-hidden="true"></canvas>
-          </div>
-          <div id="skater-editor">
-            <h4>Your skater</h4>
-            <p id="skater-status" role="status"></p>
-            <div class="skater-actions">
-              <button id="pick-skater" type="button" disabled>Pick yourself</button>
-              <button id="suggest-skater" type="button" hidden>Suggest match</button>
-              <button id="clear-skater" type="button" hidden>Remove this selection</button>
-            </div>
-            <div id="skater-picking" hidden>
-              <label for="skater-frame">Frame</label>
-              <input id="skater-frame" type="range" min="0" step="1" value="0" aria-label="Frame for skater selection">
-              <output id="skater-time" for="skater-frame"></output>
-              <div id="skater-candidates" class="skater-actions" aria-label="Detected skaters in this frame"></div>
-            </div>
-            <div id="skater-anchors" class="skater-actions" aria-label="Saved skater selections"></div>
-            <div id="coaching-step" hidden>
-              <a id="coaching-room" hidden>Open Coaching Film Room</a>
-              <p id="coaching-state" role="status"></p>
-            </div>
-          </div>
-          <p>Skater IDs are local to each clip. Dashed boxes are predictions.</p>
-          <a id="tracking-data" download="tracks.ndjson">Download track data</a>
-        </section>
-      </section>
-    </div>
-    <aside aria-labelledby="recent-title">
-      <h2 id="recent-title">Recent sessions</h2>
-      <p id="empty" role="status">Loading recent sessions…</p>
-      <ul id="recent"></ul>
-    </aside>
-  </div>
-</main>
-</body>
-</html>
+      </form></dialog>
+</body></html>
