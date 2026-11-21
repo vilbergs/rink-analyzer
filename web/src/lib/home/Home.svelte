@@ -38,6 +38,7 @@
 
 <main class="home">
   <header>
+    <a href="#/footage">Footage review</a>
     <a href="#/viewer">Play viewer</a>
   </header>
   <div class="app">
@@ -121,6 +122,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 20px;
     height: 44px;
   }
   header a {
