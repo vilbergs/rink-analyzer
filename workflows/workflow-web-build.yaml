@@ -30,7 +30,7 @@ jobs:
           behaviorName: rink-clippy
           methodName: execute
           inputs:
-            run: cargo clippy --workspace --all-targets --locked -- -D warnings
+            run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
             timeout: 1800000
       - name: test
         dependsOn: [{ step: clippy, condition: { type: succeeded } }]
@@ -40,7 +40,7 @@ jobs:
           behaviorName: rink-test
           methodName: execute
           inputs:
-            run: cargo test --workspace --locked
+            run: cargo test --workspace --all-features --locked
             timeout: 1800000
   - name: curriculum
     description: Lint the lesson content against STYLE.md and glossary.json (the curriculum-check workflow)

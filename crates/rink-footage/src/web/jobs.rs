@@ -5,12 +5,12 @@ use std::{
 };
 
 use axum::{
-    Json, Router,
     body::Body,
     extract::{Path, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
+    Json, Router,
 };
 use http_body_util::BodyExt;
 use rink_footage::session;
@@ -22,7 +22,7 @@ use tokio::{
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
-use super::{ApiError, App, MAX_STORED, MIB, problem, storage_error, stored_bytes, stored_session};
+use super::{problem, storage_error, stored_bytes, stored_session, ApiError, App, MAX_STORED, MIB};
 
 const LEASE_SECONDS: u64 = 300;
 const MAX_ATTEMPTS: u32 = 3;
@@ -350,11 +350,11 @@ pub(super) async fn stream(path: &FilePath, mime: &str, headers: &HeaderMap) -> 
     let mut response = Response::builder().header(header::CONTENT_TYPE, mime).header(header::ACCEPT_RANGES, "bytes");
     if let Some(range) = headers.get(header::RANGE) {
         let Some((start, end)) = range.to_str().ok().and_then(|value| byte_range(value, length)) else {
-            return Ok(response
+            return response
                 .status(StatusCode::RANGE_NOT_SATISFIABLE)
                 .header(header::CONTENT_RANGE, format!("bytes */{length}"))
                 .body(Body::empty())
-                .map_err(storage_error)?);
+                .map_err(storage_error);
         };
         file.seek(std::io::SeekFrom::Start(start)).await.map_err(storage_error)?;
         let size = end - start + 1;

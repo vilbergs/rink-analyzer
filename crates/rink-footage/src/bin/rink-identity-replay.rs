@@ -5,7 +5,7 @@ use std::{
     io::BufReader,
 };
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use rink_footage::identity::{self, Example, FrameKey, View};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

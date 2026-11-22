@@ -7,19 +7,19 @@ use std::{
     path::{Path as FilePath, PathBuf},
 };
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{bail, ensure, Context, Result};
 use axum::{
-    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::Response,
     routing::get,
+    Json, Router,
 };
 use rink_footage::session::Session;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{ApiError, App, identity, jobs, problem, storage_error, stored_session};
+use super::{identity, jobs, problem, storage_error, stored_session, ApiError, App};
 
 const REQUIRED: [&str; 7] =
     ["index.html", "timeline.js", "feedback.js", "coaching.js", "coaching.css", "footage.mp4", "coaching-montage.mp4"];

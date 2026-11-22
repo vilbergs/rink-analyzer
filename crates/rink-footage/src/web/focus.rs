@@ -6,15 +6,15 @@ use std::{
 };
 
 use axum::{
-    Json, Router,
     extract::{DefaultBodyLimit, Path, State},
     http::{HeaderMap, StatusCode},
     routing::{get, put},
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{ApiError, App, jobs, problem, require_origin, storage_error, stored_session};
+use super::{jobs, problem, require_origin, storage_error, stored_session, ApiError, App};
 
 const MAX_ANCHORS: usize = 256;
 

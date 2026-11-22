@@ -53,7 +53,7 @@ pub fn draw(scene: &Scene, font: &FontArc, width: u32, height: u32) -> Result<Rg
             Shape::Text { .. } => {}
         }
     }
-    let rgb: Vec<u8> = pixels.data().chunks_exact(4).flat_map(|rgba| [rgba[0], rgba[1], rgba[2]]).collect();
+    let rgb: Vec<u8> = pixels.data().as_chunks::<4>().0.iter().flat_map(|rgba| [rgba[0], rgba[1], rgba[2]]).collect();
     let mut image = RgbImage::from_raw(width, height, rgb).context("invalid rink pixels")?;
     for shape in &scene.shapes {
         if let Shape::Text { at, text: label, size_px, color } = shape {

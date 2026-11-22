@@ -5,20 +5,23 @@ use std::{
 };
 
 use axum::{
-    Json, Router,
     body::Body,
     extract::{DefaultBodyLimit, Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
+    Json, Router,
 };
 use rink_footage::session;
 use serde::{Deserialize, Serialize};
-use tokio::{io::{AsyncReadExt, AsyncSeekExt}, task::spawn_blocking};
+use tokio::{
+    io::{AsyncReadExt, AsyncSeekExt},
+    task::spawn_blocking,
+};
 use url::Url;
 use uuid::Uuid;
 
-use super::{ApiError, App, MAX_STORED, MIB, compatible, jobs, problem, require_origin, storage_error, stored_bytes};
+use super::{compatible, jobs, problem, require_origin, storage_error, stored_bytes, ApiError, App, MAX_STORED, MIB};
 
 const MAX_VIDEO: usize = 200 * MIB;
 const LEASE: u64 = 600;

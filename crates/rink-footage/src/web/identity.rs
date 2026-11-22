@@ -6,16 +6,16 @@ use std::{
 };
 
 use axum::{
-    Json, Router,
     extract::{DefaultBodyLimit, Path, State},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
+    Json, Router,
 };
 use rink_footage::identity::{self, Candidate, Example, FrameKey, View};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{ApiError, App, focus, jobs, problem, require_origin, storage_error, stored_session};
+use super::{focus, jobs, problem, require_origin, storage_error, stored_session, ApiError, App};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]

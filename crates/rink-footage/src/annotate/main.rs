@@ -13,9 +13,9 @@ use std::{
 };
 
 use ab_glyph::FontArc;
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{bail, ensure, Context, Result};
 use image::Rgb;
-use overlay::{WEAK, WHITE, bar, checkpoint, error_line, text, window};
+use overlay::{bar, checkpoint, error_line, text, window, WEAK, WHITE};
 use tracker::{Point, Prediction, Tracker};
 use video::Video;
 

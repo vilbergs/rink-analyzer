@@ -9,12 +9,12 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use serde::{Deserialize, Serialize};
 use tempfile::Builder;
 use uuid::Uuid;
 
-use crate::{Selection, extract};
+use crate::{extract, Selection};
 
 const VERSION: u32 = 1;
 const MANIFEST: &str = "session.json";
