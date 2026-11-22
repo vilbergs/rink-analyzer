@@ -690,24 +690,33 @@
   }
 
   match.addEventListener('change', () => { if (review?.records) repaint(review); });
-  function playerDetails() {
+  function jerseyLabel(details) {
+    if (!details?.jersey) return '';
+    const prefix = [...details.team].slice(0,38-details.jersey.length).join('').trimEnd();
+    return [prefix,'#'+details.jersey].filter(Boolean).join(' ');
+  }
+
+  function playerDetails(item, player) {
     const details = {team:team.value.trim(),jersey:jersey.value.trim()};
-    const name = alias.value.trim() || (details.jersey && [details.team,'#'+details.jersey].filter(Boolean).join(' '));
-    return {name:[...name].slice(0,40).join(''),details};
+    const explicitName = alias.value.trim();
+    const fallback = jerseyLabel(details);
+    const previousFallback = jerseyLabel(item.identityState.player_details[player]);
+    const name = explicitName && explicitName !== previousFallback ? explicitName : fallback || explicitName;
+    return {name,details};
   }
 
   element('identity-label').addEventListener('click', () => {
     const item = review;
     const {frame} = studyTarget(item);
     if (!frame) return;
-    const {name,details} = playerDetails();
+    const {name,details} = playerDetails(item);
     if (!name) { alias.focus(); identityStatus.textContent = 'Enter a name or jersey number.'; return; }
     saveIdentity(item,{action:'assign', frame, player:crypto.randomUUID(), name, details,
       shown:item.offers?.candidates.map(c => c.player) ?? []});
   });
   element('identity-rename').addEventListener('click', () => {
     const {frame,player} = studyTarget(review);
-    if (frame && player) saveIdentity(review,{action:'rename',frame,player,...playerDetails()});
+    if (frame && player) saveIdentity(review,{action:'rename',frame,player,...playerDetails(review,player)});
   });
   element('identity-link').addEventListener('click', () => {
     const item = review;
