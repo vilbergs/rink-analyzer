@@ -217,7 +217,8 @@ fn prompt(note: &str, clips: &[Clip]) -> Result<Vec<Part>> {
 learning, rather than several moments from one clip. For each, give the clip number, a window of 4 to 12 seconds (start_s, end_s, in clip seconds), the second \
 to freeze on (freeze_s, the key decision, inside the window), a title of at most 6 words, what I did \
 (observation) and what to try next time (suggestion), each one or two sentences. Then a two-sentence \
-summary of the main pattern across the clips."
+summary of the main pattern across the clips. In the text, name clips by their file name \
+(like IMG_2911), never by clip number."
     )));
     Ok(parts)
 }
