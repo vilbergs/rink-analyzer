@@ -6,15 +6,15 @@ use std::{
 };
 
 use axum::{
+    Json, Router,
     extract::{DefaultBodyLimit, Path, State},
     http::{HeaderMap, StatusCode},
     routing::{get, put},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{jobs, problem, require_origin, storage_error, stored_session, ApiError, App};
+use super::{ApiError, App, jobs, problem, require_origin, storage_error, stored_session};
 
 const MAX_ANCHORS: usize = 256;
 
@@ -33,16 +33,19 @@ struct Edit {
 }
 
 #[derive(Deserialize)]
-struct Frame {
-    source_ms: u64,
-    tracks: Vec<Track>,
+pub(super) struct Frame {
+    pub source_ms: u64,
+    pub width: u32,
+    pub height: u32,
+    pub tracks: Vec<Track>,
 }
 
 #[derive(Deserialize)]
-struct Track {
-    id: u32,
-    predicted: bool,
-    gear: Option<[[u8; 5]; 3]>,
+pub(super) struct Track {
+    pub id: u32,
+    pub predicted: bool,
+    pub gear: Option<[[u8; 5]; 3]>,
+    pub xyxy: [f32; 4],
 }
 
 pub fn routes() -> Router<App> {
@@ -93,7 +96,7 @@ async fn edit(
         let mut anchors = load(&source)?;
         let position = anchors.binary_search_by_key(&edit.source_ms, |anchor| anchor.source_ms);
         if let Some(track_id) = edit.track_id {
-            let track = detected_track(&jobs::data_path(&source), edit.source_ms, track_id)?;
+            let (_, track) = detected_track(&jobs::data_path(&source), edit.source_ms, track_id)?;
             let anchor = Anchor { source_ms: edit.source_ms, track_id, gear: track.gear };
             match position {
                 Ok(index) => anchors[index] = anchor,
@@ -116,7 +119,7 @@ async fn edit(
     Ok(Json(anchors))
 }
 
-fn detected_track(path: &FilePath, source_ms: u64, id: u32) -> Result<Track, ApiError> {
+pub(super) fn detected_track(path: &FilePath, source_ms: u64, id: u32) -> Result<([u32; 2], Track), ApiError> {
     let reader = BufReader::new(File::open(path).map_err(storage_error)?);
     for line in reader.lines() {
         let frame: Frame = serde_json::from_str(&line.map_err(storage_error)?).map_err(storage_error)?;
@@ -125,7 +128,7 @@ fn detected_track(path: &FilePath, source_ms: u64, id: u32) -> Result<Track, Api
         }
         if frame.source_ms == source_ms {
             if let Some(track) = frame.tracks.into_iter().find(|track| track.id == id && !track.predicted) {
-                return Ok(track);
+                return Ok(([frame.width, frame.height], track));
             }
         }
         break;

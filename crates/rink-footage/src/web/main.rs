@@ -3,6 +3,7 @@
 mod coaching;
 mod compatible;
 mod focus;
+mod identity;
 mod jobs;
 
 use std::{
@@ -109,6 +110,7 @@ async fn main() -> Result<()> {
         .route("/footage/api/sessions/{id}/clips/{clip_id}/preview", get(preview))
         .merge(jobs::routes())
         .merge(focus::routes())
+        .merge(identity::routes())
         .merge(coaching::routes())
         .with_state(app)
         .layer(axum::middleware::map_response(|mut response: Response| async {

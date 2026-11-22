@@ -7,19 +7,19 @@ use std::{
     path::{Path as FilePath, PathBuf},
 };
 
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::Response,
     routing::get,
-    Json, Router,
 };
 use rink_footage::session::Session;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{jobs, problem, storage_error, stored_session, ApiError, App};
+use super::{ApiError, App, identity, jobs, problem, storage_error, stored_session};
 
 const REQUIRED: [&str; 7] =
     ["index.html", "timeline.js", "feedback.js", "coaching.js", "coaching.css", "footage.mp4", "coaching-montage.mp4"];
@@ -55,8 +55,8 @@ fn selections(path: &FilePath) -> Result<Vec<Selection>> {
     }
 }
 
-fn state(source: &FilePath) -> Result<&'static str> {
-    let selected = selections(&source.with_file_name("focus.json"))?;
+fn state(app: &App, session: Uuid, clip: Uuid, source: &FilePath) -> Result<&'static str, ApiError> {
+    let selected = selections(&source.with_file_name("focus.json")).map_err(storage_error)?;
     if selected.is_empty() {
         return Ok("choose");
     }
@@ -64,9 +64,13 @@ fn state(source: &FilePath) -> Result<&'static str> {
     if !room.join("index.html").is_file() {
         return Ok("review");
     }
-    let used = selections(&room.join("selections.json"))?;
+    let used = selections(&room.join("selections.json")).map_err(storage_error)?;
     if selected != used {
         return Ok("changed");
+    }
+    let anchors = selected.iter().map(|item| (u64::from(item.source_ms), item.track_id)).collect::<Vec<_>>();
+    if identity::affects_coaching(app, session, clip, &anchors)? {
+        return Ok("identity_changed");
     }
     Ok("ready")
 }
@@ -75,7 +79,7 @@ async fn list(State(app): State<App>, Path(id): Path<Uuid>) -> Result<Json<BTree
     let session = stored_session(&app.root, id)?;
     let mut rooms = BTreeMap::new();
     for clip in &session.clips {
-        let state = state(&session.source_path(&app.root, clip)).map_err(storage_error)?;
+        let state = state(&app, id, clip.id, &session.source_path(&app.root, clip))?;
         let url = (state == "ready").then(|| format!("/footage/room/{}/{}/", id, clip.id));
         rooms.insert(clip.id, Room { state, url });
     }
@@ -101,7 +105,7 @@ async fn asset(
 async fn file(app: &App, id: Uuid, clip: Uuid, name: &str, headers: &HeaderMap) -> Result<Response, ApiError> {
     let kind = content_type(name).ok_or_else(|| problem(StatusCode::NOT_FOUND, "Review file not found."))?;
     let source = jobs::clip_source(app, id, clip)?;
-    if state(&source).map_err(storage_error)? != "ready" {
+    if state(app, id, clip, &source)? != "ready" {
         return Err(problem(StatusCode::NOT_FOUND, "The current skater selection does not have a coaching review."));
     }
     jobs::stream(&folder(&source).join(name), kind, headers).await
@@ -131,7 +135,9 @@ pub fn attach(args: &[OsString]) -> Result<()> {
         args => (args, false),
     };
     let [root, id, clip, export, snapshot] = args else {
-        bail!("Usage: --attach-coaching <session-root> <session-id> <clip-id> <room-dir> <focus-snapshot.json> [--replace]");
+        bail!(
+            "Usage: --attach-coaching <session-root> <session-id> <clip-id> <room-dir> <focus-snapshot.json> [--replace]"
+        );
     };
     let root = FilePath::new(root);
     let id = id.to_str().context("invalid session ID")?.parse()?;

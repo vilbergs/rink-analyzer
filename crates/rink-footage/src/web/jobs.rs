@@ -5,12 +5,12 @@ use std::{
 };
 
 use axum::{
+    Json, Router,
     body::Body,
     extract::{Path, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post, put},
-    Json, Router,
 };
 use http_body_util::BodyExt;
 use rink_footage::session;
@@ -22,7 +22,7 @@ use tokio::{
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
-use super::{problem, storage_error, stored_bytes, stored_session, ApiError, App, MAX_STORED, MIB};
+use super::{ApiError, App, MAX_STORED, MIB, problem, storage_error, stored_bytes, stored_session};
 
 const LEASE_SECONDS: u64 = 300;
 const MAX_ATTEMPTS: u32 = 3;
@@ -85,6 +85,13 @@ fn load(source: &FilePath) -> Result<Option<Lease>, ApiError> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(storage_error(error)),
     }
+}
+
+pub(super) fn completed_run(source: &FilePath) -> Result<Option<Uuid>, ApiError> {
+    if !result_path(source).is_file() {
+        return Ok(None);
+    }
+    Ok(load(source)?.map(|lease| lease.token))
 }
 
 fn save(source: &FilePath, lease: &Lease) -> Result<(), ApiError> {
@@ -229,10 +236,15 @@ async fn track_data(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let source = clip_source(&app, id, clip)?;
+    let _lock = app.jobs_lock.lock().await;
     if !result_path(&source).is_file() {
         return Err(problem(StatusCode::NOT_FOUND, "Track data is unavailable."));
     }
-    stream(&data_path(&source), "application/x-ndjson", &headers).await
+    let mut response = stream(&data_path(&source), "application/x-ndjson", &headers).await?;
+    if let Some(run) = completed_run(&source)? {
+        response.headers_mut().insert("x-rink-tracking-run", run.to_string().parse().map_err(storage_error)?);
+    }
+    Ok(response)
 }
 
 async fn upload_data(

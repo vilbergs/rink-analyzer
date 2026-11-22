@@ -65,3 +65,17 @@ Build a Rust replay evaluator using frozen track data and adjudicated identity e
 - Player selection, comparison, and gear suggestions: [identity.js](../crates/rink-footage/src/web/identity.js)
 - Rust track association: [association.rs](../crates/rink-footage/src/annotate/auto/association.rs)
 - Coaching export selection checks: [coaching.rs](../crates/rink-footage/src/web/coaching.rs)
+
+## Run the replay evaluator
+
+```sh
+cargo run -p rink-footage --bin rink-identity-replay -- held-out-games.json
+```
+
+The input is a JSON array with one object per game. Keep games used for choosing thresholds out of this file. The program does no tuning.
+
+- Each game supplies `game`, `reviewed_seconds`, `tracks`, and `decisions`. Copy detected views from frozen track records into `tracks` with their clip and tracking-run UUIDs, source milliseconds, track ID, frame size, box coordinates, and gear. Use the fields `clip`, `run`, `source_ms`, `track_id`, `size`, `xyxy`, and `gear`. Exclude predicted boxes.
+- Preserve the actual review order in `decisions`, including clip order, because clip timestamps are local. Each decision has a `frame` with the four identifying fields and the adjudicated `player` UUID. Optional `confirmations` contain `id` and `player` and become visible only after scoring that decision. An `undo` array reverses those confirmation IDs after scoring. Use `rejected_before` for choices the reviewer had already rejected at that opportunity.
+- Use `scenarios` to tag `crossing`, `reappearance`, and `similar_jerseys`. Record observed effort with `prompts` and `corrections` counts. For consecutive frames of a continuously adjudicated player, supply `continuous` with a unique `stretch` label and `seconds_since_previous` within that stretch. Use zero for its first sample and omit `continuous` for sparse decisions.
+
+The report compares the current gear matcher, the learned matcher, and the learned matcher without examples from earlier clips. For the comparison, the current matcher proposes a track for each earlier confirmed seed using the existing three-sample gear rule. Coverage and error rate use separate denominators. Rates without a denominator appear as null. Synthetic fixtures can verify replay behavior. The default suggestion gate requires independently reviewed held-out games and agreed coverage, accuracy, and effort thresholds.

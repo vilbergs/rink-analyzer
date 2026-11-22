@@ -166,7 +166,7 @@ function resetTracking() {
   element('tracking-review').hidden = true;
 }
 
-function openTracking(session, clip) {
+function openTracking(session, clip, moment) {
   activeClip = clip.id;
   element('coaching-step').hidden = true;
   for (const card of element('clips').children) card.classList.toggle('selected', card.dataset.clip === clip.id);
@@ -176,10 +176,10 @@ function openTracking(session, clip) {
   element('tracking-data').href = base + '.ndjson';
   element('tracking-title').textContent = clip.name;
   element('tracking-review').hidden = false;
-  window.skaterReview.open(session, clip, base);
+  window.skaterReview.open(session, clip, base, moment);
   refreshCoaching(session);
   element('tracking-review').scrollIntoView({block:'start'});
-  video.focus({preventScroll:true});
+  element('tracking-viewport').focus({preventScroll:true});
 }
 
 async function refreshCoaching(session) {
@@ -205,6 +205,7 @@ async function refreshCoaching(session) {
       ready: 'Your reviewed sequences, synchronized rink replay, and montage are ready.',
       review: 'Skater selection saved. This clip needs rink alignment and coaching review.',
       changed: 'Your selection changed. The coaching review needs to be rebuilt.',
+      identity_changed: 'Player study found different identities in Your skater selection. Correct the selected track at the switch.',
     })[active?.state] ?? '';
   } catch { /* Keep the current status during a connection interruption. */ }
 }
@@ -352,6 +353,11 @@ loadRecent();
 window.addEventListener('focus', loadRecent);
 window.addEventListener('focus', () => refreshCoaching(activeSession));
 window.addEventListener('skater-selection-saved', () => refreshCoaching(activeSession));
+window.addEventListener('player-identity-saved', () => refreshCoaching(activeSession));
+window.addEventListener('study-moment-open', event => {
+  const clip = activeSession?.clips.find(clip => clip.id === event.detail.view.clip);
+  if (clip) openTracking(activeSession,clip,event.detail);
+});
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) loadRecent();
 });

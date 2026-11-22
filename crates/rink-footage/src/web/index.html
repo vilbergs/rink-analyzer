@@ -27,9 +27,18 @@
     <section id="tracking-review" hidden aria-labelledby="tracking-title">
       <div class="review-layout"><div class="monitor">
         <div class="monitor-head"><h2 id="tracking-title"></h2><a id="tracking-data" download="tracks.ndjson">Track data ↓</a></div>
-        <div class="screen"><div id="tracking-stage"><video id="tracking-video" controls playsinline preload="metadata"></video>
-          <canvas id="skater-overlay" aria-hidden="true"></canvas></div></div>
-        <div class="transport"><label for="skater-frame">Frame</label><input id="skater-frame" type="range" min="0" step="1" value="0" disabled><output id="skater-time" for="skater-frame">0:00.0</output></div>
+        <div class="screen"><div id="tracking-viewport" tabindex="0" aria-label="Video view. In pan mode, use arrow keys to move the view.">
+          <div id="tracking-stage"><video id="tracking-video" playsinline preload="metadata" aria-label="Tracking footage"></video>
+            <canvas id="skater-overlay" aria-hidden="true"></canvas></div></div></div>
+        <div class="transport">
+          <button id="tracking-play" type="button" disabled>Play</button>
+          <label for="skater-frame">Frame</label><input id="skater-frame" type="range" min="0" step="1" value="0" disabled><output id="skater-time" for="skater-frame">0:00.0</output>
+        </div>
+        <div class="transport view-controls">
+          <label for="tracking-zoom">Zoom</label><input id="tracking-zoom" type="range" min="100" max="400" step="25" value="100" disabled><output id="tracking-scale" for="tracking-zoom">100%</output>
+          <button id="tracking-pan" type="button" aria-pressed="false" disabled>Pan</button>
+          <button id="tracking-reset" type="button" disabled>Fit</button>
+        </div>
       </div>
       <aside id="skater-editor">
         <div class="inspector-nav" id="inspector-nav" hidden><button id="show-study" aria-controls="player-study">Player study</button><button id="show-self" aria-controls="self-panel">Your skater</button></div>
@@ -40,7 +49,22 @@
         </section>
         <section id="player-study" hidden><h3>Player study</h3>
           <label for="study-player">Follow player</label><div class="select-row"><select id="study-player"></select><button type="button" id="pick-study" aria-pressed="false">Pick on ice</button></div>
-          <label for="study-name">Player label on this device</label><input id="study-name" maxlength="40" placeholder="Name or jersey number" disabled>
+          <label for="study-name">Player label</label><input id="study-name" maxlength="40" placeholder="Name or jersey number" disabled>
+          <div class="skater-actions" id="identity-actions">
+            <button id="identity-label" disabled>Confirm new player</button>
+            <button id="identity-rename" disabled>Rename</button>
+            <button id="identity-suggest" disabled>Find matches</button>
+            <button id="identity-undo" disabled>Undo</button>
+          </div>
+          <label for="identity-match">Previously confirmed player</label><select id="identity-match" disabled></select>
+          <div class="skater-actions">
+            <button id="identity-link" disabled>Same player as…</button>
+            <button id="identity-reject" disabled>Different player</button>
+            <button id="identity-unsure" hidden>Can’t tell</button>
+            <button id="identity-replay" disabled>Replay around this frame</button>
+          </div>
+          <figure id="identity-reference" hidden><canvas id="identity-reference-frame"></canvas><figcaption></figcaption></figure>
+          <p id="identity-status" role="status"></p>
           <label for="study-partner">Compare with</label><select id="study-partner"></select>
           <label for="study-ranges">Visible appearances</label><select id="study-ranges"></select>
           <p id="study-status" role="status"></p>
@@ -49,8 +73,8 @@
             <textarea id="note-text" maxlength="600" rows="2" placeholder="What created space here?"></textarea>
             <button>Save moment</button>
           </form>
-          <ul id="study-notes" aria-label="Study moments on this device"></ul>
-          <p class="hint">IDs belong to this clip. Dashed boxes indicate predicted positions.</p>
+          <ul id="study-notes" aria-label="Study moments"></ul>
+          <p class="hint">Confirm on the first frame of an identity switch. Dashed boxes indicate predicted positions.</p>
         </section>
         <section id="coaching-step" hidden><h3>Coaching review</h3><p id="coaching-state" role="status"></p><a id="coaching-room" class="primary" hidden>Open Coaching Film Room ↗</a></section>
       </aside></div>
