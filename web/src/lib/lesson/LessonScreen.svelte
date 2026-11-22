@@ -67,7 +67,7 @@
 
 <div class="lesson">
   <header>
-    <a class="icon-btn" href="#/" aria-label="Close lesson"><Icon name="close" size={22} /></a>
+    <a class="icon-btn" href="/" aria-label="Close lesson"><Icon name="close" size={22} /></a>
     {#if session}
       {@const n = session.steps.length}
       {@const at = session.finished ? n : session.index}

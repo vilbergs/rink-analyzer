@@ -1,4 +1,5 @@
-//! Tailnet web entry point for the local footage session importer.
+//! The footage service: the API under /footage/api, the worker queue and exported film rooms.
+//! Its pages are part of the web app in `web/`, which the same site serves at /footage.
 
 mod coaching;
 mod compatible;
@@ -15,9 +16,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use axum::{
-    extract::{DefaultBodyLimit, Multipart, Path, RawQuery, State},
+    extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, HeaderMap, StatusCode},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -88,8 +89,6 @@ async fn main() -> Result<()> {
         worker_token: env::var("RINK_FOOTAGE_WORKER_TOKEN").ok().filter(|token| !token.is_empty()),
     };
     let routes = Router::new()
-        .route("/footage", get(workspace))
-        .route("/footage/", get(workspace))
         .route("/footage/api/health", get(|| async { "ok" }))
         .route(
             "/footage/api/sessions",
@@ -119,17 +118,6 @@ async fn main() -> Result<()> {
     println!("Footage importer listening on {bind}");
     axum::serve(listener, routes).await?;
     Ok(())
-}
-
-/// The footage workspace is part of the web app. Links from before it moved carry `?session=<id>`.
-async fn workspace(RawQuery(query): RawQuery) -> Redirect {
-    let session = url::form_urlencoded::parse(query.as_deref().unwrap_or_default().as_bytes())
-        .find(|(name, _)| name == "session")
-        .and_then(|(_, id)| id.parse::<Uuid>().ok());
-    match session {
-        Some(id) => Redirect::to(&format!("/#/footage/{id}")),
-        None => Redirect::to("/#/footage"),
-    }
 }
 
 fn require_origin(headers: &HeaderMap, app: &App) -> Result<(), ApiError> {

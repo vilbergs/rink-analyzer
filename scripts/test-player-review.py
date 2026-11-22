@@ -64,7 +64,13 @@ def wait_for(url):
 def exercise(page, origin, session, clip):
     # A link from before the workspace moved into the web app still opens the session.
     page.goto(f"{origin}/footage/?session={session}")
-    expect(page).to_have_url(f"{origin}/#/footage/{session}/{clip}")
+    expect(page).to_have_url(f"{origin}/footage/{session}/{clip}")
+    # So does a link from when the app routed by hash.
+    page.goto(f"{origin}/#/footage/{session}")
+    expect(page).to_have_url(f"{origin}/footage/{session}/{clip}")
+    # A reload of a deep link lands on the same page.
+    page.reload()
+    expect(page).to_have_url(f"{origin}/footage/{session}/{clip}")
     play = page.get_by_role("button", name="Play", exact=True)
     expect(play).to_be_visible()
 
@@ -100,6 +106,15 @@ def exercise(page, origin, session, clip):
     # Escape clears the selection.
     page.keyboard.press("Escape")
     expect(page.locator(".who")).to_have_count(0)
+
+    # Links change the page without reloading it, and Back returns.
+    page.get_by_role("link", name="Footage", exact=True).click()
+    expect(page).to_have_url(f"{origin}/footage")
+    expect(page.get_by_role("link", name="Review fixture")).to_be_visible()
+    page.go_back()
+    expect(page).to_have_url(f"{origin}/footage/{session}/{clip}")
+    page.get_by_role("link", name="Lessons").click()
+    expect(page).to_have_url(f"{origin}/")
 
 
 def main():

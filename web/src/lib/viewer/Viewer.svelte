@@ -64,7 +64,7 @@
 {#if player}
   {@const p = player}
   <main>
-    <header><a href="#/">Lessons</a> {p.title}</header>
+    <header><a href="/">Lessons</a> {p.title}</header>
     <RinkCanvas
       t={p.t}
       scene={(t, opts) => scene(p, t, opts)}

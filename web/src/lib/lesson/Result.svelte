@@ -49,7 +49,7 @@
   {/if}
 </div>
 <div class="actions">
-  <a class="btn primary" href={`#/topic/${session.meta.module}`}>Back to {module?.title ?? "the topic"}</a>
+  <a class="btn primary" href={`/topic/${session.meta.module}`}>Back to {module?.title ?? "the topic"}</a>
 </div>
 
 <style>

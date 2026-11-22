@@ -10,10 +10,17 @@ rink.vilberg.dev {
 	encode zstd gzip
 	@immutable path /assets/*
 	header @immutable Cache-Control "public, max-age=31536000, immutable"
-	@entry path / /index.html /sw.js /registerSW.js /manifest.webmanifest
-	header @entry Cache-Control "no-cache"
+	# The footage service answers these itself; every other /footage path is a page of the web app.
+	@service path /footage/api/* /footage/room/* /footage/worker/*
+	@shell not path /assets/* /curriculum/* /plays/* /footage/api/* /footage/room/* /footage/worker/* *.png
+	header @shell Cache-Control "no-cache"
 	header /manifest.webmanifest Content-Type application/manifest+json
-	redir /footage /footage/ 308
-	reverse_proxy /footage/* 127.0.0.1:8794
+	reverse_proxy @service 127.0.0.1:8794
+	# The app routes by path (/lesson/<id>, /footage/<session>/<clip>), so a page that is not a file is the app.
+	@page {
+		not path /assets/* /curriculum/* /plays/* /footage/api/* /footage/room/* /footage/worker/*
+		not file
+	}
+	rewrite @page /index.html
 	file_server
 }

@@ -38,8 +38,8 @@
 
 <main class="home">
   <header>
-    <a href="#/footage">Footage Sessions</a>
-    <a href="#/viewer">Play viewer</a>
+    <a href="/footage">Footage Sessions</a>
+    <a href="/viewer">Play viewer</a>
   </header>
   <div class="app">
     <CourseIcon />
@@ -71,7 +71,7 @@
         <ul>
           {#each course.modules as module (module.id)}
             <li class="card">
-              <a class="topic" href="#/topic/{module.id}">
+              <a class="topic" href="/topic/{module.id}">
                 <ZoneGlyph module={module.id} />
                 <span class="text">
                   <span class="title">{module.title}</span>
@@ -92,7 +92,7 @@
                     <span class="eyebrow accent">Up next · Lesson {module.next.n}</span>
                     <span class="title">{module.next.title}</span>
                   </div>
-                  <a class="btn primary" href="#/lesson/{module.next.id}">Continue</a>
+                  <a class="btn primary" href="/lesson/{module.next.id}">Continue</a>
                 </div>
               {/if}
             </li>
@@ -106,7 +106,7 @@
     <p class="status">Loading…</p>
   {/if}
   <footer>
-    <a class="link" href="#/local-notes">Local video notes</a>
+    <a class="link" href="/local-notes">Local video notes</a>
     <button class="link" onclick={exportProgress}>Export progress</button>
     <p>Progress is kept in this browser.</p>
   </footer>

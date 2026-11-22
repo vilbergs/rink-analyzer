@@ -22,7 +22,7 @@
 </script>
 
 <main class="topic">
-  <a class="back" href="#/"><Icon name="back" size={18} />Home</a>
+  <a class="back" href="/"><Icon name="back" size={18} />Home</a>
   {#if found && module}
     <span class="eyebrow">{found.course.title} · Topic {found.index + 1} of {found.course.modules.length}</span>
     <h1>{module.title}</h1>
@@ -41,7 +41,7 @@
               <h2>{lesson.title}</h2>
               <p class="principle">{lesson.principle}</p>
               <span class="meta">{lesson.stepCount} steps · about 10 min</span>
-              <a class="btn primary" href="#/lesson/{lesson.id}">Start lesson</a>
+              <a class="btn primary" href="/lesson/{lesson.id}">Start lesson</a>
             </div>
           {:else if lesson.state === "locked"}
             <span class="node"><Icon name="lock" size={18} /></span>
@@ -52,7 +52,7 @@
               </span>
             </div>
           {:else}
-            <a class="row" href="#/lesson/{lesson.id}">
+            <a class="row" href="/lesson/{lesson.id}">
               <span class="node">
                 {#if lesson.state === "studied"}<Icon name="check" size={18} />{:else}{lesson.n}{/if}
               </span>

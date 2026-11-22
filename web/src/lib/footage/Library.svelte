@@ -2,6 +2,7 @@
   import "./footage.css";
   import * as api from "./api";
   import type { RecentSession } from "./api";
+  import { router } from "../router.svelte";
   import ImportDialog from "./ImportDialog.svelte";
   import { duration } from "./tracks";
 
@@ -81,7 +82,7 @@
 
 <div class="footage library">
   <header>
-    <nav><a href="#/">Lessons</a> / <b>Footage</b></nav>
+    <nav><a href="/">Lessons</a> / <b>Footage</b></nav>
     <input type="search" placeholder="Filter sessions" aria-label="Filter sessions by name" bind:value={query} />
     <button class="tool primary" onclick={() => importer?.open()}>Import footage</button>
   </header>
@@ -90,7 +91,7 @@
     <p class="banner" role="status">
       {youtube.text}
       {#if youtube.done && sessions?.some((session) => session.id === youtube?.id)}
-        <a href="#/footage/{youtube.id}">Open session</a>
+        <a href="/footage/{youtube.id}">Open session</a>
       {/if}
     </p>
   {/if}
@@ -106,7 +107,7 @@
       <ul>
         {#each matches as session (session.id)}
           <li>
-            <a href="#/footage/{session.id}">
+            <a href="/footage/{session.id}">
               <span class="sheet" data-count={session.preview_clips.length}>
                 {#each session.preview_clips as clip (clip)}
                   <img src={api.previewUrl(session.id, clip)} alt="" loading="lazy" />
@@ -124,7 +125,7 @@
 
   <ImportDialog
     bind:this={importer}
-    onimported={(session) => (location.hash = `#/footage/${session.id}`)}
+    onimported={(session) => router.go(`/footage/${session.id}`)}
     onqueued={watch}
   />
 </div>

@@ -254,28 +254,28 @@ npm run dev                 # http://localhost:5173
 service worker so a phone can add it to the home screen and run it offline. `web/public/curriculum` links
 to `curriculum/` and `web/public/plays` to `examples/`; both are served as static files.
 
-- `#/` is the home from `curriculum/courses.json`: the courses in order, each with its title and
+- `/` is the home from `curriculum/courses.json`: the courses in order, each with its title and
   description, then one card per topic with a segment per lesson. The first topic in progress shows its
   next lesson with Continue. "Export progress" downloads attempts and
   studied lessons as JSON.
-- `#/topic/<id>` is the topic's path: lessons in order, studied, current or locked. A lesson unlocks when
+- `/topic/<id>` is the topic's path: lessons in order, studied, current or locked. A lesson unlocks when
   the one before it is studied; studied lessons stay open.
-- `#/lesson/<id>` runs a lesson: the rink on top, the step in a bottom sheet. A card reads a Markdown
+- `/lesson/<id>` runs a lesson: the rink on top, the step in a bottom sheet. A card reads a Markdown
   section, a watch step plays a segment and stops on the beat, a choice grades on tap and can play on in
   the variant the option leads to, a spot hides your player until you tap the rink and then draws the
   target zones with the facts for your tap and the target, and a contrast flips between the play and its
   wrong variant with the playhead kept. The result shows the cue and the graded steps below 2.
 - Progress (append-only attempts, studied lessons) lives in IndexedDB behind a `ProgressStore` interface.
-- `#/footage` is the footage library and `#/footage/<session>/<clip>` the review workspace; see
+- `/footage` is the footage library and `/footage/<session>/<clip>` the review workspace; see
   [Hosted footage sessions](#hosted-footage-sessions). They talk to the footage service under `/footage/api`.
   For local work, run `rink-footage-web` with `RINK_FOOTAGE_ORIGIN=http://localhost:5173`; the dev server
   proxies `/footage` to it.
-- **Local video notes** (`#/local-notes`) opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
+- **Local video notes** (`/local-notes`) opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
   Click a timestamp to pause on it, or choose **Play lead-in** to watch from five seconds earlier.
   **Undo** restores the most recently removed moment. Reopen the same file in this browser
   to resume at your last position with your notes, or use **Export notes**
   for a chronological text copy. The recording stays on the device.
-- `#/viewer` plays the breakout example. Space plays and pauses, ← → step 100 ms, Home / End jump, a click
+- `/viewer` plays the breakout example. Space plays and pauses, ← → step 100 ms, Home / End jump, a click
   selects a player, the wheel zooms, Shift-wheel or a middle-button drag pans, and 0 fits the rink.
 
 ### Hosting
@@ -299,7 +299,7 @@ looked the name up before that keeps the stale answer for up to 30 minutes.
 The [application architecture diagram](docs/footage-application-architecture.svg) follows an
 upload from the Pi through Furulid tracking and reviewed export.
 
-Open [Footage](https://rink.vilberg.dev/#/footage) on the tailnet. The Pi accepts a batch
+Open [Footage](https://rink.vilberg.dev/footage) on the tailnet. The Pi accepts a batch
 of up to 32 H.264 or HEVC MOV or MP4 clips totaling 1 GiB, saves the originals, and decodes an
 upright preview of each clip. The Pi serves the same recent-session list to every browser on the
 tailnet. Uploaded media lives in the service's local state directory. The Pi and Furulid use

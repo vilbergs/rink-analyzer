@@ -11,7 +11,7 @@
 </script>
 
 <main>
-  <nav><a href="#/">Lessons</a> / Local video notes</nav>
+  <nav><a href="/">Lessons</a> / Local video notes</nav>
   <header>
     <h1>Local video notes</h1>
     <input hidden type="file" accept="video/*,.mkv,.mov,.webm" bind:this={picker} onchange={(e) => choose(e.currentTarget)} />

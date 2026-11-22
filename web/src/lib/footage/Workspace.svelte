@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./footage.css";
+  import { router } from "../router.svelte";
   import * as api from "./api";
   import type { Moment, Room, Session, Tracking } from "./api";
   import NotesPanel from "./NotesPanel.svelte";
@@ -98,7 +99,7 @@
   $effect(() => {
     if (!session || clip || !Object.keys(states).length) return;
     const first = session.clips.find((c) => states[c.id] === "ready") ?? session.clips[0];
-    if (first) location.replace(`#/footage/${session.id}/${first.id}`);
+    if (first) router.go(`/footage/${session.id}/${first.id}`, true);
   });
 
   const ready = $derived(!!clip && states[clip.id] === "ready");
@@ -112,7 +113,7 @@
         opened.onsaved = refreshCoaching;
         opened.onopen = (other, moment) => {
           pending = moment;
-          location.hash = `#/footage/${sessionId}/${other}`;
+          router.go(`/footage/${sessionId}/${other}`);
         };
         review = opened;
         if (pending?.view.clip === opened.clip.id) opened.openMoment(pending);
@@ -134,7 +135,7 @@
     if (!session || !confirm("Delete this session and its uploaded clips from the Pi?")) return;
     try {
       await api.removeSession(session.id);
-      location.hash = "#/footage";
+      router.go("/footage");
     } catch {
       problem = "Could not delete the session.";
     }
@@ -195,7 +196,7 @@
 <div class="footage workspace" data-tab={tab}>
   <header>
     <nav>
-      <a href="#/">Lessons</a> / <a href="#/footage">Footage</a> /
+      <a href="/">Lessons</a> / <a href="/footage">Footage</a> /
       <b>{title || "Session"}</b>
     </nav>
     <span class="status" role="status">{problem || review?.status}</span>
@@ -209,7 +210,7 @@
     <section class="clips">
       <h3>Clips</h3>
       {#each session?.clips ?? [] as item (item.id)}
-        <a class="clip" href="#/footage/{sessionId}/{item.id}" aria-current={item.id === clipId ? "true" : undefined}>
+        <a class="clip" href="/footage/{sessionId}/{item.id}" aria-current={item.id === clipId ? "true" : undefined}>
           <img src={api.previewUrl(sessionId, item.id)} alt="" loading="lazy" />
           <span>
             <b>{item.name}</b>
