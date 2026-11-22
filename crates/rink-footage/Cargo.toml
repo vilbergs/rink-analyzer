@@ -54,6 +54,11 @@ path = "src/corpus/main.rs"
 required-features = ["corpus"]
 
 [[bin]]
+name = "rink-detect"
+path = "src/bin/rink-detect.rs"
+required-features = ["yolo"]
+
+[[bin]]
 name = "rink-footage-web"
 path = "src/web/main.rs"
 required-features = ["web-import"]

@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parent
 API = os.environ["RINK_FOOTAGE_API"].rstrip("/") + "/api/footage/worker"
 TOKEN = os.environ["RINK_FOOTAGE_WORKER_TOKEN"]
 FPS = 15
+# yolox: general person detector (ONNX). hockeyai: HockeyAI YOLOv8 through rink-detect, which
+# tells players, goalies and referees apart and keeps pucks out of the tracked boxes.
+DETECTOR = os.environ.get("RINK_DETECTOR", "yolox")
 
 
 def request(route, method="GET", lease=None, body=None, mime="application/octet-stream", title=None, failure=None):
@@ -64,6 +67,14 @@ def extract_frames(source, frames):
         frame.rename(frames / f"{source.stem}-{time_ms:06d}.jpg")
 
 
+def detect_command(frames):
+    if DETECTOR == "hockeyai":
+        return [ROOT / "rink-detect", ROOT / "hockeyai.pt", frames]
+    if DETECTOR == "yolox":
+        return [sys.executable, ROOT / "detect-yolox.py", ROOT / "yolox_s.onnx", frames]
+    raise ValueError(f"Unknown RINK_DETECTOR {DETECTOR}")
+
+
 def detect_camera_cuts(frames, output):
     frame_files = sorted(frames.glob("source-*.jpg"))
     result = subprocess.run([
@@ -106,8 +117,7 @@ def process(job):
                 print(f"Detected {detect_camera_cuts(frames, cuts)} camera cuts for {job['clip']}", flush=True)
                 shot_args = ["--shot-cuts", cuts]
             with detections.open("wb") as boxes:
-                subprocess.run([sys.executable, ROOT / "detect-yolox.py", ROOT / "yolox_s.onnx", frames],
-                               stdout=boxes, check=True, timeout=2700)
+                subprocess.run(detect_command(frames), stdout=boxes, check=True, timeout=2700)
             subprocess.run([ROOT / "rink-track-preview", "--detections", frames, source.stem, str(FPS),
                             os.environ["RINK_FOOTAGE_FONT"], output, detections, tracks, *shot_args, "--interactive"], check=True, timeout=2700)
             with tracks.open("rb") as data, request(route + "/data", "PUT", lease, data, "application/x-ndjson"):

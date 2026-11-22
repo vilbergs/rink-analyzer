@@ -12,7 +12,12 @@ cd "$HOME/.cache/rink-footage-build"
 worker="$HOME/.local/share/rink-detector"
 test -r "$worker/yolox_s.onnx" && test -x "$worker/.venv/bin/python"
 "$HOME/.cargo/bin/cargo" build --release --locked -p rink-footage --features tracking-preview   --bin rink-footage --bin rink-track-preview
-for file in rink-footage rink-track-preview; do
+# rink-detect runs HockeyAI on CUDA when the worker is set to RINK_DETECTOR=hockeyai.
+PATH=/opt/cuda/bin:$PATH CUDA_COMPUTE_CAP=89 "$HOME/.cargo/bin/cargo" build --release --locked -p rink-footage --features yolo-cuda --bin rink-detect
+if test ! -r "$worker/hockeyai.pt" && test -r "$HOME/rink-corpus/models/hockeyai.pt"; then
+  install -m 644 "$HOME/rink-corpus/models/hockeyai.pt" "$worker/hockeyai.pt"
+fi
+for file in rink-footage rink-track-preview rink-detect; do
   install -m 755 "target/release/$file" "$worker/$file.new"
   mv "$worker/$file.new" "$worker/$file"
 done
