@@ -14,7 +14,7 @@ use axum::{
 };
 use rink_footage::session;
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncReadExt, task::spawn_blocking};
+use tokio::{io::{AsyncReadExt, AsyncSeekExt}, task::spawn_blocking};
 use url::Url;
 use uuid::Uuid;
 
@@ -239,6 +239,7 @@ async fn publish(
         active(&app.root, id, &headers)?;
     }
     let (temp, mut file, size) = jobs::receive(&app, body, MAX_VIDEO).await?;
+    file.seek(std::io::SeekFrom::Start(0)).await.map_err(storage_error)?;
     let mut signature = [0; 8];
     if file.read_exact(&mut signature).await.is_err() || &signature[4..] != b"ftyp" {
         return Err(problem(StatusCode::BAD_REQUEST, "Expected a YouTube MP4 download."));
