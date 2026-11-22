@@ -4,15 +4,17 @@
 //! `<clip>/frames/*.jpg` (15 fps, named by source time), `<clip>/tracks.ndjson` and
 //! `<clip>/focus.json` (the "this is me" anchors). It shows Claude sampled frames with the user
 //! boxed, gets back a few moments with cues, checks them against the clips, and writes
-//! `out/feedback.json` and `out/video.mp4`. The API key comes from `ANTHROPIC_API_KEY`;
+//! `out/feedback.json` and `out/video.mp4`. Claude is reached through the API with
+//! `ANTHROPIC_API_KEY`, or through the Claude Code CLI at `RINK_FEEDBACK_CLAUDE`;
 //! `RINK_FEEDBACK_PLAN` names a saved answer to render instead.
 use std::{
     collections::BTreeMap,
     env,
     ffi::OsString,
     fs::{self, File},
-    io::{BufRead, BufReader, Cursor},
+    io::{BufRead, BufReader, Cursor, Write},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
     time::Duration,
 };
 
@@ -129,7 +131,7 @@ pub fn run(args: &[OsString]) -> Result<()> {
     // RINK_FEEDBACK_PLAN renders a saved plan (Claude's JSON answer) again without calling the API.
     let plan = match env::var_os("RINK_FEEDBACK_PLAN") {
         Some(path) => serde_json::from_slice(&fs::read(path)?).context("reading the saved plan")?,
-        None => ask_claude(&job.note, &clips)?,
+        None => ask_claude(&job.note, &clips, &work)?,
     };
     let moments = check(&plan, &clips)?;
     let out = work.join("out");
@@ -183,40 +185,44 @@ fn samples(clips: &[Clip]) -> Vec<(usize, &(PathBuf, u64))> {
     visible.into_iter().step_by(every).collect()
 }
 
-fn ask_claude(note: &str, clips: &[Clip]) -> Result<Plan> {
-    let key = env::var("ANTHROPIC_API_KEY").context("ANTHROPIC_API_KEY is not set on the worker")?;
-    let model = env::var("RINK_FEEDBACK_MODEL").unwrap_or_else(|_| "claude-opus-5-5".into());
+/// What Claude is shown: text and boxed frames, in order.
+enum Part {
+    Text(String),
+    Image(Vec<u8>),
+}
+
+fn prompt(note: &str, clips: &[Clip]) -> Result<Vec<Part>> {
     let listing: String = clips
         .iter()
         .enumerate()
         .map(|(i, clip)| format!("Clip {i}: {} ({:.1} s long)\n", clip.name, clip.duration_ms as f64 / 1000.0))
         .collect();
-    let mut content = vec![json!({ "type": "text", "text": format!(
+    let mut parts = vec![Part::Text(format!(
         "These are frames from {} clip(s), sampled about once a second where I am in view. I am boxed in yellow.\n{listing}",
         clips.len()
-    )})];
+    ))];
     for (i, (path, ms)) in samples(clips) {
         let mut image = image::open(path)?.to_rgb8();
-        if let Some(&[x0, y0, x1, y1]) = clips[i].you.get(ms) {
-            outline(&mut image, [x0, y0, x1, y1], YOU, 3, None);
+        if let Some(&xyxy) = clips[i].you.get(ms) {
+            outline(&mut image, xyxy, YOU, 3, None);
         }
         let mut jpeg = Vec::new();
         image::DynamicImage::ImageRgb8(image).write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)?;
-        content.push(json!({ "type": "text", "text": format!("Clip {i} at {:.1} s:", *ms as f64 / 1000.0) }));
-        content.push(json!({ "type": "image", "source": {
-            "type": "base64", "media_type": "image/jpeg",
-            "data": base64::engine::general_purpose::STANDARD.encode(&jpeg)
-        }}));
+        parts.push(Part::Text(format!("Clip {i} at {:.1} s:", *ms as f64 / 1000.0)));
+        parts.push(Part::Image(jpeg));
     }
     let ask = if note.is_empty() { String::new() } else { format!("What I want feedback on: {note}\n\n") };
-    content.push(json!({ "type": "text", "text": format!(
+    parts.push(Part::Text(format!(
         "{ask}Pick the 3 to 6 moments most worth learning from, spread over the clips where it makes sense. \
-    For each, give the clip number, a window of 4 to 12 seconds (start_s, end_s, in clip seconds), the second \
-    to freeze on (freeze_s, the key decision, inside the window), a title of at most 6 words, what I did \
-    (observation) and what to try next time (suggestion), each one or two sentences. Then a two-sentence \
-    summary of the main pattern across the clips."
-    )}));
+For each, give the clip number, a window of 4 to 12 seconds (start_s, end_s, in clip seconds), the second \
+to freeze on (freeze_s, the key decision, inside the window), a title of at most 6 words, what I did \
+(observation) and what to try next time (suggestion), each one or two sentences. Then a two-sentence \
+summary of the main pattern across the clips."
+    )));
+    Ok(parts)
+}
 
+fn schema() -> Value {
     let moment = json!({
         "type": "object",
         "properties": {
@@ -227,16 +233,44 @@ fn ask_claude(note: &str, clips: &[Clip]) -> Result<Plan> {
         "required": ["clip", "start_s", "end_s", "freeze_s", "title", "observation", "suggestion"],
         "additionalProperties": false
     });
+    json!({
+        "type": "object",
+        "properties": { "summary": { "type": "string" }, "moments": { "type": "array", "items": moment } },
+        "required": ["summary", "moments"],
+        "additionalProperties": false
+    })
+}
+
+/// Ask Claude through the API when `ANTHROPIC_API_KEY` is set, otherwise through the Claude Code
+/// CLI at `RINK_FEEDBACK_CLAUDE`, which uses that machine's own Claude login.
+fn ask_claude(note: &str, clips: &[Clip], work: &Path) -> Result<Plan> {
+    let parts = prompt(note, clips)?;
+    if let Ok(key) = env::var("ANTHROPIC_API_KEY") {
+        return ask_api(&parts, &key);
+    }
+    if let Some(cli) = env::var_os("RINK_FEEDBACK_CLAUDE") {
+        return ask_claude_code(&parts, Path::new(&cli), work);
+    }
+    bail!("Set ANTHROPIC_API_KEY or RINK_FEEDBACK_CLAUDE on the worker")
+}
+
+fn ask_api(parts: &[Part], key: &str) -> Result<Plan> {
+    let model = env::var("RINK_FEEDBACK_MODEL").unwrap_or_else(|_| "claude-opus-5-5".into());
+    let content: Vec<Value> = parts
+        .iter()
+        .map(|part| match part {
+            Part::Text(text) => json!({ "type": "text", "text": text }),
+            Part::Image(jpeg) => json!({ "type": "image", "source": {
+                "type": "base64", "media_type": "image/jpeg",
+                "data": base64::engine::general_purpose::STANDARD.encode(jpeg)
+            }}),
+        })
+        .collect();
     let body = json!({
         "model": model,
         "max_tokens": 16000,
         "system": SYSTEM,
-        "output_config": { "effort": "high", "format": { "type": "json_schema", "schema": {
-            "type": "object",
-            "properties": { "summary": { "type": "string" }, "moments": { "type": "array", "items": moment } },
-            "required": ["summary", "moments"],
-            "additionalProperties": false
-        }}},
+        "output_config": { "effort": "high", "format": { "type": "json_schema", "schema": schema() } },
         "fallbacks": "default",
         "messages": [{ "role": "user", "content": content }]
     });
@@ -247,7 +281,7 @@ fn ask_claude(note: &str, clips: &[Clip]) -> Result<Plan> {
         .into();
     let mut response = agent
         .post("https://api.anthropic.com/v1/messages")
-        .header("x-api-key", &key)
+        .header("x-api-key", key)
         .header("anthropic-version", "2026-10-21")
         .header("anthropic-beta", "server-side-fallback-2026-07-01")
         .send_json(&body)
@@ -268,6 +302,52 @@ fn ask_claude(note: &str, clips: &[Clip]) -> Result<Plan> {
         .and_then(|block| block["text"].as_str())
         .context("Claude's reply has no text")?;
     serde_json::from_str(text).context("Claude's reply is not the expected JSON")
+}
+
+/// Run Claude Code headless in the work folder. The frames are written to `samples/` and the
+/// prompt names them in order; Claude Code may only read files.
+fn ask_claude_code(parts: &[Part], cli: &Path, work: &Path) -> Result<Plan> {
+    let samples = work.join("samples");
+    fs::create_dir_all(&samples)?;
+    let mut text = format!("{SYSTEM}\n\nRead every image file named below, in order, before answering.\n\n");
+    let mut count = 0;
+    for part in parts {
+        match part {
+            Part::Text(line) => text += &format!("{line}\n"),
+            Part::Image(jpeg) => {
+                let name = format!("samples/{count:03}.jpg");
+                fs::write(work.join(&name), jpeg)?;
+                text += &format!("{name}\n");
+                count += 1;
+            }
+        }
+    }
+    let mut child = Command::new(cli)
+        .current_dir(work)
+        .args(["-p", "--output-format", "json", "--model", "opus", "--effort", "high", "--strict-mcp-config"])
+        .args(["--allowedTools", "Read", "--disallowedTools", "Bash,Edit,Write,WebFetch,WebSearch"])
+        .arg("--json-schema")
+        .arg(schema().to_string())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .with_context(|| format!("starting {}", cli.display()))?;
+    child.stdin.take().context("no stdin for Claude Code")?.write_all(text.as_bytes())?;
+    let output = child.wait_with_output()?;
+    let reply: Value = serde_json::from_slice(&output.stdout).with_context(|| {
+        format!("Claude Code did not answer in JSON: {}", String::from_utf8_lossy(&output.stderr).trim())
+    })?;
+    if reply["is_error"].as_bool() == Some(true) || !output.status.success() {
+        bail!("Claude Code failed: {}", reply["result"].as_str().unwrap_or("no message"));
+    }
+    let structured = &reply["structured_output"];
+    if structured.is_object() {
+        return serde_json::from_value(structured.clone()).context("Claude Code's answer is not the expected JSON");
+    }
+    let result = reply["result"].as_str().context("Claude Code's reply has no result")?;
+    let json = &result[result.find('{').unwrap_or(0)..=result.rfind('}').unwrap_or(result.len() - 1)];
+    serde_json::from_str(json).context("Claude Code's answer is not the expected JSON")
 }
 
 /// A moment that fits its clip, with times in clip milliseconds.
