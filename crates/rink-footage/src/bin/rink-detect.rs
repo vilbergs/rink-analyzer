@@ -13,13 +13,21 @@ use anyhow::{bail, ensure, Context, Result};
 use rink_footage::yolo::{self, Yolo};
 use serde_json::json;
 
-const USAGE: &str = "Usage: rink-detect <model.pt> <frames-dir|frame.jpg>... [--confidence 0.25] [--size 1280]";
+const USAGE: &str =
+    "Usage: rink-detect <model.pt> <frames-dir|frame.jpg>... [--confidence 0.25] [--size 1280]\n       \
+                     rink-detect draw <frames-dir> <detections.ndjson> <out-dir>";
 /// Class names that are people on the ice, across HockeyAI's and similar checkpoints' spellings.
 const PEOPLE: [&str; 4] = ["player", "goalie", "goaltender", "referee"];
 
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
-    let model_path = PathBuf::from(args.next().context(USAGE)?);
+    let first = args.next().context(USAGE)?;
+    if first == "draw" {
+        let rest: Vec<String> = args.collect();
+        let [frames, detections, out] = rest.as_slice() else { bail!(USAGE) };
+        return draw(Path::new(frames), Path::new(detections), Path::new(out));
+    }
+    let model_path = PathBuf::from(first);
     let (mut inputs, mut confidence, mut size) = (Vec::new(), 0.25_f32, 1280_u32);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -63,6 +71,61 @@ fn main() -> Result<()> {
         out.flush()?;
     }
     Ok(())
+}
+
+/// Draw every box of a detections file (this tool's or `detect-yolox.py`'s) onto its frames,
+/// colored by class, for looking at a detector's raw output before tracking.
+fn draw(frames: &Path, detections: &Path, out: &Path) -> Result<()> {
+    std::fs::create_dir_all(out)?;
+    let text = std::fs::read_to_string(detections).with_context(|| format!("reading {}", detections.display()))?;
+    for line in text.lines() {
+        let record: serde_json::Value = serde_json::from_str(line)?;
+        let name = record["frame"].as_str().context("detections line has no frame")?;
+        let mut image = image::open(frames.join(name)).with_context(|| format!("reading frame {name}"))?.to_rgb8();
+        let boxes = ["detections", "other"].iter().filter_map(|k| record[*k].as_array()).flatten();
+        for b in boxes {
+            let class = b["class"].as_str().unwrap_or("person");
+            let Some(color) = color(class) else { continue };
+            let v: Vec<f32> = b["xyxy"]
+                .as_array()
+                .context("box has no xyxy")?
+                .iter()
+                .filter_map(|x| x.as_f64())
+                .map(|x| x as f32)
+                .collect();
+            ensure!(v.len() == 4, "box in {name} is not xyxy");
+            // A puck is a few pixels wide; pad its box so it can be seen at playback size.
+            let pad = if class == "puck" { 6.0 } else { 0.0 };
+            outline(&mut image, [v[0] - pad, v[1] - pad, v[2] + pad, v[3] + pad], color, 2);
+        }
+        image.save(out.join(name))?;
+    }
+    Ok(())
+}
+
+/// Class colors; rink marks (faceoff dots, center ice, goals) are left out to keep the view clear.
+fn color(class: &str) -> Option<[u8; 3]> {
+    Some(match class {
+        "person" => [255, 255, 255],
+        "player" => [40, 140, 255],
+        "goalie" | "goaltender" => [255, 210, 0],
+        "referee" => [60, 220, 90],
+        "puck" => [255, 30, 30],
+        _ => return None,
+    })
+}
+
+fn outline(image: &mut image::RgbImage, [x0, y0, x1, y1]: [f32; 4], color: [u8; 3], width: i64) {
+    let (w, h) = (i64::from(image.width()), i64::from(image.height()));
+    let (x0, y0, x1, y1) = (x0.round() as i64, y0.round() as i64, x1.round() as i64, y1.round() as i64);
+    for y in y0.max(0)..=y1.min(h - 1) {
+        for x in x0.max(0)..=x1.min(w - 1) {
+            let edge = x - x0 < width || x1 - x < width || y - y0 < width || y1 - y < width;
+            if edge {
+                image.put_pixel(x as u32, y as u32, image::Rgb(color));
+            }
+        }
+    }
 }
 
 /// Frames in the order the tracker expects: a directory's JPEGs sorted by the number after the
