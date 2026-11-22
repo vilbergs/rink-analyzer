@@ -31,4 +31,4 @@ if ! sudo -n sh -c 'set -a; . /etc/caddy/cloudflare.env; caddy validate --config
 fi
 rm "$backup"
 REMOTE
-printf 'https://rink.vilberg.dev/footage/\n'
+printf 'https://rink.vilberg.dev/#/footage\n'

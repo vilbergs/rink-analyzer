@@ -1,0 +1,123 @@
+/* Shared controls for the footage workspace: denser than the lesson player's touch-first buttons. */
+
+.footage {
+  font-size: 13px;
+}
+.footage .tool {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.footage .tool:hover:not(:disabled) {
+  border-color: var(--text-dim);
+}
+.footage .tool.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.footage .tool.quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--text-muted);
+}
+.footage .tool.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.footage .tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.footage a {
+  color: var(--accent-soft);
+}
+
+.footage .panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.footage .panel h3 {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.footage .hint {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.footage .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.footage .field {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.footage input[type="text"],
+.footage input[type="search"],
+.footage input[type="url"],
+.footage textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--text);
+  font: inherit;
+}
+.footage textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+.footage :is(input, textarea, button, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.footage .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.footage .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.footage .chip {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.footage .chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text);
+}
+.footage .chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

@@ -15,9 +15,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use axum::{
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, RawQuery, State},
     http::{header, HeaderMap, StatusCode},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -88,20 +88,8 @@ async fn main() -> Result<()> {
         worker_token: env::var("RINK_FOOTAGE_WORKER_TOKEN").ok().filter(|token| !token.is_empty()),
     };
     let routes = Router::new()
-        .route("/footage", get(|| async { axum::response::Redirect::permanent("/footage/") }))
-        .route("/footage/", get(|| async { Html(include_str!("index.html")) }))
-        .route(
-            "/footage/import.css",
-            get(|| async { ([(header::CONTENT_TYPE, "text/css")], include_str!("import.css")) }),
-        )
-        .route(
-            "/footage/import.js",
-            get(|| async { ([(header::CONTENT_TYPE, "text/javascript")], include_str!("import.js")) }),
-        )
-        .route(
-            "/footage/identity.js",
-            get(|| async { ([(header::CONTENT_TYPE, "text/javascript")], include_str!("identity.js")) }),
-        )
+        .route("/footage", get(workspace))
+        .route("/footage/", get(workspace))
         .route("/footage/api/health", get(|| async { "ok" }))
         .route(
             "/footage/api/sessions",
@@ -131,6 +119,17 @@ async fn main() -> Result<()> {
     println!("Footage importer listening on {bind}");
     axum::serve(listener, routes).await?;
     Ok(())
+}
+
+/// The footage workspace is part of the web app. Links from before it moved carry `?session=<id>`.
+async fn workspace(RawQuery(query): RawQuery) -> Redirect {
+    let session = url::form_urlencoded::parse(query.as_deref().unwrap_or_default().as_bytes())
+        .find(|(name, _)| name == "session")
+        .and_then(|(_, id)| id.parse::<Uuid>().ok());
+    match session {
+        Some(id) => Redirect::to(&format!("/#/footage/{id}")),
+        None => Redirect::to("/#/footage"),
+    }
 }
 
 fn require_origin(headers: &HeaderMap, app: &App) -> Result<(), ApiError> {

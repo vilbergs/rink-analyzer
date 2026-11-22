@@ -6,7 +6,8 @@ const BACKGROUND = "#0f1115";
 
 export default defineConfig({
   server: {
-    proxy: { "^/footage(?:/|\\?|$)": "http://127.0.0.1:8794" },
+    // The footage service (rink-footage-web) answers under /footage; run it with RINK_FOOTAGE_ORIGIN set to this dev server.
+    proxy: { "^/footage(?:/|\\?|$)": process.env.RINK_FOOTAGE_DEV ?? "http://127.0.0.1:8794" },
   },
   plugins: [
     svelte(),

@@ -1,6 +1,11 @@
-"""Run with uv run --with playwright --with pillow python scripts/test-player-review.py PREVIEW.mp4.
+"""Drive the footage workspace in a real browser against a throwaway session.
 
-Requires Google Chrome and the web-import build of target/debug/rink-footage-web.
+Run from the repo root:
+
+    uv run --with playwright --with pillow python scripts/test-player-review.py PREVIEW.mp4
+
+Requires Google Chrome, `npm ci` in web/, the generated wasm bindings (scripts/build-wasm.sh)
+and the web-import build of target/debug/rink-footage-web.
 Supply a browser-playable MP4 at least two seconds long.
 """
 import json
@@ -17,6 +22,8 @@ from uuid import UUID
 
 from PIL import Image
 from playwright.sync_api import expect, sync_playwright
+
+REPO = Path(__file__).resolve().parent.parent
 
 
 def fixture(root, video):
@@ -38,121 +45,90 @@ def fixture(root, video):
     return session, clip
 
 
-def exercise(page, origin, session, clip):
-    field = lambda name: page.locator("#" + name)
-    page.goto(f"{origin}/footage/?session={session}")
-    field("track-review-" + clip).click()
-    expect(field("tracking-play")).to_be_enabled()
-    field("tracking-viewport").focus()
-    scroll = page.evaluate("window.scrollY")
-    page.keyboard.press("Space")
-    expect(field("tracking-play")).to_have_text("Pause")
-    page.keyboard.press("Space")
-    expect(field("tracking-play")).to_have_text("Play")
-    assert page.evaluate("window.scrollY") == scroll
-    field("tracking-zoom").press("End")
-    expect(field("tracking-scale")).to_have_text("400%")
-    field("tracking-reset").click()
-    expect(field("tracking-scale")).to_have_text("100%")
-    field("tracking-expand").click()
-    expect(field("tracking-expand")).to_have_attribute("aria-pressed", "true")
-    expect(field("fullscreen-play")).to_be_visible()
-    field("tracking-expand").click()
-    expect(field("tracking-expand")).to_have_attribute("aria-pressed", "false")
-    for width, height in [(1280, 720), (390, 844)]:
-        page.set_viewport_size(dict(width=width, height=height))
-        field("tracking-review").evaluate("e => e.scrollIntoView({block:'start'})")
-        expect(field("pick-study")).to_be_in_viewport(ratio=1)
-        expect(page.locator("#play-review summary")).to_be_in_viewport(ratio=1)
-        assert field("tracking-reset").evaluate("""e => {
-            const control = e.getBoundingClientRect();
-            const frame = document.querySelector('#tracking-video').getBoundingClientRect();
-            return control.right <= frame.right && control.bottom <= frame.bottom &&
-                   control.left >= frame.left && control.top >= frame.top;
-        }""")
-    page.set_viewport_size(dict(width=1280, height=720))
-    # Pick the second track by its label on the rendered canvas.
-    canvas = field("skater-overlay")
-    bounds = canvas.bounding_box()
-    page.mouse.click(bounds["x"] + 205 / 1280 * bounds["width"],
-                     bounds["y"] + 90 / 720 * bounds["height"])
-    expect(field("study-player")).to_have_value("2")
-    field("study-name").fill("Reference")
-    field("study-name").press("Space")
-    expect(field("study-name")).to_have_value("Reference ")
-    expect(field("tracking-play")).to_have_text("Play")
-    field("identity-label").click()
-    expect(field("identity-status")).to_have_text("Saved.")
-    field("study-player").select_option("1")
-    page.locator("#study-player-details summary").click()
-    field("study-team").fill("Blue")
-    field("study-jersey").fill("09")
-    field("identity-label").click()
-    expect(field("study-name")).to_have_value("Blue #09")
-    player = field("study-player").input_value()
-
-    for team, jersey, alias in [("Red", "19", ""), ("Green", "07", "Sam")]:
-        held = []
-
-        def hold_response(route):
-            held.append((route, route.fetch()))
-
-        page.route("**/identity/suggestions", hold_response)
-        with page.expect_request("**/identity/suggestions"):
-            field("identity-suggest").click()
-        expect(field("study-team")).to_be_enabled()
-        field("study-team").fill(team)
-        field("study-jersey").fill(jersey)
-        if alias:
-            field("study-name").fill(alias)
-        route, response = held.pop()
-        assert response.ok and response.json()["candidates"]
-        route.fulfill(response=response)
-        page.unroute("**/identity/suggestions", hold_response)
-        expect(field("identity-unsure")).to_be_visible()
-        expect(field("study-team")).to_have_value(team)
-        expect(field("study-jersey")).to_have_value(jersey)
-        expect(field("study-name")).to_have_value(alias or "Blue #09")
-        with page.expect_response(lambda r: r.url.endswith("/identity") and r.request.method == "POST") as saved:
-            field("identity-rename").click()
-        assert saved.value.ok
-        page.reload()
-        field("track-review-" + clip).click()
-        field("study-player").select_option(player)
-        expect(field("study-name")).to_have_value(alias or f"{team} #{jersey}")
-        expect(field("study-team")).to_have_value(team)
-        expect(field("study-jersey")).to_have_value(jersey)
-        if not page.locator("#study-player-details").evaluate("e => e.open"):
-            page.locator("#study-player-details summary").click()
+def free_port():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
 
 
-def main(video):
-    with tempfile.TemporaryDirectory() as temp:
-        session, clip = fixture(Path(temp), video)
-        with socket.socket() as available:
-            available.bind(("127.0.0.1", 0))
-            bind = f"127.0.0.1:{available.getsockname()[1]}"
-        origin = "http://" + bind
-        env = dict(os.environ, RINK_FOOTAGE_DIR=temp, RINK_FOOTAGE_ORIGIN=origin, RINK_FOOTAGE_BIND=bind)
-        server = subprocess.Popen(["target/debug/rink-footage-web"], env=env)
+def wait_for(url):
+    for _ in range(100):
         try:
-            for _ in range(100):
-                try:
-                    with urlopen(origin + "/footage/api/health", timeout=1):
-                        break
-                except OSError:
-                    if server.poll() is not None:
-                        raise
-                    time.sleep(0.05)
+            urlopen(url).close()
+            return
+        except OSError:
+            time.sleep(0.1)
+    raise SystemExit(f"{url} did not start")
+
+
+def exercise(page, origin, session, clip):
+    # A link from before the workspace moved into the web app still opens the session.
+    page.goto(f"{origin}/footage/?session={session}")
+    expect(page).to_have_url(f"{origin}/#/footage/{session}/{clip}")
+    play = page.get_by_role("button", name="Play", exact=True)
+    expect(play).to_be_visible()
+
+    # The page itself never scrolls; only the side panels do.
+    assert page.evaluate("document.documentElement.scrollHeight <= innerHeight")
+
+    page.keyboard.press("Space")
+    expect(page.get_by_role("button", name="Pause", exact=True)).to_be_visible()
+    page.keyboard.press("Space")
+    expect(play).to_be_visible()
+
+    # Selecting a skater shows them in the inspector and on the timeline.
+    page.get_by_role("button", name="S01").click()
+    expect(page.locator(".who strong")).to_have_text("S01 · blue")
+    expect(page.locator("[data-lane=selection] .seen")).to_have_count(1)
+
+    # Naming the skater moves them from the unnamed tracks to the players.
+    page.get_by_label("Name", exact=True).fill("Anna")
+    page.get_by_label("Jersey").fill("7")
+    page.get_by_role("button", name="Confirm new player").click()
+    expect(page.locator(".who strong")).to_have_text("Anna")
+    expect(page.get_by_role("button", name="S01")).to_have_count(0)
+
+    page.get_by_label("This is me").check()
+    expect(page.locator("[data-lane=you] .seen")).to_have_count(1)
+
+    # P starts a play, a number picks its label, and saving puts a bar on the Plays lane.
+    page.keyboard.press("p")
+    page.keyboard.press("1")
+    page.get_by_role("button", name="Save play").click()
+    expect(page.locator("[data-lane=plays] .bar:not(.draft)")).to_have_text("Get open")
+
+    # Escape clears the selection.
+    page.keyboard.press("Escape")
+    expect(page.locator(".who")).to_have_count(0)
+
+
+def main():
+    if len(sys.argv) != 2:
+        raise SystemExit(__doc__)
+    service_port, web_port = free_port(), free_port()
+    origin = f"http://localhost:{web_port}"
+    with tempfile.TemporaryDirectory() as folder:
+        session, clip = fixture(Path(folder), sys.argv[1])
+        service = subprocess.Popen(
+            [REPO / "target/debug/rink-footage-web"],
+            env=dict(os.environ, RINK_FOOTAGE_DIR=folder, RINK_FOOTAGE_ORIGIN=origin,
+                     RINK_FOOTAGE_BIND=f"127.0.0.1:{service_port}"))
+        web = subprocess.Popen(
+            ["npx", "vite", "--port", str(web_port), "--strictPort"], cwd=REPO / "web",
+            env=dict(os.environ, RINK_FOOTAGE_DEV=f"http://127.0.0.1:{service_port}"))
+        try:
+            wait_for(f"http://127.0.0.1:{service_port}/footage/api/health")
+            wait_for(origin)
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(channel="chrome")
-                exercise(browser.new_page(), origin, session, clip)
+                page = browser.new_page(viewport=dict(width=1440, height=860))
+                exercise(page, origin, session, clip)
                 browser.close()
         finally:
-            server.terminate()
-            server.wait()
+            web.terminate()
+            service.terminate()
+    print("ok")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
-    print("Player review passed for generated and custom labels.")
+    main()

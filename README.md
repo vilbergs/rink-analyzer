@@ -29,9 +29,9 @@ crates/
   rink-lesson/ # lessons over plays: the lesson and step model, grading, content checks
   rink-app/    # GPUI binary: rink-replay
   rink-cli/    # `rink`: JSON facts, timelines and position reviews for agents
-  rink-footage/ # extract timestamped JPEGs from HEVC footage for manual tracing
+  rink-footage/ # footage: frame extraction, skater tracking, coaching exports, and the hosted footage service
   rink-wasm/   # rink-core and rink-lesson for the browser: play and lesson handles, scene, hit test, grading
-web/           # Svelte app (Vite): lesson player and play viewer over rink-wasm
+web/           # Svelte app (Vite): lesson player, play viewer and footage workspace
 curriculum/    # the courses: courses.json, lessons (Markdown + steps JSON), plays, glossary.json, STYLE.md
 extensions/    # swamp: the @vilbergs/curriculum lint behavior and its summary report
 workflows/     # swamp: web-build, deploy-pi, curriculum-check
@@ -266,7 +266,10 @@ to `curriculum/` and `web/public/plays` to `examples/`; both are served as stati
   target zones with the facts for your tap and the target, and a contrast flips between the play and its
   wrong variant with the playhead kept. The result shows the cue and the graded steps below 2.
 - Progress (append-only attempts, studied lessons) lives in IndexedDB behind a `ProgressStore` interface.
-- **Footage Sessions** opens the hosted importer at `/footage/`. The earlier `#/footage` link also opens it.
+- `#/footage` is the footage library and `#/footage/<session>/<clip>` the review workspace; see
+  [Hosted footage sessions](#hosted-footage-sessions). They talk to the footage service under `/footage/api`.
+  For local work, run `rink-footage-web` with `RINK_FOOTAGE_ORIGIN=http://localhost:5173`; the dev server
+  proxies `/footage` to it.
 - **Local video notes** (`#/local-notes`) opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
   Click a timestamp to pause on it, or choose **Play lead-in** to watch from five seconds earlier.
   **Undo** restores the most recently removed moment. Reopen the same file in this browser
@@ -296,7 +299,7 @@ looked the name up before that keeps the stale answer for up to 30 minutes.
 The [application architecture diagram](docs/footage-application-architecture.svg) follows an
 upload from the Pi through Furulid tracking and reviewed export.
 
-Open [Footage Sessions](https://rink.vilberg.dev/footage/) on the tailnet. The Pi accepts a batch
+Open [Footage](https://rink.vilberg.dev/#/footage) on the tailnet. The Pi accepts a batch
 of up to 32 H.264 or HEVC MOV or MP4 clips totaling 1 GiB, saves the originals, and decodes an
 upright preview of each clip. The Pi serves the same recent-session list to every browser on the
 tailnet. Uploaded media lives in the service's local state directory. The Pi and Furulid use
@@ -311,29 +314,30 @@ for tracking when `RINK_FOOTAGE_WORKER_TOKEN` is configured. The import dialog a
 accepts a link to one public YouTube video up to 15 minutes and 200 MB. The worker
 uses `yt-dlp` to fetch a compatible MP4 and the saved session retains the YouTube link. The worker starts fresh skater tracks at detected camera cuts. Jump to those frames from **Tracking details**. Furulid claims work over the tailnet,
 does person detection on its GPU, and uses the Rust tracker and encoder to return a silent
-MP4 with timestamped track data for the interactive overlay. Use **Review players** on the saved clip to play
-the preview. IDs are local to each clip.
+MP4 with timestamped track data for the interactive overlay.
 
-Open a session from the footage library and select **Review players** on a tracked clip.
-Press Space in the video or frame slider to play or pause. Pinch over the video to zoom, then use two-finger scrolling to pan. The **Zoom** and
-**Pan** controls also work with a mouse or keyboard. Use **Fit** to reset the view.
-Below the video in **Player study**, click a detected skater or their ID to pause and follow them. The player list also works with the keyboard. Confirm a
-player label or use **Same player as…** to link the track to a confirmed player in this
-session. At an ID switch, move to the first frame of the switch before correcting the
-assignment. Use **Undo** to reverse the latest identity edit.
-Compare two players and replay intervals where both were detected. Observations for a
-confirmed player are saved with the session and reopen at the original clip and time.
-The connector between skates shows their positions in the camera view.
+Open a session from the footage library. The workspace fills the window and never scrolls: clips and
+players on the left, the video in the middle, an inspector on the right and a timeline along the
+bottom. Only the two side panels scroll. On a phone the panels sit under the timeline as two tabs.
 
-Use **Label a play** to save a teaching clip around the decision frame. Choose a primary
-coaching label and optionally a second label, a skater, or a cue. Set the clip boundaries
-from the frame slider, or use the default range around the decision. Saved plays can be
-replayed and edited from the same session.
-
-In **Your skater**, choose **Pick yourself**, scrub to a clear frame, and tap your skater or
-their ID. Use **Correct track** after an ID switch. The Pi saves your selections with the
-session. With gear data from another confirmed clip, **Suggest match** offers a candidate
-based on helmet, jersey, and sock colors. Confirm it against the footage before saving.
+- **Select, then act.** Click a skater in the video or in the player list. The inspector shows that
+  skater, and the timeline shows where they are in view. Shift-click a second skater to compare the
+  two; a dashed line joins their skates.
+- **Name players.** Pause on a frame where the skater has a solid box. Type a name, team or jersey
+  number, or click a picture under "Same as a player you already named?" to link the track to that
+  player. The Pi offers likely matches first. At an ID switch, move to the first frame of the switch
+  and name the skater again. **Undo** (⌘Z) reverses the latest identity edit.
+- **This is me.** Tick the box on your own skater. After an ID switch, select your new box and tick it
+  again. With gear data from another clip, **Find me in this clip** proposes a track by helmet, jersey
+  and sock colors; check it against the footage before ticking.
+- **Label a play.** Drag across the Plays lane, or press P, to mark a stretch. Drag its edges and its
+  decision marker, choose a coaching label and optionally a second label, a cue and the selected
+  skater, then save. Click a saved play to edit or replay it.
+- **Notes.** Press M to note what the selected skater does at the playhead. Notes on confirmed players
+  are saved with the session and reopen at the original clip and time.
+- **Getting around.** Space plays and pauses, the arrows step a frame (with Shift, a second), `[` and
+  `]` jump between camera cuts, S selects the next skater in view, and a pinch zooms the video.
+  **Shortcuts** in the top bar lists the rest. IDs are local to each clip.
 
 **Open Coaching Film Room** appears when a saved skater selection has a reviewed export.
 The room includes synchronized footage and rink replay, freeze frames, feedback, a single

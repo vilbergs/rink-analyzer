@@ -1,5 +1,7 @@
 <script lang="ts">
-  import Footage from "./lib/footage/Footage.svelte";
+  import Library from "./lib/footage/Library.svelte";
+  import LocalNotes from "./lib/footage/local/LocalNotes.svelte";
+  import Workspace from "./lib/footage/Workspace.svelte";
   import Home from "./lib/home/Home.svelte";
   import LessonScreen from "./lib/lesson/LessonScreen.svelte";
   import TopicPath from "./lib/home/TopicPath.svelte";
@@ -12,24 +14,21 @@
     | { name: "home" }
     | { name: "topic"; id: string }
     | { name: "lesson"; id: string }
-    | { name: "footage" }
+    | { name: "footage"; session?: string; clip?: string }
     | { name: "local-notes" }
     | { name: "viewer" };
 
   function parse(hash: string): Route {
-    const [, page, id] = hash.split("/");
+    const [, page, id, clip] = hash.split("/");
     if (page === "lesson" && id) return { name: "lesson", id: decodeURIComponent(id) };
     if (page === "topic" && id) return { name: "topic", id: decodeURIComponent(id) };
-    if (page === "footage") return { name: "footage" };
+    if (page === "footage") return { name: "footage", session: id, clip };
     if (page === "local-notes") return { name: "local-notes" };
     if (page === "viewer") return { name: "viewer" };
     return { name: "home" };
   }
 
   let route = $state(parse(location.hash));
-  $effect(() => {
-    if (route.name === "footage") location.replace("/footage/");
-  });
 </script>
 
 <svelte:window onhashchange={() => (route = parse(location.hash))} />
@@ -41,9 +40,13 @@
 {:else if route.name === "topic"}
   <TopicPath id={route.id} {progress} />
 {:else if route.name === "footage"}
-  <a href="/footage/">Open Footage Sessions</a>
+  {#if route.session}
+    <Workspace sessionId={route.session} clipId={route.clip} />
+  {:else}
+    <Library />
+  {/if}
 {:else if route.name === "local-notes"}
-  <Footage />
+  <LocalNotes />
 {:else if route.name === "viewer"}
   <Viewer />
 {:else}

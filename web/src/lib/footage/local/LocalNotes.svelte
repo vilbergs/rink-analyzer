@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Review from "./Review.svelte";
+  import LocalReview from "./LocalReview.svelte";
 
   let file = $state.raw<File | undefined>();
   let picker: HTMLInputElement;
@@ -18,7 +18,7 @@
     <button class="btn" class:primary={!file} onclick={() => picker.click()}>{file ? "Change video" : "Open video"}</button>
   </header>
   {#if file}
-    {#key file}<Review {file} />{/key}
+    {#key file}<LocalReview {file} />{/key}
   {:else}
     <p>Open a game or shift recording to mark moments and take notes. The video stays on your device.</p>
   {/if}

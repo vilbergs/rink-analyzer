@@ -62,7 +62,7 @@ Build a Rust replay evaluator using frozen track data and adjudicated identity e
 ## Implementation entry points
 
 - Hosted edit validation and existing skater selections: [focus.rs](../crates/rink-footage/src/web/focus.rs)
-- Player selection, comparison, and gear suggestions: [identity.js](../crates/rink-footage/src/web/identity.js)
+- Player selection, comparison, and gear suggestions: [review.svelte.ts](../web/src/lib/footage/review.svelte.ts)
 - Rust track association: [association.rs](../crates/rink-footage/src/annotate/auto/association.rs)
 - Coaching export selection checks: [coaching.rs](../crates/rink-footage/src/web/coaching.rs)
 

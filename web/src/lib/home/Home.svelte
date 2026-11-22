@@ -38,7 +38,7 @@
 
 <main class="home">
   <header>
-    <a href="/footage/">Footage Sessions</a>
+    <a href="#/footage">Footage Sessions</a>
     <a href="#/viewer">Play viewer</a>
   </header>
   <div class="app">
