@@ -129,6 +129,9 @@ export const suggestions = (id: string, frame: FrameKey) =>
   request<Suggestions>(`/sessions/${id}/identity/suggestions`, body("POST", frame));
 
 export const previewUrl = (id: string, clip: string) => `${API}/sessions/${id}/clips/${clip}/preview`;
+/** The uploaded clip at full quality. Not every browser can play every phone recording. */
+export const sourceUrl = (id: string, clip: string) => `${API}/sessions/${id}/clips/${clip}/source`;
+/** The worker's tracking preview: 720 px, 15 fps, and on older clips with boxes burned in. */
 export const movieUrl = (id: string, clip: string) => `${API}/sessions/${id}/clips/${clip}/tracks.mp4`;
 const dataUrl = (id: string, clip: string) => `${API}/sessions/${id}/clips/${clip}/tracks.ndjson`;
 

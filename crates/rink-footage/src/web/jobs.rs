@@ -32,6 +32,7 @@ const MAX_DATA: usize = 32 * MIB;
 pub fn routes() -> Router<App> {
     Router::new()
         .route("/api/footage/sessions/{id}/tracking", get(status))
+        .route("/api/footage/sessions/{id}/clips/{clip}/source", get(original))
         .route("/api/footage/sessions/{id}/clips/{clip}/tracks.mp4", get(movie))
         .route("/api/footage/sessions/{id}/clips/{clip}/tracks.ndjson", get(track_data))
         .route("/api/footage/worker/claim", post(claim))
@@ -226,6 +227,18 @@ async fn source(
     let source = clip_source(&app, id, clip)?;
     active(&source, &headers)?;
     stream(&source, "application/octet-stream", &headers).await
+}
+
+/// The uploaded clip itself, for playback at full quality.
+async fn original(
+    State(app): State<App>,
+    Path((id, clip)): Path<(Uuid, Uuid)>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let path = clip_source(&app, id, clip)?;
+    let mime =
+        if path.extension().is_some_and(|extension| extension == "mov") { "video/quicktime" } else { "video/mp4" };
+    stream(&path, mime, &headers).await
 }
 
 async fn movie(

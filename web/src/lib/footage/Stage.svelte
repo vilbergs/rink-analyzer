@@ -2,7 +2,7 @@
   import type { Box, Track } from "./api";
   import type { Review } from "./review.svelte";
 
-  let { review, src }: { review: Review; src: string } = $props();
+  let { review, original, preview }: { review: Review; original: string; preview: string } = $props();
 
   const COLOR = { track: "#b7e5ff", selected: "#7df0b0", partner: "#c9baff", me: "#ffd260", ink: "#11161c" };
 
@@ -12,15 +12,30 @@
   let box = $state({ width: 0, height: 0 });
   let zoom = $state(1);
   let offset = $state({ x: 0, y: 0 });
+  /** The natural size of the video being played, once it has loaded. */
+  let shown = $state({ width: 0, height: 0 });
   let failed = $state(false);
+  /** Play the uploaded clip itself until the browser turns out not to be able to. */
+  let full = $state(true);
+  const src = $derived(full ? original : preview);
+
+  function unplayable() {
+    if (full) full = false;
+    else failed = true;
+  }
   /** Where each drawn name tag sits, so a click on the tag selects its skater. */
   let tags = new Map<number, Box>();
 
+  /**
+   * The frame size the tracker worked at. Boxes are in these pixels, whatever size the video being
+   * played is, so the overlay maps them onto the video's rectangle as fractions of this size.
+   */
   const size = $derived({ width: review.frames[0].width, height: review.frames[0].height });
-  /** The largest frame-shaped rectangle that fits the viewport. */
+  /** The largest rectangle of the playing video's own shape that fits the viewport. */
   const fitted = $derived.by(() => {
-    const scale = Math.min(box.width / size.width, box.height / size.height) || 0;
-    return { width: size.width * scale, height: size.height * scale };
+    const natural = shown.width ? shown : size;
+    const scale = Math.min(box.width / natural.width, box.height / natural.height) || 0;
+    return { width: natural.width * scale, height: natural.height * scale };
   });
 
   /**
@@ -153,7 +168,7 @@
     const partner = companion?.id === selected?.id ? undefined : companion;
     const me = review.me.track;
     // Older previews have every box burned into the video; only the highlights are drawn over those.
-    if (frame.interactive) {
+    if (full || frame.interactive) {
       for (const track of frame.tracks) {
         if (track !== selected && track !== partner && track !== me) {
           drawBox(context, track, COLOR.track, 1.5, review.tag(frame, track));
@@ -181,7 +196,7 @@
 
   $effect(() => {
     if (!video) return;
-    review.attach(video);
+    review.attach(video, full ? 0 : review.first);
     const element = video;
     let handle = 0;
     const present = (_: number, metadata: { mediaTime: number }) => {
@@ -243,7 +258,14 @@
       onplay={() => review.setPlaying(true)}
       onpause={() => review.setPlaying(false)}
       onended={() => review.setPlaying(false)}
-      onerror={() => (failed = true)}
+      onloadedmetadata={(event) => {
+        const { videoWidth: width, videoHeight: height } = event.currentTarget;
+        shown = { width, height };
+        // Some browsers load a clip they cannot decode and show nothing.
+        if (!width) unplayable();
+        else review.resync();
+      }}
+      onerror={unplayable}
     ></video>
     <canvas bind:this={canvas} aria-label="Tracked skaters; click one to select"
     ></canvas>
@@ -254,8 +276,14 @@
   {#if zoom > 1}
     <button class="fit" onclick={fit} onpointerdown={(e) => e.stopPropagation()}>{Math.round(zoom * 100)}% · Fit</button>
   {/if}
-  {#if !review.frame.interactive}
-    <span class="legacy">Older preview: its boxes are part of the video</span>
+  {#if shown.width}
+    <span class="legacy">
+      {#if full}
+        Original · {shown.width}×{shown.height}
+      {:else}
+        Preview · {shown.width}×{shown.height} · this browser cannot play the original
+      {/if}
+    </span>
   {/if}
 </div>
 

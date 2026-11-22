@@ -226,7 +226,7 @@
   <main>
     {#if review && clip}
       {#key review}
-        <Stage bind:this={stage} {review} src={api.movieUrl(sessionId, clip.id)} />
+        <Stage bind:this={stage} {review} original={api.sourceUrl(sessionId, clip.id)} preview={api.movieUrl(sessionId, clip.id)} />
       {/key}
     {:else if clip}
       <div class="waiting">

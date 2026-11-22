@@ -74,6 +74,11 @@ export class Review {
   /** Called to jump to a moment saved in another clip of the session. */
   onopen = (_clip: string, _moment: Moment) => {};
 
+  /**
+   * The source time at the video's zero. The original clip starts at 0; a tracking preview starts
+   * at the clip's first tracked frame.
+   */
+  origin = 0;
   #video: HTMLVideoElement | undefined;
   #stopBefore: number | null = null;
   #suggesting = 0;
@@ -227,16 +232,18 @@ export class Review {
 
   // Playback. The video element is the clock; `index` follows it.
 
-  attach(video: HTMLVideoElement | undefined) {
+  attach(video: HTMLVideoElement | undefined, origin = this.origin) {
     this.#video = video;
+    this.origin = origin;
     if (video) video.playbackRate = this.rate;
   }
 
   /** The video presented the frame at `seconds`. */
   tick(seconds: number) {
-    const index = indexAtMs(this.frames, this.first + Math.round(seconds * 1000));
+    const ms = this.origin + Math.round(seconds * 1000);
+    const index = indexAtMs(this.frames, ms);
     if (this.#stopBefore != null) {
-      const pastEnd = this.#stopBefore === this.frames.length && seconds * 1000 > this.span + 50;
+      const pastEnd = this.#stopBefore === this.frames.length && ms > this.first + this.span + 50;
       if (index >= this.#stopBefore || pastEnd) {
         const end = this.#stopBefore - 1;
         this.#stopBefore = null;
@@ -251,7 +258,12 @@ export class Review {
   #seek(index: number) {
     this.index = Math.max(0, Math.min(this.frames.length - 1, index));
     // A hair past the frame's time, so the decoder lands on it and not the one before.
-    if (this.#video) this.#video.currentTime = (this.frame.source_ms - this.first) / 1000 + 0.01;
+    if (this.#video) this.#video.currentTime = Math.max(0, (this.frame.source_ms - this.origin) / 1000 + 0.01);
+  }
+
+  /** Put a newly loaded video on the current frame, without touching playback. */
+  resync() {
+    this.#seek(this.index);
   }
 
   /** Pause on a frame. */

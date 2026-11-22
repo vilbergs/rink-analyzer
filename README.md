@@ -320,6 +320,9 @@ Open a session from the footage library. The workspace fills the window and neve
 players on the left, the video in the middle, an inspector on the right and a timeline along the
 bottom. Only the two side panels scroll. On a phone the panels sit under the timeline as two tabs.
 
+- **Full quality.** The video is your uploaded clip itself, at its own resolution and frame rate, with
+  the skater boxes drawn over it. If a browser cannot play a clip, the workspace falls back to the
+  worker's 720 px, 15 fps tracking preview and says so in the corner.
 - **Select, then act.** Click a skater in the video or in the player list. The inspector shows that
   skater, and the timeline shows where they are in view. Shift-click a second skater to compare the
   two; a dashed line joins their skates.
