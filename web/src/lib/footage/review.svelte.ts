@@ -1,6 +1,7 @@
 import * as api from "./api";
 import type {
   Anchor,
+  Box,
   Candidate,
   Clip,
   Frame,
@@ -59,6 +60,8 @@ export class Review {
   identity = $state.raw<Identity>(undefined!);
   selections = $state.raw<Selections>({});
   index = $state(0);
+  /** Source time of the picture on screen. It runs between tracked frames, which are sparser than the video's. */
+  ms = $state(0);
   playing = $state(false);
   rate = $state(1);
   selected = $state<Selection>(null);
@@ -112,6 +115,7 @@ export class Review {
     this.identity = identity;
     this.selections = selections;
     this.localNotes = this.#readLocalNotes();
+    this.ms = this.first;
   }
 
   frame = $derived.by(() => this.frames[this.index]);
@@ -207,6 +211,23 @@ export class Review {
     );
   }
 
+  /**
+   * A track's box for the picture on screen. The tracker sees fewer frames than the video has, so
+   * between two tracked frames the box moves in a straight line from one to the next.
+   */
+  box(track: Track): Box {
+    const from = this.frame;
+    const to = this.frames[this.index + 1];
+    const gap = to ? to.source_ms - from.source_ms : 0;
+    const part = gap ? (this.ms - from.source_ms) / gap : 0;
+    // Not across a camera cut, and not across a stretch the tracker skipped.
+    if (part <= 0 || gap > 250 || to.shot !== from.shot) return track.xyxy;
+    const next = to.tracks.find((other) => other.id === track.id);
+    if (!next) return track.xyxy;
+    const mix = Math.min(1, part);
+    return track.xyxy.map((value, i) => value + (next.xyxy[i] - value) * mix) as Box;
+  }
+
   companion(frame: Frame, detected = false): Track | undefined {
     if (this.partner !== "you") return this.resolve(frame, this.partner, detected);
     return this.resolve(frame, this.#anchorAt(frame.source_ms)?.track_id ?? null, detected);
@@ -253,10 +274,12 @@ export class Review {
       }
     }
     this.index = index;
+    this.ms = ms;
   }
 
   #seek(index: number) {
     this.index = Math.max(0, Math.min(this.frames.length - 1, index));
+    this.ms = this.frame.source_ms;
     // A hair past the frame's time, so the decoder lands on it and not the one before.
     if (this.#video) this.#video.currentTime = Math.max(0, (this.frame.source_ms - this.origin) / 1000 + 0.01);
   }

@@ -121,7 +121,7 @@
     const inside = ([l, t, r, b]: Box) => x >= l && x <= r && y >= t && y <= b;
     const detected = review.frame.tracks.filter((track) => !track.predicted);
     const tagged = detected.filter((track) => tags.has(track.id) && inside(tags.get(track.id)!));
-    const hits = tagged.length ? tagged : detected.filter((track) => inside(track.xyxy));
+    const hits = tagged.length ? tagged : detected.filter((track) => inside(review.box(track)));
     if (!hits.length) {
       if (!event.shiftKey) review.select(null);
       return;
@@ -134,7 +134,7 @@
   }
 
   function drawBox(context: CanvasRenderingContext2D, track: Track, color: string, width: number, text: string) {
-    const [left, top, right, bottom] = track.xyxy;
+    const [left, top, right, bottom] = review.box(track);
     context.setLineDash(track.predicted ? [7 * unit, 5 * unit] : []);
     for (const [stroke, line] of [[COLOR.ink, width + 2], [color, width]] as const) {
       context.strokeStyle = stroke;
@@ -178,8 +178,9 @@
     if (selected && partner && !selected.predicted && !partner.predicted) {
       // A line between the two skaters' feet shows the gap between them.
       context.beginPath();
-      context.moveTo((selected.xyxy[0] + selected.xyxy[2]) / 2, selected.xyxy[3]);
-      context.lineTo((partner.xyxy[0] + partner.xyxy[2]) / 2, partner.xyxy[3]);
+      const [from, to] = [review.box(selected), review.box(partner)];
+      context.moveTo((from[0] + from[2]) / 2, from[3]);
+      context.lineTo((to[0] + to[2]) / 2, to[3]);
       context.setLineDash([5 * unit, 4 * unit]);
       context.strokeStyle = COLOR.selected;
       context.lineWidth = 2 * unit;
