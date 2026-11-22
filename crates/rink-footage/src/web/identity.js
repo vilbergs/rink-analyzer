@@ -25,15 +25,18 @@
   const play = element('tracking-play');
   let offset = {x:0,y:0};
   let drag;
+  let gestureStartScale;
+
+  function viewportScale() { return Number(zoom.value) / 100; }
 
   function updateViewport() {
-    const scale = Number(zoom.value) / 100;
+    const scale = viewportScale();
     const xLimit = viewport.clientWidth * (scale-1) / 2;
     const yLimit = viewport.clientHeight * (scale-1) / 2;
     offset.x = Math.max(-xLimit,Math.min(xLimit,offset.x));
     offset.y = Math.max(-yLimit,Math.min(yLimit,offset.y));
     stage.style.transform = 'translate(' + offset.x + 'px,' + offset.y + 'px) scale(' + scale + ')';
-    element('tracking-scale').textContent = zoom.value + '%';
+    element('tracking-scale').textContent = Math.round(Number(zoom.value)) + '%';
     pan.disabled = fit.disabled = scale === 1;
     if (scale === 1) setPan(false);
   }
@@ -50,13 +53,57 @@
   }
 
   function resetViewport() {
+    gestureStartScale = undefined;
     zoom.value = 100;
     offset = {x:0,y:0};
     updateViewport();
   }
 
+  function zoomAt(scale, event) {
+    const previous = viewportScale();
+    zoom.value = scale * 100;
+    const ratio = viewportScale() / previous;
+    const bounds = viewport.getBoundingClientRect();
+    const x = event.clientX - (bounds.left + bounds.width / 2);
+    const y = event.clientY - (bounds.top + bounds.height / 2);
+    // Hold the frame point under the cursor in place as the stage scales.
+    offset.x = (Number.isFinite(x) ? x : 0) * (1 - ratio) + offset.x * ratio;
+    offset.y = (Number.isFinite(y) ? y : 0) * (1 - ratio) + offset.y * ratio;
+    updateViewport();
+  }
+
   zoom.addEventListener('input', updateViewport);
   fit.addEventListener('click', resetViewport);
+  viewport.addEventListener('wheel', event => {
+    if (zoom.disabled || (!event.ctrlKey && viewportScale() === 1 && gestureStartScale === undefined)) return;
+    event.preventDefault();
+    if (gestureStartScale !== undefined) return;
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
+    if (event.ctrlKey) {
+      zoomAt(viewportScale() * Math.exp(-event.deltaY * unit / 200), event);
+    } else {
+      offset.x -= event.deltaX * unit;
+      offset.y -= event.deltaY * unit;
+      updateViewport();
+    }
+  }, {passive:false});
+  // Safari delivers trackpad pinches as gesture events with cumulative scale.
+  viewport.addEventListener('gesturestart', event => {
+    if (zoom.disabled) return;
+    event.preventDefault();
+    gestureStartScale = viewportScale();
+  }, {passive:false});
+  viewport.addEventListener('gesturechange', event => {
+    if (gestureStartScale === undefined) return;
+    event.preventDefault();
+    zoomAt(gestureStartScale * event.scale, event);
+  }, {passive:false});
+  viewport.addEventListener('gestureend', event => {
+    if (gestureStartScale === undefined) return;
+    event.preventDefault();
+    gestureStartScale = undefined;
+  }, {passive:false});
+
   pan.addEventListener('click', () => {
     const enabled = pan.getAttribute('aria-pressed') !== 'true';
     setPan(enabled);
