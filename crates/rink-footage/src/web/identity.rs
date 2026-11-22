@@ -26,6 +26,8 @@ enum Action {
     Undo { target: Uuid },
     SaveMoment { frame: FrameKey, player: Uuid, compare: Option<FrameKey>, text: String },
     RemoveMoment { target: Uuid },
+    SavePlay { play: Play },
+    RemovePlay { target: Uuid },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -68,6 +70,72 @@ struct Moment {
     text: String,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+struct Play {
+    id: Uuid,
+    clip: Uuid,
+    run: Uuid,
+    start_ms: u64,
+    decision_ms: u64,
+    end_ms: u64,
+    primary: String,
+    secondary: Option<String>,
+    cue: String,
+    track: Option<u32>,
+}
+
+#[derive(Serialize)]
+struct SavedPlay {
+    #[serde(flatten)]
+    play: Play,
+    player: Option<Compared>,
+}
+
+#[derive(Serialize)]
+struct PlayLabel {
+    id: &'static str,
+    name: &'static str,
+    description: &'static str,
+}
+
+const PLAY_LABELS: &[PlayLabel] = &[
+    PlayLabel {
+        id: "get_open",
+        name: "Get open",
+        description: "A player without the puck changes position or speed to become a passing option.",
+    },
+    PlayLabel {
+        id: "draw_a_defender",
+        name: "Draw a defender",
+        description: "A player pulls a defender out of position, opening space for a teammate.",
+    },
+    PlayLabel {
+        id: "support_the_puck",
+        name: "Support the puck",
+        description: "A teammate moves into an outlet position the puck carrier can use under pressure.",
+    },
+    PlayLabel {
+        id: "switch_the_play",
+        name: "Switch the play",
+        description: "The puck moves to the opposite side to exploit open ice.",
+    },
+    PlayLabel {
+        id: "attack_the_seam",
+        name: "Attack the seam",
+        description: "A pass or carry goes through a gap between defenders.",
+    },
+    PlayLabel {
+        id: "screen_the_goalie",
+        name: "Screen the goalie",
+        description: "An attacker blocks the goalie’s view of the shot.",
+    },
+    PlayLabel {
+        id: "win_the_rebound",
+        name: "Win the rebound",
+        description: "An attacker beats a defender to a loose puck after the initial shot.",
+    },
+];
+
 #[derive(Default, Serialize)]
 struct Review {
     revision: usize,
@@ -75,6 +143,8 @@ struct Review {
     players: BTreeMap<Uuid, String>,
     assignments: Vec<Assignment>,
     moments: Vec<Moment>,
+    plays: Vec<SavedPlay>,
+    play_labels: &'static [PlayLabel],
     undo: Option<Uuid>,
 }
 
@@ -140,8 +210,18 @@ fn current(ledger: &[Entry], runs: BTreeMap<Uuid, Uuid>) -> Review {
             _ => None,
         })
         .collect();
-    let mut state = Review { revision: ledger.len(), runs, ..Review::default() };
+    let mut state = Review { revision: ledger.len(), runs, play_labels: PLAY_LABELS, ..Review::default() };
+    let mut plays = BTreeMap::new();
     for entry in ledger.iter().filter(|e| !reversed.contains(&e.edit.id)) {
+        match &entry.edit.action {
+            Action::SavePlay { play } => {
+                plays.insert(play.id, SavedPlay { play: play.clone(), player: entry.compare });
+            }
+            Action::RemovePlay { target } => {
+                plays.remove(target);
+            }
+            _ => {}
+        }
         let Some(view) = entry.view else { continue };
         let active = state.runs.get(&view.key.clip) == Some(&view.key.run);
         match &entry.edit.action {
@@ -171,12 +251,15 @@ fn current(ledger: &[Entry], runs: BTreeMap<Uuid, Uuid>) -> Review {
             _ => {}
         }
     }
+    state.plays = plays.into_values().collect();
+    state.plays.sort_by_key(|saved| (saved.play.clip, saved.play.decision_ms));
     state.players.retain(|player, _| {
         state.assignments.iter().any(|a| a.player == *player)
             || state
                 .moments
                 .iter()
                 .any(|m| m.player == *player || m.compare.is_some_and(|other| other.player == Some(*player)))
+            || state.plays.iter().any(|p| p.player.is_some_and(|other| other.player == Some(*player)))
     });
     state
 }
@@ -410,10 +493,54 @@ fn validate(app: &App, id: Uuid, state: &Review, ledger: &[Entry], edit: Edit) -
             "moment"
         }
         Action::RemoveMoment { target } if state.moments.iter().any(|m| m.id == *target) => "remove_moment",
+        Action::SavePlay { play } => {
+            validate_play(app, id, state, play)?;
+            if let Some(track_id) = play.track {
+                let key = FrameKey { clip: play.clip, run: play.run, track_id, source_ms: play.decision_ms };
+                entry.compare = Some(Compared {
+                    view: view(app, id, state, key)?,
+                    player: state.assignment(key).map(|a| a.player),
+                });
+            }
+            "play"
+        }
+        Action::RemovePlay { target } if state.plays.iter().any(|saved| saved.play.id == *target) => "remove_play",
         _ => return Err(conflict("That edit is no longer available.")),
     }
     .into();
     Ok(entry)
+}
+
+fn validate_play(app: &App, id: Uuid, state: &Review, play: &Play) -> Result<(), ApiError> {
+    if state.runs.get(&play.clip) != Some(&play.run) {
+        return Err(conflict("Tracking has changed. Reopen the clip before saving the play."));
+    }
+    if state.plays.iter().any(|saved| saved.play.id == play.id && saved.play.clip != play.clip) {
+        return Err(conflict("This play belongs to another clip."));
+    }
+    let known = |key: &str| PLAY_LABELS.iter().any(|label| label.id == key);
+    if !known(&play.primary) || play.secondary.as_deref().is_some_and(|key| !known(key) || key == play.primary) {
+        return Err(invalid("Choose a primary label and a different optional secondary label."));
+    }
+    if play.cue.trim().chars().count() > 600
+        || !(play.start_ms < play.end_ms && play.start_ms <= play.decision_ms && play.decision_ms <= play.end_ms)
+    {
+        return Err(invalid("Set a start and end that include the decision frame."));
+    }
+    let source = jobs::clip_source(app, id, play.clip)?;
+    let data = BufReader::new(fs::File::open(jobs::data_path(&source)).map_err(storage_error)?);
+    let mut missing = BTreeSet::from([play.start_ms, play.decision_ms, play.end_ms]);
+    for line in data.lines() {
+        let frame: focus::Frame = serde_json::from_str(&line.map_err(storage_error)?).map_err(storage_error)?;
+        missing.remove(&frame.source_ms);
+        if missing.is_empty() {
+            return Ok(());
+        }
+        if frame.source_ms > play.end_ms {
+            break;
+        }
+    }
+    Err(invalid("Choose frames that are present in this tracking run."))
 }
 
 fn validate_shown(shown: &[Uuid], ranking: &[Candidate]) -> Result<(), ApiError> {

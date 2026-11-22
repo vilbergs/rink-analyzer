@@ -80,6 +80,25 @@
             <button>Save moment</button>
           </form>
           <ul id="study-notes" aria-label="Study moments"></ul>
+          <details id="play-review" hidden>
+            <summary>Label a play</summary>
+            <form id="play-form">
+              <label for="play-primary">Primary label</label><select id="play-primary" aria-describedby="play-primary-description" required></select>
+              <p id="play-primary-description"></p>
+              <label for="play-secondary">Secondary label (optional)</label><select id="play-secondary" aria-describedby="play-secondary-description"></select>
+              <p id="play-secondary-description"></p>
+              <div class="skater-actions">
+                <button type="button" id="play-start">Set start</button>
+                <button type="button" id="play-end">Set end</button>
+              </div>
+              <p id="play-range"></p>
+              <label for="play-attach"><input id="play-attach" type="checkbox"> Include the selected skater</label>
+              <label for="play-cue">Coaching cue (optional)</label><textarea id="play-cue" maxlength="600" rows="2" placeholder="What should the learner watch?"></textarea>
+              <div class="skater-actions"><button id="play-save">Save play at this frame</button><button id="play-cancel" type="button" hidden>Cancel edit</button></div>
+              <p id="play-status" role="status"></p>
+            </form>
+          </details>
+          <ul id="study-plays" aria-label="Labeled plays"></ul>
           <p class="hint">Confirm on the first frame of an identity switch. Dashed boxes indicate predicted positions.</p>
         </section>
         <section id="coaching-step" hidden><h3>Coaching review</h3><p id="coaching-state" role="status"></p><a id="coaching-room" class="primary" hidden>Open Coaching Film Room ↗</a></section>

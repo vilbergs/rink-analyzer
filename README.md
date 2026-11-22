@@ -325,6 +325,11 @@ Compare two players and replay intervals where both were detected. Observations 
 confirmed player are saved with the session and reopen at the original clip and time.
 The connector between skates shows their positions in the camera view.
 
+Use **Label a play** to save a teaching clip around the decision frame. Choose a primary
+coaching label and optionally a second label, a skater, or a cue. Set the clip boundaries
+from the frame slider, or use the default range around the decision. Saved plays can be
+replayed and edited from the same session.
+
 In **Your skater**, choose **Pick yourself**, scrub to a clear frame, and tap your skater or
 their ID. Use **Correct track** after an ID switch. The Pi saves your selections with the
 session. With gear data from another confirmed clip, **Suggest match** offers a candidate

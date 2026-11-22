@@ -123,7 +123,7 @@ progress {width:100%;accent-color:var(--accent)}
 .select-row {display:flex;gap:6px}.select-row select {min-width:0;flex:1}
 .select-row button,#study-note button,#study-notes button {font-size:.8rem;white-space:nowrap}
 #study-note {border-top:1px solid var(--line);margin-top:14px}
-#note-text {width:100%;resize:vertical;font:inherit;font-size:.85rem;background:#131b20;border:1px solid #45525b;color:inherit;border-radius:6px;padding:8px}
+#note-text,#play-cue {width:100%;resize:vertical;font:inherit;font-size:.85rem;background:#131b20;border:1px solid #45525b;color:inherit;border-radius:6px;padding:8px}
 #study-notes {list-style:none;padding:0}
 #study-notes li {padding-top:8px;margin-top:8px;border-top:1px solid var(--line);overflow-wrap:anywhere}
 #study-notes button+button {float:right}
@@ -138,3 +138,10 @@ progress {width:100%;accent-color:var(--accent)}
 #youtube-link {width:100%;min-width:0;background:#131b20;border:1px solid #45525b;padding:.5rem;border-radius:7px}
 #youtube-status:not(:empty),#youtube-progress:not(:empty) {margin-top:8px;color:var(--muted);font-size:.85rem}
 #youtube-source {display:inline-block;margin-top:4px;font-size:.85rem}
+
+#play-review {margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+#play-review summary {cursor:pointer}
+#play-form p:empty {display:none}
+#study-plays {list-style:none;padding:0}
+#study-plays li {margin-top:12px;padding-block:8px;border-top:1px solid var(--line)}
+#study-plays strong {display:block}

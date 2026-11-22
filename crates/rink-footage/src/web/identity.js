@@ -196,6 +196,8 @@
     }
     review = undefined;
     trackingDetails.hidden = true;
+    playReview.hidden = true;
+    playReview.open = false;
     trackCount.textContent = '';
     play.disabled = zoom.disabled = slider.disabled = true;
     resetViewport();
@@ -289,6 +291,9 @@
     } catch {}
     element('note-text').value = '';
     showNotes(item);
+    showPlays(item);
+    resetPlay(item);
+    playReview.hidden = !item.run;
     element('inspector-nav').hidden = false;
     showInspector(true);
   }
@@ -615,6 +620,7 @@
       studyOptions(item);
     }
     showNotes(item);
+    showPlays(item);
     updateRanges(item);
     repaint(item);
   }
@@ -792,6 +798,151 @@
     return row;
   }
 
+  const playReview = element('play-review');
+  const playForm = element('play-form');
+  const playPrimary = element('play-primary');
+  const playSecondary = element('play-secondary');
+  const playStatus = element('play-status');
+
+  function setPlayLabels(item, play) {
+    const choices = item.identityState.play_labels;
+    playPrimary.replaceChildren(new Option('Choose a coaching label',''),
+      ...choices.map(label => new Option(label.name,label.id)));
+    playPrimary.value = play?.primary ?? '';
+    updateSecondary(item,play?.secondary);
+  }
+
+  function updateSecondary(item, value) {
+    playSecondary.replaceChildren(new Option('None',''), ...item.identityState.play_labels
+      .filter(label => label.id !== playPrimary.value).map(label => new Option(label.name,label.id)));
+    if ([...playSecondary.options].some(option => option.value === value)) playSecondary.value = value;
+    for (const field of [playPrimary,playSecondary]) {
+      const choice = item.identityState.play_labels.find(label => label.id === field.value);
+      element(field.id + '-description').textContent = choice?.description ?? '';
+    }
+  }
+
+  function resetPlay(item, play) {
+    item.playDraft = {id:play?.id,start:play?.start_ms,end:play?.end_ms};
+    setPlayLabels(item,play);
+    element('play-cue').value = play?.cue ?? '';
+    element('play-attach').checked = play?.track != null;
+    element('play-save').textContent = play ? 'Update play at this frame' : 'Save play at this frame';
+    element('play-cancel').hidden = !play;
+    playStatus.textContent = '';
+    updatePlayRange(item);
+  }
+
+  function playBounds(item, decision) {
+    const first = item.records[0].source_ms;
+    const at = ms => item.records[indexAt(item.records,(ms-first)/1000)].source_ms;
+    return {
+      start_ms:item.playDraft.start ?? at(decision - 2500),
+      end_ms:item.playDraft.end ?? at(decision + 1500),
+    };
+  }
+
+  function updatePlayRange(item) {
+    if (!item.playDraft || !playReview.open) return;
+    const index = indexAt(item.records,video.currentTime);
+    const decision = item.records[index].source_ms;
+    const {start_ms,end_ms} = playBounds(item,decision);
+    element('play-range').textContent = clock(start_ms) + ' – ' + clock(end_ms) + ' · Decision ' + clock(decision);
+  }
+
+  playReview.addEventListener('toggle', () => { if (review?.records) updatePlayRange(review); });
+  playPrimary.addEventListener('change', () => updateSecondary(review,playSecondary.value));
+  playSecondary.addEventListener('change', () => updateSecondary(review,playSecondary.value));
+  for (const edge of ['start','end']) {
+    element('play-' + edge).addEventListener('click', () => {
+      const item = review;
+      video.pause();
+      item.playDraft[edge] = item.records[indexAt(item.records,video.currentTime)].source_ms;
+      updatePlayRange(item);
+    });
+  }
+  element('play-cancel').addEventListener('click', () => resetPlay(review));
+  playForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const item = review;
+    if (!item?.playDraft || item.identitySaving) return;
+    video.pause();
+    const frame = item.records[indexAt(item.records,video.currentTime)];
+    const attach = element('play-attach').checked;
+    const track = attach && selectedTrack(item,frame,item.studyId,true);
+    if (attach && !track) {
+      playStatus.textContent = 'Select a detected skater at the decision frame or clear the checkbox.';
+      return;
+    }
+    const play = {
+      id:item.playDraft.id ?? crypto.randomUUID(), clip:item.clip.id, run:item.run,
+      ...playBounds(item,frame.source_ms), decision_ms:frame.source_ms,
+      primary:playPrimary.value, secondary:playSecondary.value || null,
+      cue:element('play-cue').value.trim(), track:track?.id ?? null,
+    };
+    if (await saveIdentity(item,{action:'save_play',play})) {
+      resetPlay(item);
+      playStatus.textContent = 'Play saved.';
+    } else if (review === item) {
+      playStatus.textContent = identityStatus.textContent;
+    }
+  });
+
+  function playIndex(item,ms) {
+    return indexAt(item.records,(ms-item.records[0].source_ms)/1000);
+  }
+
+  function openPlay(item,play,replay = false) {
+    video.pause();
+    if (play.player) {
+      item.studyId = play.player.player ?? play.track;
+      studyOptions(item);
+      updateRanges(item);
+    }
+    item.stopBefore = null;
+    seek(item,playIndex(item,replay ? play.start_ms : play.decision_ms));
+    if (replay) {
+      item.stopBefore = playIndex(item,play.end_ms) + 1;
+      video.play().catch(() => { item.stopBefore = null; });
+    }
+  }
+
+  function showPlays(item) {
+    const choices = item.identityState.play_labels;
+    element('study-plays').replaceChildren(...item.identityState.plays.filter(play => play.clip === item.clip.id).map(play => {
+      const row = document.createElement('li');
+      const title = document.createElement('strong');
+      title.textContent = [play.primary,play.secondary].filter(Boolean)
+        .map(id => choices.find(label => label.id === id)?.name ?? id).join(' · ');
+      const decision = button(clock(play.decision_ms),() => openPlay(item,play));
+      const replay = button('Replay',() => openPlay(item,play,true));
+      const edit = button('Edit',() => {
+        openPlay(item,play);
+        playReview.open = true;
+        resetPlay(item,play);
+        playPrimary.focus();
+      });
+      const remove = button('Remove',async () => {
+        if (await saveIdentity(item,{action:'remove_play',target:play.id}) && item.playDraft.id === play.id) resetPlay(item);
+      });
+      const actions = document.createElement('div');
+      actions.className = 'skater-actions';
+      actions.append(decision,replay,edit,remove);
+      row.append(title,actions);
+      if (play.cue) {
+        const cue = document.createElement('p');
+        cue.textContent = play.cue;
+        row.append(cue);
+      }
+      if (play.run !== item.run || (play.player && stateAssignment(item,play.player.view) !== play.player.player)) {
+        const changed = document.createElement('p');
+        changed.textContent = 'Tracking or player assignment changed at this play.';
+        row.append(changed);
+      }
+      return row;
+    }));
+  }
+
   function reference(item) {
     return Object.entries(item.selections).find(([clipId, saved]) =>
       clipId !== item.clip.id && saved.some(anchor => anchor.gear))?.[1].find(anchor => anchor.gear);
@@ -862,6 +1013,7 @@
     const proposal = item.proposal?.source_ms === frame.source_ms ? item.proposal : null;
     item.candidates = candidates;
     slider.value = index;
+    updatePlayRange(item);
     element('skater-time').textContent = clock(frame.source_ms);
     const predicted = frame.tracks.filter(track => track.predicted).length;
     trackCount.textContent = clock(frame.source_ms) + ' · ' +
