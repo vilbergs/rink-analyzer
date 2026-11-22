@@ -13,9 +13,9 @@ use std::{
 };
 
 use ab_glyph::FontArc;
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use image::Rgb;
-use overlay::{bar, checkpoint, error_line, text, window, WEAK, WHITE};
+use overlay::{WEAK, WHITE, bar, checkpoint, error_line, text, window};
 use tracker::{Point, Prediction, Tracker};
 use video::Video;
 
@@ -72,6 +72,9 @@ fn run() -> Result<()> {
     }
     if args.first().is_some_and(|arg| arg == "--detections") {
         return auto::detection_preview(&args[1..]);
+    }
+    if args.first().is_some_and(|arg| arg == "--replay-tracks") {
+        return auto::replay_preview(&args[1..]);
     }
     #[cfg(feature = "coaching-montage")]
     if args.first().is_some_and(|arg| arg == "--coach-review") {

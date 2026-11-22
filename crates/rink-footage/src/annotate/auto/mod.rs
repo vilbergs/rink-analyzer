@@ -10,16 +10,12 @@ use std::{
 };
 
 use ab_glyph::FontArc;
-use anyhow::{bail, ensure, Context, Result};
-use image::{imageops, Rgb, RgbImage};
-use serde::Deserialize;
+use anyhow::{Context, Result, bail, ensure};
+use image::{Rgb, RgbImage, imageops};
+use serde::{Deserialize, Serialize};
 
 use self::association::{Bounds, Detection, Tracks};
-use super::{
-    overlay::{bar, rect_label, text, WHITE},
-    tracker::Point,
-    video::Video,
-};
+use super::{overlay::rect_label, tracker::Point, video::Video};
 
 const RENDER_ARGS: &str = "<frames-dir> <clip-stem> <fps> <font.ttf> <output.mp4>";
 
@@ -42,7 +38,7 @@ pub fn vision_preview(args: &[OsString]) -> Result<()> {
             return Ok(());
         }
     }
-    render(args, vision::detect, None)
+    track_preview(args, vision::detect, None)
 }
 
 pub fn detection_preview(args: &[OsString]) -> Result<()> {
@@ -60,7 +56,7 @@ pub fn detection_preview(args: &[OsString]) -> Result<()> {
     };
     let tracks = track_path.map(File::create_new).transpose()?.map(BufWriter::new);
     let mut lines = BufReader::new(File::open(input)?).lines();
-    render(
+    track_preview(
         args,
         |path, _| {
             let line = lines.next().context("Missing detections for an extracted frame")??;
@@ -83,6 +79,83 @@ pub fn detection_preview(args: &[OsString]) -> Result<()> {
         tracks,
     )
 }
+#[derive(Deserialize, Serialize)]
+struct PreviewFrame {
+    source_ms: u64,
+    width: u32,
+    height: u32,
+    tracks: Vec<PreviewTrack>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct PreviewTrack {
+    id: u32,
+    xyxy: [f32; 4],
+    predicted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    gear: Option<[[u8; 5]; 3]>,
+}
+
+/// Rebuild only the video presentation. The original track records remain authoritative.
+pub fn replay_preview(args: &[OsString]) -> Result<()> {
+    const COMMAND: &str = "Usage: rink-track-preview --replay-tracks";
+    if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
+        println!("{COMMAND} {RENDER_ARGS} <tracks.ndjson>");
+        return Ok(());
+    }
+    let [args @ .., input] = args else { bail!("{COMMAND} {RENDER_ARGS} <tracks.ndjson>") };
+    let mut lines = BufReader::new(File::open(input)?).lines();
+    render(args, |time, _, frame, size, is_last| {
+        let record: PreviewFrame = serde_json::from_str(&lines.next().context("Missing tracking frame")??)?;
+        ensure!(
+            record.source_ms == time && (record.width, record.height) == size,
+            "Tracking frame does not align with video at {time} ms ({:?})",
+            frame.dimensions()
+        );
+        ensure!(!is_last || lines.next().is_none(), "Tracking records extend past the extracted footage");
+        Ok(record.tracks)
+    })
+}
+
+fn track_preview(
+    args: &[OsString],
+    mut detect: impl FnMut(&Path, &RgbImage) -> Result<Vec<Bounds>>,
+    mut track_file: Option<BufWriter<File>>,
+) -> Result<()> {
+    let mut tracks = Tracks::default();
+    render(args, |time, path, frame, (width, height), is_last| {
+        let detections = detect(path, frame)
+            .with_context(|| format!("detect people in {}", path.display()))?
+            .into_iter()
+            .map(|bounds| Detection::new(frame, bounds))
+            .collect();
+        tracks.advance(detections);
+        let visible = tracks
+            .visible()
+            .map(|track| {
+                let bounds = track.draw_bounds();
+                let Bounds { x, y, w, h } = bounds;
+                let predicted = track.age_since_match > 0;
+                PreviewTrack {
+                    id: track.id,
+                    xyxy: [x, y, x + w, y + h],
+                    predicted,
+                    gear: (track_file.is_some() && !predicted && h >= 30.0 && w >= 12.0).then(|| gear(frame, bounds)),
+                }
+            })
+            .collect();
+        let record = PreviewFrame { source_ms: time, width, height, tracks: visible };
+        if let Some(writer) = &mut track_file {
+            serde_json::to_writer(&mut *writer, &record)?;
+            writer.write_all(b"\n")?;
+            if is_last {
+                writer.flush()?;
+            }
+        }
+        Ok(record.tracks)
+    })
+}
+
 const COLORS: [Rgb<u8>; 8] = [
     Rgb([40, 225, 244]),
     Rgb([223, 171, 255]),
@@ -96,8 +169,7 @@ const COLORS: [Rgb<u8>; 8] = [
 
 fn render(
     args: &[OsString],
-    mut detect: impl FnMut(&Path, &RgbImage) -> Result<Vec<Bounds>>,
-    mut track_file: Option<BufWriter<File>>,
+    mut boxes: impl FnMut(u64, &Path, &RgbImage, (u32, u32), bool) -> Result<Vec<PreviewTrack>>,
 ) -> Result<()> {
     let [frames, stem, fps, font, output] = args else { bail!("Expected {RENDER_ARGS}") };
     let dir = Path::new(frames);
@@ -134,68 +206,26 @@ fn render(
     ensure!(!output.exists(), "{} already exists", output.display());
     let file = File::create_new(&partial).with_context(|| format!("create {}", partial.display()))?;
     let mut video = Video::new(file, size.0, size.1, fps)?;
-    let mut tracks = Tracks::default();
     let mut peak = 0;
     let count = files.len();
     for (i, (time, path)) in files.into_iter().enumerate() {
         let mut frame = image::open(&path)?.to_rgb8();
         ensure!(frame.dimensions() == (width, height), "frame dimensions changed: {}", path.display());
-        let detections = detect(&path, &frame)
-            .with_context(|| format!("detect people in {}", path.display()))?
-            .into_iter()
-            .map(|bounds| Detection::new(&frame, bounds))
-            .collect();
-        tracks.advance(detections);
-        if let Some(writer) = &mut track_file {
-            let visible: Vec<_> = tracks
-                .visible()
-                .map(|track| {
-                    let Bounds { x, y, w, h } = track.draw_bounds();
-                    let mut record = serde_json::json!({
-                        "id": track.id, "xyxy": [x, y, x + w, y + h],
-                        "predicted": track.age_since_match > 0,
-                    });
-                    if track.age_since_match == 0 && h >= 30.0 && w >= 12.0 {
-                        record["gear"] = serde_json::json!(gear(&frame, Bounds { x, y, w, h }));
-                    }
-                    record
-                })
-                .collect();
-            serde_json::to_writer(
-                &mut *writer,
-                &serde_json::json!({
-                    "source_ms": time, "width": size.0, "height": size.1, "tracks": visible,
-                }),
-            )?;
-            writer.write_all(b"\n")?;
-        }
-
-        let mut visible = 0;
-        for track in tracks.visible() {
-            let bounds = track.draw_bounds();
-            let color = COLORS[(track.id as usize - 1) % COLORS.len()];
+        let boxes = boxes(time, &path, &frame, size, i + 1 == count)?;
+        peak = peak.max(boxes.len());
+        for track in boxes {
+            let [left, top, right, bottom] = track.xyxy;
+            let color = COLORS[track.id.saturating_sub(1) as usize % COLORS.len()];
             rect_label(
                 &mut frame,
                 &font,
                 &format!("S{:02}", track.id),
-                Point(bounds.x.round() as i32, bounds.y.round() as i32),
-                Point((bounds.x + bounds.w).round() as i32, (bounds.y + bounds.h).round() as i32),
+                Point(left.round() as i32, top.round() as i32),
+                Point(right.round() as i32, bottom.round() as i32),
                 color,
-                track.age_since_match > 0,
+                track.predicted,
             );
-            visible += 1;
         }
-        peak = peak.max(visible);
-        bar(&mut frame, 0, 54);
-        text(
-            &mut frame,
-            &font,
-            &format!("{stem}  {:.2}s  ·  {visible} tracks", time as f64 / 1000.0),
-            Point(12, 22),
-            20.0,
-            WHITE,
-        );
-        text(&mut frame, &font, "Clip-local IDs  ·  dashed boxes are predictions", Point(12, 43), 16.0, WHITE);
         if size != frame.dimensions() {
             frame = imageops::crop(&mut frame, 0, 0, size.0, size.1).to_image();
         }
@@ -205,9 +235,6 @@ fn render(
         }
     }
     video.finish()?;
-    if let Some(mut writer) = track_file {
-        writer.flush()?;
-    }
     // Publish the finished file without replacing a file another render created.
     fs::hard_link(&partial, output)?;
     fs::remove_file(partial)?;

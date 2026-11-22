@@ -83,6 +83,9 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 .portrait .monitor-head,.portrait .transport {flex-wrap:wrap;gap:8px;padding:10px 12px}
 .portrait .transport input {flex:1 1 3rem}
 .portrait .view-controls {border-top:1px solid var(--line)}
+#tracking-details {padding:10px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:.8rem}
+#tracking-details summary {cursor:pointer}
+#tracking-details p {margin-top:6px}
 output {font-variant-numeric:tabular-nums}
 #skater-editor section {padding:16px}
 #skater-editor section+section {border-top:1px solid var(--line)}

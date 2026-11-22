@@ -4,6 +4,8 @@
   const overlay = element('skater-overlay');
   const context = overlay.getContext('2d');
   const status = element('skater-status');
+  const trackingDetails = element('tracking-details');
+  const trackCount = element('tracking-track-count');
   const slider = element('skater-frame');
   const pick = element('pick-skater');
   const clear = element('clear-skater');
@@ -193,6 +195,8 @@
       review.referenceVideo.load();
     }
     review = undefined;
+    trackingDetails.hidden = true;
+    trackCount.textContent = '';
     play.disabled = zoom.disabled = slider.disabled = true;
     resetViewport();
     slider.value = 0;
@@ -225,6 +229,7 @@
       if (review !== next) return;
       if (!records.length) throw new Error('There are no tracked frames in this clip.');
       next.records = records;
+      trackingDetails.hidden = false;
       next.run = response.headers.get('x-rink-tracking-run');
       next.identityState = sessionIdentity;
       next.selections = selections;
@@ -858,6 +863,9 @@
     item.candidates = candidates;
     slider.value = index;
     element('skater-time').textContent = clock(frame.source_ms);
+    const predicted = frame.tracks.filter(track => track.predicted).length;
+    trackCount.textContent = clock(frame.source_ms) + ' · ' +
+      (frame.tracks.length - predicted) + ' detected · ' + predicted + ' predicted';
     pick.disabled = item.saving === true;
     pick.textContent = item.picking ? 'Done picking' : saved.length ? 'Correct track' : 'Pick yourself';
     clear.hidden = !item.anchor || item.picking;
