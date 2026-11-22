@@ -80,6 +80,23 @@
 
   zoom.addEventListener('input', updateViewport);
   fit.addEventListener('click', resetViewport);
+  const expand = element('tracking-expand');
+  const videoFrame = viewport.parentElement;
+  expand.hidden = !document.fullscreenEnabled;
+  expand.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement === videoFrame) await document.exitFullscreen();
+      else {
+        await videoFrame.requestFullscreen();
+        viewport.focus();
+      }
+    } catch {
+      expand.title = 'Full screen is unavailable';
+    }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    expand.setAttribute('aria-pressed', String(document.fullscreenElement === videoFrame));
+  });
   viewport.addEventListener('wheel', event => {
     if (zoom.disabled || (!event.ctrlKey && viewportScale() === 1 && gestureStartScale === undefined)) return;
     event.preventDefault();
@@ -142,7 +159,11 @@
   });
   new ResizeObserver(updateViewport).observe(viewport);
 
-  function updatePlay() { play.textContent = video.paused || video.ended ? 'Play' : 'Pause'; }
+  const fullscreenPlay = element('fullscreen-play');
+  fullscreenPlay.addEventListener('click', () => play.click());
+  function updatePlay() {
+    fullscreenPlay.textContent = play.textContent = video.paused || video.ended ? 'Play' : 'Pause';
+  }
   for (const event of ['play','pause','ended','emptied']) video.addEventListener(event,updatePlay);
   document.addEventListener('keydown', event => {
     if (event.key !== ' ' || event.defaultPrevented || event.isComposing || reviewPanel.hidden || play.disabled ||
@@ -164,12 +185,8 @@
     const {videoWidth, videoHeight} = video;
     const portrait = videoWidth > 0 && videoWidth < videoHeight;
     reviewPanel.classList.toggle('portrait', portrait);
-    if (portrait) {
-      // Match the player's 68vh height cap while keeping the original aspect ratio.
-      reviewPanel.style.setProperty('--portrait-width', (68 * videoWidth / videoHeight) + 'vh');
-    } else {
-      reviewPanel.style.removeProperty('--portrait-width');
-    }
+    if (videoHeight) reviewPanel.style.setProperty('--video-ratio', videoWidth / videoHeight);
+    else reviewPanel.style.removeProperty('--video-ratio');
   }
   for (const event of ['loadedmetadata','resize','emptied']) video.addEventListener(event, updateOrientation);
 
@@ -1087,7 +1104,7 @@
     pick.textContent = item.picking ? 'Done picking' : saved.length ? 'Correct track' : 'Pick yourself';
     clear.hidden = !item.anchor || item.picking;
     clear.disabled = item.saving === true;
-    overlay.classList.toggle('picking', Boolean(item.picking || item.studyPicking));
+    overlay.classList.toggle('picking', Boolean(item.picking || !element('player-study').hidden));
     element('pick-study').setAttribute('aria-pressed', String(Boolean(item.studyPicking)));
     element('skater-picking').hidden = !item.picking;
 
@@ -1110,8 +1127,10 @@
         : 'Choose the skater you want to follow in this clip.');
 
     context.clearRect(0, 0, overlay.width, overlay.height);
-    for (const track of candidates) {
-      drawBox(track, track.id === proposal?.id ? '#ffd260' : '#b7e5ff', 2, label(track.id), false);
+    item.tags = new Map();
+    const baseTracks = frame.interactive ? frame.tracks : candidates;
+    for (const track of baseTracks) {
+      drawBox(track, track.id === proposal?.id ? '#ffd260' : '#b7e5ff', 2, label(track.id), track.predicted);
     }
     if (!item.picking && item.studyId != null) {
       const watched = selectedTrack(item, frame, item.studyId, true);
@@ -1151,6 +1170,7 @@
     const y = Math.max(0, top - 19);
     context.fillStyle = '#151d24';
     context.fillRect(x, y, tagWidth, 18);
+    review.tags.set(track.id, [x, y, x + tagWidth, y + 18]);
     context.fillStyle = color;
     context.fillText(text, x + 5, y + 9);
   }
@@ -1204,18 +1224,33 @@
   });
   overlay.addEventListener('click', event => {
     const item = review;
-    if (!(item?.picking || item?.studyPicking) || item.saving || video.seeking) return;
+    if (!item?.records || (!item.picking && element('player-study').hidden) || item.saving || video.seeking) return;
     const bounds = overlay.getBoundingClientRect();
     const x = (event.clientX - bounds.left) * overlay.width / bounds.width;
     const y = (event.clientY - bounds.top) * overlay.height / bounds.height;
-    const matches = item.candidates.filter(track => {
-      const [l, t, r, b] = track.xyxy;
-      return x >= l && x <= r && y >= t && y <= b;
+    const frame = item.records[item.lastIndex];
+    const contains = ([l,t,r,b]) => x >= l && x <= r && y >= t && y <= b;
+    const detected = frame.tracks.filter(track => !track.predicted);
+    const tags = detected.filter(track => {
+      const tag = item.tags.get(track.id);
+      if (tag && contains(tag)) return true;
+      if (frame.interactive) return false;
+      // Older previews have the original renderer's ID tags burned into the frame.
+      const left = Math.min(Math.round(track.xyxy[0]), overlay.width - 48);
+      const top = Math.max(Math.round(track.xyxy[1]) - 18, 54);
+      return contains([left, top, left + Math.max(32,label(track.id).length * 10 + 6), top + 17]);
     });
-    if (item.studyPicking) {
+    const matches = tags.length ? tags : detected.filter(track => contains(track.xyxy));
+    if (!item.picking) {
       if (matches.length === 1) {
-        subject.value = String(matches[0].id);
+        video.pause();
+        const track = matches[0];
+        subject.value = assignmentAt(item,frame.source_ms,track.id)?.player ?? String(track.id);
         subject.dispatchEvent(new Event('change'));
+      } else if (matches.length > 1) {
+        video.pause();
+        element('study-status').textContent = 'Those skaters overlap. Choose a player from the list.';
+        subject.focus({preventScroll:true});
       }
       return;
     }

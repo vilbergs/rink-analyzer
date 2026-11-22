@@ -109,7 +109,7 @@ def process(job):
                 subprocess.run([sys.executable, ROOT / "detect-yolox.py", ROOT / "yolox_s.onnx", frames],
                                stdout=boxes, check=True, timeout=2700)
             subprocess.run([ROOT / "rink-track-preview", "--detections", frames, source.stem, str(FPS),
-                            os.environ["RINK_FOOTAGE_FONT"], output, detections, tracks, *shot_args], check=True, timeout=2700)
+                            os.environ["RINK_FOOTAGE_FONT"], output, detections, tracks, *shot_args, "--interactive"], check=True, timeout=2700)
             with tracks.open("rb") as data, request(route + "/data", "PUT", lease, data, "application/x-ndjson"):
                 pass
             with output.open("rb") as video, request(route + "/result", "PUT", lease, video, "video/mp4"):

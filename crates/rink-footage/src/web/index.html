@@ -32,9 +32,11 @@
           <div id="tracking-stage"><video id="tracking-video" playsinline preload="metadata" aria-label="Tracking footage"></video>
             <canvas id="skater-overlay" aria-hidden="true"></canvas></div></div>
         <div class="view-controls">
+          <button id="fullscreen-play" type="button">Play</button>
           <input id="tracking-zoom" aria-label="Zoom" type="range" min="100" max="400" step="any" value="100" disabled><output id="tracking-scale" for="tracking-zoom">100%</output>
           <button id="tracking-pan" type="button" aria-pressed="false" disabled>Pan</button>
           <button id="tracking-reset" type="button" disabled>Fit</button>
+          <button id="tracking-expand" type="button" aria-label="Full screen" title="Full screen" aria-pressed="false" hidden>⛶</button>
         </div>
         </div></div>
         <div class="transport">

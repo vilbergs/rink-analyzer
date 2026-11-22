@@ -54,15 +54,16 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 #empty {padding:clamp(42px,8vw,90px) 18px;text-align:center;border:1px dashed #46545e;border-radius:12px;color:var(--muted)}
 .back {display:inline-block;margin-bottom:16px;text-decoration:none}
 #delete,#tracking-data {font-size:.8rem;color:var(--muted)}
-#tracking-review {margin-bottom:28px}
+main:has(#tracking-review:not([hidden])) {max-width:none;padding-inline:clamp(12px,1.6vw,32px)}
+#tracking-review {margin-bottom:28px;--video-width:calc(max(58vh,100dvh - 14rem) * var(--video-ratio,1.77778))}
 .review-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(245px,300px);align-items:start;gap:16px}
 .portrait .review-layout {
-  grid-template-columns:minmax(0,min(calc(var(--portrait-width) + 2px),52%)) minmax(0,30rem);
+  grid-template-columns:minmax(0,min(calc(var(--video-width) + 2px),52%)) minmax(0,30rem);
   justify-content:center;
 }
 .monitor,#skater-editor,dialog {background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
 .monitor {overflow:hidden}
-.portrait .monitor {width:calc(var(--portrait-width) + 2px);max-width:100%;justify-self:center}
+.portrait .monitor {width:calc(var(--video-width) + 2px);max-width:100%;justify-self:center}
 .monitor-head,.transport {padding:12px 16px}
 .monitor-head h2 {overflow-wrap:anywhere}
 #tracking-data {white-space:nowrap}
@@ -71,8 +72,8 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 #tracking-viewport.panning {touch-action:none;cursor:grab}
 #tracking-viewport.dragging {cursor:grabbing}
 #tracking-viewport.panning #skater-overlay {pointer-events:none}
-#tracking-stage {position:relative;width:fit-content;max-width:100%;line-height:0}
-#tracking-video {display:block;width:auto;height:auto;max-width:100%;max-height:68vh}
+#tracking-stage {position:relative;width:100%;max-width:100%;line-height:0}
+#tracking-video {display:block;width:100%;height:auto}
 .portrait .screen {min-height:0}
 .portrait #tracking-viewport,.portrait #tracking-stage,.portrait #tracking-video {width:100%}
 .portrait #tracking-video {max-height:none}
@@ -82,7 +83,7 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 .transport input {min-width:0;flex:1;accent-color:var(--accent)}
 .portrait .monitor-head,.portrait .transport {flex-wrap:wrap;gap:8px;padding:10px 12px}
 .portrait .transport input {flex:1 1 3rem}
-.video-frame {position:relative;max-width:100%;min-width:0}
+.video-frame {position:relative;width:min(100%,var(--video-width));min-width:0}
 .portrait .video-frame {width:100%}
 .view-controls {position:absolute;bottom:8px;right:8px;display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:7px;background:#101519e8;font-size:.75rem}
 .view-controls input {width:clamp(44px,7vw,80px);accent-color:var(--accent)}
@@ -165,3 +166,8 @@ progress {width:100%;accent-color:var(--accent)}
 #study-player-details {margin-top:8px}
 #study-player-details summary {font-size:.8rem;color:var(--muted);cursor:pointer}
 #study-player-details .select-row {display:grid;grid-template-columns:minmax(0,1fr) 5rem}
+
+.video-frame:fullscreen {display:grid;place-items:center;background:#080c0f}
+.video-frame:fullscreen #tracking-viewport {width:min(100vw,calc(100dvh * var(--video-ratio,1.77778)))}
+
+.video-frame:not(:fullscreen) #fullscreen-play {display:none}

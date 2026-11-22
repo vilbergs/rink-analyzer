@@ -31,7 +31,7 @@ def fixture(root, video):
                    gear=[[0, 20, 0, 0, 0]] * 3) for n in (1, 2)]
     with (directory / "tracks.ndjson").open("w") as stream:
         for ms in range(0, 2000, 250):
-            print(json.dumps(dict(source_ms=ms, width=1280, height=720, tracks=tracks)), file=stream)
+            print(json.dumps(dict(interactive=True, source_ms=ms, width=1280, height=720, tracks=tracks)), file=stream)
     shutil.copyfile(video, directory / "tracks.mp4")
     os.link(directory / "tracks.mp4", directory / "source.mp4")
     Image.new("RGB", (128, 72)).save(directory / "preview.jpg")
@@ -54,6 +54,11 @@ def exercise(page, origin, session, clip):
     expect(field("tracking-scale")).to_have_text("400%")
     field("tracking-reset").click()
     expect(field("tracking-scale")).to_have_text("100%")
+    field("tracking-expand").click()
+    expect(field("tracking-expand")).to_have_attribute("aria-pressed", "true")
+    expect(field("fullscreen-play")).to_be_visible()
+    field("tracking-expand").click()
+    expect(field("tracking-expand")).to_have_attribute("aria-pressed", "false")
     for width, height in [(1280, 720), (390, 844)]:
         page.set_viewport_size(dict(width=width, height=height))
         field("tracking-review").evaluate("e => e.scrollIntoView({block:'start'})")
@@ -66,7 +71,12 @@ def exercise(page, origin, session, clip):
                    control.left >= frame.left && control.top >= frame.top;
         }""")
     page.set_viewport_size(dict(width=1280, height=720))
-    field("study-player").select_option("2")
+    # Pick the second track by its label on the rendered canvas.
+    canvas = field("skater-overlay")
+    bounds = canvas.bounding_box()
+    page.mouse.click(bounds["x"] + 205 / 1280 * bounds["width"],
+                     bounds["y"] + 90 / 720 * bounds["height"])
+    expect(field("study-player")).to_have_value("2")
     field("study-name").fill("Reference")
     field("study-name").press("Space")
     expect(field("study-name")).to_have_value("Reference ")

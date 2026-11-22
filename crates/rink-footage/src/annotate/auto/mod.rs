@@ -11,8 +11,8 @@ use std::{
 };
 
 use ab_glyph::FontArc;
-use anyhow::{Context, Result, bail, ensure};
-use image::{Rgb, RgbImage, imageops};
+use anyhow::{bail, ensure, Context, Result};
+use image::{imageops, Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 
 use self::association::{Bounds, Detection, Tracks};
@@ -39,11 +39,13 @@ pub fn vision_preview(args: &[OsString]) -> Result<()> {
             return Ok(());
         }
     }
-    track_preview(args, vision::detect, None, None)
+    track_preview(args, vision::detect, None, None, false)
 }
 
 pub fn detection_preview(args: &[OsString]) -> Result<()> {
     const COMMAND: &str = "Usage: rink-track-preview --detections";
+    let interactive = args.last().is_some_and(|arg| arg == "--interactive");
+    let args = if interactive { &args[..args.len() - 1] } else { args };
     let (args, cuts) = match args {
         [args @ .., flag, path] if flag == "--shot-cuts" => {
             let cuts: BTreeSet<u64> = serde_json::from_reader(File::open(path)?)?;
@@ -53,7 +55,9 @@ pub fn detection_preview(args: &[OsString]) -> Result<()> {
     };
     if let [flag] = args {
         if flag == "--help" || flag == "-h" {
-            println!("{COMMAND} {RENDER_ARGS} <detections.ndjson> [tracks.ndjson] [--shot-cuts <cuts.json>]");
+            println!(
+                "{COMMAND} {RENDER_ARGS} <detections.ndjson> [tracks.ndjson] [--shot-cuts <cuts.json>] [--interactive]"
+            );
             return Ok(());
         }
     }
@@ -62,6 +66,7 @@ pub fn detection_preview(args: &[OsString]) -> Result<()> {
         [args @ .., input, tracks] if args.len() == 5 => (args, input, Some(tracks)),
         _ => bail!("{COMMAND} {RENDER_ARGS} <detections.ndjson> [tracks.ndjson]"),
     };
+    ensure!(!interactive || track_path.is_some(), "Interactive previews require a tracks file");
     let tracks = track_path.map(File::create_new).transpose()?.map(BufWriter::new);
     let mut lines = BufReader::new(File::open(input)?).lines();
     track_preview(
@@ -86,6 +91,7 @@ pub fn detection_preview(args: &[OsString]) -> Result<()> {
         },
         tracks,
         cuts,
+        interactive,
     )
 }
 #[derive(Deserialize, Serialize)]
@@ -95,6 +101,8 @@ struct PreviewFrame {
     height: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     shot: Option<u32>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    interactive: bool,
     tracks: Vec<PreviewTrack>,
 }
 
@@ -124,7 +132,7 @@ pub fn replay_preview(args: &[OsString]) -> Result<()> {
             frame.dimensions()
         );
         ensure!(!is_last || lines.next().is_none(), "Tracking records extend past the extracted footage");
-        Ok(record.tracks)
+        Ok(record)
     })
 }
 
@@ -133,6 +141,7 @@ fn track_preview(
     mut detect: impl FnMut(&Path, &RgbImage) -> Result<Vec<Bounds>>,
     mut track_file: Option<BufWriter<File>>,
     mut cuts: Option<BTreeSet<u64>>,
+    interactive: bool,
 ) -> Result<()> {
     let mut tracks = Tracks::default();
     let mut shot = cuts.as_ref().map(|_| 1);
@@ -164,7 +173,7 @@ fn track_preview(
                 }
             })
             .collect();
-        let record = PreviewFrame { source_ms: time, width, height, shot, tracks: visible };
+        let record = PreviewFrame { source_ms: time, width, height, shot, interactive, tracks: visible };
         if let Some(writer) = &mut track_file {
             serde_json::to_writer(&mut *writer, &record)?;
             writer.write_all(b"\n")?;
@@ -172,7 +181,7 @@ fn track_preview(
                 writer.flush()?;
             }
         }
-        Ok(record.tracks)
+        Ok(record)
     })
 }
 
@@ -189,7 +198,7 @@ const COLORS: [Rgb<u8>; 8] = [
 
 fn render(
     args: &[OsString],
-    mut boxes: impl FnMut(u64, &Path, &RgbImage, (u32, u32), bool) -> Result<Vec<PreviewTrack>>,
+    mut boxes: impl FnMut(u64, &Path, &RgbImage, (u32, u32), bool) -> Result<PreviewFrame>,
 ) -> Result<()> {
     let [frames, stem, fps, font, output] = args else { bail!("Expected {RENDER_ARGS}") };
     let dir = Path::new(frames);
@@ -231,20 +240,22 @@ fn render(
     for (i, (time, path)) in files.into_iter().enumerate() {
         let mut frame = image::open(&path)?.to_rgb8();
         ensure!(frame.dimensions() == (width, height), "frame dimensions changed: {}", path.display());
-        let boxes = boxes(time, &path, &frame, size, i + 1 == count)?;
-        peak = peak.max(boxes.len());
-        for track in boxes {
-            let [left, top, right, bottom] = track.xyxy;
-            let color = COLORS[track.id.saturating_sub(1) as usize % COLORS.len()];
-            rect_label(
-                &mut frame,
-                &font,
-                &format!("S{:02}", track.id),
-                Point(left.round() as i32, top.round() as i32),
-                Point(right.round() as i32, bottom.round() as i32),
-                color,
-                track.predicted,
-            );
+        let record = boxes(time, &path, &frame, size, i + 1 == count)?;
+        peak = peak.max(record.tracks.len());
+        if !record.interactive {
+            for track in record.tracks {
+                let [left, top, right, bottom] = track.xyxy;
+                let color = COLORS[track.id.saturating_sub(1) as usize % COLORS.len()];
+                rect_label(
+                    &mut frame,
+                    &font,
+                    &format!("S{:02}", track.id),
+                    Point(left.round() as i32, top.round() as i32),
+                    Point(right.round() as i32, bottom.round() as i32),
+                    color,
+                    track.predicted,
+                );
+            }
         }
         if size != frame.dimensions() {
             frame = imageops::crop(&mut frame, 0, 0, size.0, size.1).to_image();

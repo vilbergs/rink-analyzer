@@ -311,13 +311,13 @@ for tracking when `RINK_FOOTAGE_WORKER_TOKEN` is configured. The import dialog a
 accepts a link to one public YouTube video up to 15 minutes and 200 MB. The worker
 uses `yt-dlp` to fetch a compatible MP4 and the saved session retains the YouTube link. The worker starts fresh skater tracks at detected camera cuts. Jump to those frames from **Tracking details**. Furulid claims work over the tailnet,
 does person detection on its GPU, and uses the Rust tracker and encoder to return a silent
-annotated MP4 with timestamped track data. Use **Review players** on the saved clip to play
+MP4 with timestamped track data for the interactive overlay. Use **Review players** on the saved clip to play
 the preview. IDs are local to each clip.
 
 Open a session from the footage library and select **Review players** on a tracked clip.
 Press Space in the video or frame slider to play or pause. Pinch over the video to zoom, then use two-finger scrolling to pan. The **Zoom** and
 **Pan** controls also work with a mouse or keyboard. Use **Fit** to reset the view.
-Below the video in **Player study**, choose a track by ID or pause and use **Pick on ice**. Confirm a
+Below the video in **Player study**, click a detected skater or their ID to pause and follow them. The player list also works with the keyboard. Confirm a
 player label or use **Same player as…** to link the track to a confirmed player in this
 session. At an ID switch, move to the first frame of the switch before correcting the
 assignment. Use **Undo** to reverse the latest identity edit.
