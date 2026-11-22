@@ -22,6 +22,7 @@ jobs:
           methodName: execute
           inputs:
             run: cargo fmt --all --check
+      # Every feature except yolo-cuda and corpus-cuda: those need CUDA and build only on furulid.
       - name: clippy
         dependsOn: [{ step: fmt, condition: { type: succeeded } }]
         task:
@@ -30,7 +31,7 @@ jobs:
           behaviorName: rink-clippy
           methodName: execute
           inputs:
-            run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+            run: cargo clippy --workspace --all-targets --features rink-footage/auto-tracking,rink-footage/coaching-montage,rink-footage/feedback,rink-footage/web-import,rink-footage/corpus --locked -- -D warnings
             timeout: 1800000
       - name: test
         dependsOn: [{ step: clippy, condition: { type: succeeded } }]
@@ -40,7 +41,7 @@ jobs:
           behaviorName: rink-test
           methodName: execute
           inputs:
-            run: cargo test --workspace --all-features --locked
+            run: cargo test --workspace --features rink-footage/auto-tracking,rink-footage/coaching-montage,rink-footage/feedback,rink-footage/web-import,rink-footage/corpus --locked
             timeout: 1800000
   - name: curriculum
     description: Lint the lesson content against STYLE.md and glossary.json (the curriculum-check workflow)
