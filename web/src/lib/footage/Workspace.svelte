@@ -3,6 +3,7 @@
   import { router } from "../router.svelte";
   import * as api from "./api";
   import type { Moment, Room, Session, Tracking } from "./api";
+  import FeedbackPanel from "./FeedbackPanel.svelte";
   import NotesPanel from "./NotesPanel.svelte";
   import PlayerList from "./PlayerList.svelte";
   import PlayPanel from "./PlayPanel.svelte";
@@ -49,6 +50,7 @@
   let tab = $state<"browse" | "inspect">("browse");
   let stage = $state<Stage>();
   let notes = $state<NotesPanel>();
+  let feedback = $state<FeedbackPanel>();
   let help = $state<HTMLDialogElement>();
   /** A note in another clip to jump to once that clip is open. */
   let pending: Moment | undefined;
@@ -110,7 +112,7 @@
     Review.open(session, clip)
       .then((opened) => {
         if (!live) return;
-        opened.onsaved = refreshCoaching;
+        opened.onsaved = () => (refreshCoaching(), feedback?.refresh());
         opened.onopen = (other, moment) => {
           pending = moment;
           router.go(`/footage/${sessionId}/${other}`);
@@ -220,6 +222,7 @@
       {/each}
       {#if room && COACHING[room.state]}<p>{COACHING[room.state]}</p>{/if}
     </section>
+    {#if session}<FeedbackPanel bind:this={feedback} {session} {states} />{/if}
     {#if review}<PlayerList {review} />{/if}
   </aside>
 

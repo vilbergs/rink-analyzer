@@ -1,4 +1,6 @@
 mod auto;
+#[cfg(feature = "feedback")]
+mod feedback;
 #[cfg(feature = "coaching-montage")]
 mod montage;
 mod overlay;
@@ -75,6 +77,10 @@ fn run() -> Result<()> {
     }
     if args.first().is_some_and(|arg| arg == "--replay-tracks") {
         return auto::replay_preview(&args[1..]);
+    }
+    #[cfg(feature = "feedback")]
+    if args.first().is_some_and(|arg| arg == "--feedback") {
+        return feedback::run(&args[1..]);
     }
     #[cfg(feature = "coaching-montage")]
     if args.first().is_some_and(|arg| arg == "--coach-review") {

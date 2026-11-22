@@ -15,7 +15,8 @@ from urllib.request import Request, urlopen
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent
-API = os.environ["RINK_FOOTAGE_API"].rstrip("/") + "/api/footage/worker"
+PUBLIC = os.environ["RINK_FOOTAGE_API"].rstrip("/") + "/api/footage"
+API = PUBLIC + "/worker"
 TOKEN = os.environ["RINK_FOOTAGE_WORKER_TOKEN"]
 FPS = 15
 # yolox: general person detector (ONNX). hockeyai: HockeyAI YOLOv8 through rink-detect, which
@@ -27,7 +28,10 @@ def request(route, method="GET", lease=None, body=None, mime="application/octet-
     headers = {"Authorization": f"Bearer {TOKEN}"}
     if lease:
         headers["X-Rink-Lease"] = lease
-    if body:
+    if isinstance(body, bytes):
+        headers["Content-Length"] = str(len(body))
+        headers["Content-Type"] = mime
+    elif body:
         headers["Content-Length"] = str(os.fstat(body.fileno()).st_size)
         headers["Content-Type"] = mime
     if failure:
@@ -134,6 +138,55 @@ def process(job):
         thread.join()
 
 
+def fetch(route, target):
+    """Save a public footage route (clip source, track records) to a file."""
+    with urlopen(Request(PUBLIC + route), timeout=90) as response, target.open("wb") as out:
+        shutil.copyfileobj(response, out, length=1024 * 1024)
+
+
+def make_feedback(job):
+    route = f"/feedback/{job['session']}/{job['request']}"
+    session = f"/sessions/{job['session']}"
+    lease = job["lease"]
+    stop = Event()
+    thread = Thread(target=heartbeat, args=(route, lease, stop), daemon=True)
+    thread.start()
+    try:
+        with TemporaryDirectory(prefix="rink-feedback-") as folder:
+            work = Path(folder)
+            with urlopen(Request(PUBLIC + session + "/focus"), timeout=90) as response:
+                marks = json.load(response)
+            for clip in job["clips"]:
+                clip_dir = work / clip["id"]
+                clip_dir.mkdir()
+                source = clip_dir / "source.mp4"
+                fetch(f"{session}/clips/{clip['id']}/source", source)
+                fetch(f"{session}/clips/{clip['id']}/tracks.ndjson", clip_dir / "tracks.ndjson")
+                (clip_dir / "focus.json").write_text(json.dumps(marks.get(clip["id"], [])))
+                extract_frames(source, clip_dir / "frames")
+                source.unlink()
+            (work / "job.json").write_text(json.dumps({"note": job["note"], "clips": job["clips"]}))
+            # The Rust step asks Claude for the moments and renders the video.
+            subprocess.run([ROOT / "rink-track-preview", "--feedback", work, os.environ["RINK_FOOTAGE_FONT"]],
+                           capture_output=True, text=True, check=True, timeout=3600)
+            with (work / "out" / "feedback.json").open("rb") as data, request(route + "/feedback", "PUT", lease, data, "application/json"):
+                pass
+            with (work / "out" / "video.mp4").open("rb") as video, request(route + "/video", "PUT", lease, video, "video/mp4"):
+                pass
+        print(f"Published feedback video {job['request']}", flush=True)
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        reason = str(error)
+        if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+            lines = [line for line in error.stderr.splitlines() if line.startswith("error: ")]
+            reason = (lines or error.stderr.strip().splitlines())[-1].removeprefix("error: ")
+        print(f"Feedback failed for {job['request']}: {reason}", file=sys.stderr, flush=True)
+        with request(route + "/failure", "POST", lease, reason.encode()[:1000], "text/plain"):
+            pass
+    finally:
+        stop.set()
+        thread.join()
+
+
 def import_youtube(job):
     route = "/youtube/" + job["id"]
     lease = job["lease"]
@@ -179,6 +232,11 @@ def main():
                 youtube = json.load(response) if response.status == 200 else None
             if youtube:
                 import_youtube(youtube)
+                continue
+            with request("/feedback/claim", "POST") as response:
+                feedback = json.load(response) if response.status == 200 else None
+            if feedback:
+                make_feedback(feedback)
                 continue
         except (OSError, ValueError) as error:
             print(f"Worker request failed: {error}", file=sys.stderr, flush=True)

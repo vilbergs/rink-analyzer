@@ -373,7 +373,20 @@ the source image. The editable play contains the selected skater's route.
 Update the worker with `scripts/deploy-footage-worker.sh`. The Pi's `/etc/rink-footage.env` and
 Furulid's `~/.config/rink-footage-worker.env` must both set the same
 `RINK_FOOTAGE_WORKER_TOKEN`. The Furulid user service expects its ONNX Runtime GPU environment
-and model under `~/.local/share/rink-detector`. No LLM is called by this pipeline.
+and model under `~/.local/share/rink-detector`. Tracking calls no LLM.
+
+`RINK_DETECTOR` in the worker's env file picks the skater detector: `yolox` (the default, a general
+person detector) or `hockeyai`, the HockeyAI YOLOv8 checkpoint run by `rink-detect`, which tells
+players, goalies and referees apart. The deploy copies `hockeyai.pt` from `~/rink-corpus/models`.
+
+**Feedback videos.** In a session, tick the clips you're marked in and choose **Make feedback
+video**, with an optional note on what you want to know. The worker sends about one frame a second
+where you're in view, with you boxed, to Claude (`claude-opus-5-5`), which picks three to six
+moments and writes what you did and what to try. The worker checks the times against the clips and
+renders one video: each moment plays with you boxed, then freezes on its cue. It needs
+`ANTHROPIC_API_KEY` in the worker's env file, and each video costs a Claude API call. To render a
+saved answer again without calling the API, set `RINK_FEEDBACK_PLAN` to its JSON file when running
+`rink-track-preview --feedback <work-dir> <font>`.
 
 The [YOLOX-S ONNX checkpoint](https://github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0)
 and [ONNX Runtime CUDA provider](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html)

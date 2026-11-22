@@ -199,3 +199,31 @@ export function upload(files: File[], progress: (fraction: number | null) => voi
     xhr.send(form);
   });
 }
+
+/** One moment of a feedback video. Times are in the clip, except `video_ms`, which is in the video. */
+export type FeedbackMoment = {
+  clip: string;
+  clip_name: string;
+  start_ms: number;
+  end_ms: number;
+  freeze_ms: number;
+  title: string;
+  observation: string;
+  suggestion: string;
+  video_ms: number;
+};
+export type FeedbackRequest = {
+  id: string;
+  created_ms: number;
+  clips: string[];
+  note: string;
+  state: "queued" | "processing" | "ready" | "failed";
+  error: string | null;
+  feedback: { summary: string; moments: FeedbackMoment[] } | null;
+};
+
+export const feedback = (id: string) => request<FeedbackRequest[]>(`/sessions/${id}/feedback`);
+/** Ask the GPU worker for one video with coaching cues from these clips. Each must be tracked and marked. */
+export const requestFeedback = (id: string, clips: string[], note: string) =>
+  request<{ id: string }>(`/sessions/${id}/feedback`, body("POST", { clips, note }));
+export const feedbackVideoUrl = (id: string, request: string) => `${API}/sessions/${id}/feedback/${request}/video.mp4`;

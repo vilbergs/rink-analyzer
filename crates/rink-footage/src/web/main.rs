@@ -3,6 +3,7 @@
 
 mod coaching;
 mod compatible;
+mod feedback;
 mod focus;
 mod identity;
 mod jobs;
@@ -101,6 +102,7 @@ async fn main() -> Result<()> {
         .merge(focus::routes())
         .merge(identity::routes())
         .merge(coaching::routes())
+        .merge(feedback::routes())
         .with_state(app)
         .layer(axum::middleware::map_response(|mut response: Response| async {
             let headers = response.headers_mut();
@@ -217,6 +219,7 @@ fn stored_bytes(root: &FilePath) -> Result<u64> {
                 }
             }
         }
+        total += feedback::stored(root, session.id)?;
     }
     Ok(total)
 }

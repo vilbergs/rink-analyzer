@@ -27,11 +27,14 @@ tokio-util = { version = "0.7", features = ["io"], optional = true }
 http-body-util = { version = "0.1", optional = true }
 candle-core = { version = "=0.11.1", optional = true }
 zip = { version = "9.8.1", default-features = false, features = ["deflate"], optional = true }
+ureq = { version = "=3.5.1", default-features = false, features = ["rustls", "json"], optional = true }
+base64 = { version = "0.22", optional = true }
 
 [features]
 tracking-preview = ["dep:ab_glyph", "dep:rusty_h264-common", "dep:rusty_h264-encoder"]
 auto-tracking = ["tracking-preview", "dep:objc2", "dep:objc2-foundation", "dep:objc2-vision"]
 coaching-montage = ["tracking-preview", "dep:rink-core", "dep:tiny-skia"]
+feedback = ["tracking-preview", "dep:ureq", "dep:base64"]
 web-import = ["dep:axum", "dep:tokio", "dep:tokio-util", "dep:http-body-util", "dep:url"]
 yolo = ["dep:candle-core", "dep:zip"]
 yolo-cuda = ["yolo", "candle-core/cuda"]
