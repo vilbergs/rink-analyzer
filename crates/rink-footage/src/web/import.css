@@ -116,7 +116,7 @@ progress {width:100%;accent-color:var(--accent)}
 @media(max-width:810px){.review-layout{grid-template-columns:minmax(0,1fr)}#skater-editor{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(235px,100%),1fr))}#skater-editor section+section{border-top:0}}
 @media(max-width:640px){.portrait .review-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:540px){.mast-inner{gap:20px}.page-head{gap:9px;align-items:start;flex-wrap:wrap}nav{gap:12px}#recent,#clips{gap:10px;grid-template-columns:repeat(auto-fill,minmax(min(100%,160px),1fr))}.card-info{padding:10px}.page-head h1{font-size:2rem}}
-#study-name {width:100%;background:#131b20;border:1px solid #45525b;padding:.5rem .85rem;border-radius:7px;font-size:.85rem}
+#study-name,#study-team,#study-jersey {width:100%;background:#131b20;border:1px solid #45525b;padding:.5rem .85rem;border-radius:7px;font-size:.85rem}
 .inspector-nav {display:flex;padding:6px;gap:5px;border-bottom:1px solid var(--line)}
 .inspector-nav button {flex:1;background:transparent;border-color:transparent;color:var(--muted)}
 .inspector-nav button[aria-pressed=true],#pick-study[aria-pressed=true] {background:#304238;color:var(--accent)}
@@ -147,3 +147,7 @@ progress {width:100%;accent-color:var(--accent)}
 #study-plays {list-style:none;padding:0}
 #study-plays li {margin-top:12px;padding-block:8px;border-top:1px solid var(--line)}
 #study-plays strong {display:block}
+
+#study-player-details {margin-top:8px}
+#study-player-details summary {font-size:.8rem;color:var(--muted);cursor:pointer}
+#study-player-details .select-row {display:grid;grid-template-columns:minmax(0,1fr) 5rem}

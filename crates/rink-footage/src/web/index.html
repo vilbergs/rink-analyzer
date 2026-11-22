@@ -60,9 +60,16 @@
         <section id="player-study" hidden><h3>Player study</h3>
           <label for="study-player">Follow player</label><div class="select-row"><select id="study-player"></select><button type="button" id="pick-study" aria-pressed="false">Pick on ice</button></div>
           <label for="study-name">Player label</label><input id="study-name" maxlength="40" placeholder="Name or jersey number" disabled>
+          <details id="study-player-details">
+            <summary>Team and jersey</summary>
+            <div class="select-row">
+              <div><label for="study-team">Team</label><input id="study-team" maxlength="40" list="study-teams" disabled><datalist id="study-teams"></datalist></div>
+              <div><label for="study-jersey">Jersey</label><input id="study-jersey" inputmode="numeric" maxlength="2" disabled></div>
+            </div>
+          </details>
           <div class="skater-actions" id="identity-actions">
             <button id="identity-label" disabled>Confirm new player</button>
-            <button id="identity-rename" disabled>Rename</button>
+            <button id="identity-rename" disabled>Save player changes</button>
             <button id="identity-suggest" disabled>Find matches</button>
             <button id="identity-undo" disabled>Undo</button>
           </div>

@@ -20,14 +20,29 @@ use super::{ApiError, App, focus, jobs, problem, require_origin, storage_error, 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 enum Action {
-    Assign { frame: FrameKey, player: Uuid, name: Option<String>, shown: Vec<Uuid> },
+    Assign { frame: FrameKey, player: Uuid, name: Option<String>, details: Option<PlayerDetails>, shown: Vec<Uuid> },
     Reject { frame: FrameKey, player: Uuid, shown: Vec<Uuid> },
-    Rename { frame: FrameKey, player: Uuid, name: String },
+    Rename { frame: FrameKey, player: Uuid, name: String, details: Option<PlayerDetails> },
     Undo { target: Uuid },
     SaveMoment { frame: FrameKey, player: Uuid, compare: Option<FrameKey>, text: String },
     RemoveMoment { target: Uuid },
     SavePlay { play: Play },
     RemovePlay { target: Uuid },
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+struct PlayerDetails {
+    team: String,
+    jersey: String,
+}
+
+impl PlayerDetails {
+    fn valid(&self) -> bool {
+        self.team.chars().count() <= 40
+            && !self.team.chars().any(char::is_control)
+            && self.jersey.len() <= 2
+            && self.jersey.bytes().all(|byte| byte.is_ascii_digit())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -141,6 +156,7 @@ struct Review {
     revision: usize,
     runs: BTreeMap<Uuid, Uuid>,
     players: BTreeMap<Uuid, String>,
+    player_details: BTreeMap<Uuid, PlayerDetails>,
     assignments: Vec<Assignment>,
     moments: Vec<Moment>,
     plays: Vec<SavedPlay>,
@@ -225,17 +241,23 @@ fn current(ledger: &[Entry], runs: BTreeMap<Uuid, Uuid>) -> Review {
         let Some(view) = entry.view else { continue };
         let active = state.runs.get(&view.key.clip) == Some(&view.key.run);
         match &entry.edit.action {
-            Action::Assign { player, name, .. } => {
+            Action::Assign { player, name, details, .. } => {
                 if let Some(name) = name {
                     state.players.insert(*player, name.trim().into());
+                }
+                if let Some(details) = details {
+                    state.player_details.insert(*player, details.clone());
                 }
                 if active {
                     state.assignments.push(Assignment { edit: entry.edit.id, player: *player, view });
                     state.undo = Some(entry.edit.id);
                 }
             }
-            Action::Rename { player, name, .. } => {
+            Action::Rename { player, name, details, .. } => {
                 state.players.insert(*player, name.trim().into());
+                if let Some(details) = details {
+                    state.player_details.insert(*player, details.clone());
+                }
                 if active {
                     state.undo = Some(entry.edit.id);
                 }
@@ -261,6 +283,7 @@ fn current(ledger: &[Entry], runs: BTreeMap<Uuid, Uuid>) -> Review {
                 .any(|m| m.player == *player || m.compare.is_some_and(|other| other.player == Some(*player)))
             || state.plays.iter().any(|p| p.player.is_some_and(|other| other.player == Some(*player)))
     });
+    state.player_details.retain(|player, _| state.players.contains_key(player));
     state
 }
 
@@ -424,7 +447,10 @@ fn validate(app: &App, id: Uuid, state: &Review, ledger: &[Entry], edit: Edit) -
     let valid_name = |name: &str| !name.trim().is_empty() && name.trim().chars().count() <= 40;
     let known = |player: &Uuid| state.players.contains_key(player);
     entry.kind = match &entry.edit.action {
-        Action::Assign { frame, player, name, shown } => {
+        Action::Assign { frame, player, name, details, shown } => {
+            if details.as_ref().is_some_and(|details| name.is_none() || !details.valid()) {
+                return Err(invalid("Enter a team up to 40 characters and a jersey number of up to two digits."));
+            }
             if let Some(name) = name {
                 if !valid_name(name) || ledger.iter().any(|prior| {
                     matches!(prior.edit.action, Action::Assign { player: existing, .. } if existing == *player)
@@ -464,7 +490,10 @@ fn validate(app: &App, id: Uuid, state: &Review, ledger: &[Entry], edit: Edit) -
             entry.view = Some(query);
             "rejection"
         }
-        Action::Rename { frame, player, name } => {
+        Action::Rename { frame, player, name, details } => {
+            if details.as_ref().is_some_and(|details| !details.valid()) {
+                return Err(invalid("Enter a team up to 40 characters and a jersey number of up to two digits."));
+            }
             if !valid_name(name) || state.assignment(*frame).is_none_or(|a| a.player != *player) {
                 return Err(invalid("Choose a confirmed player and enter a label."));
             }

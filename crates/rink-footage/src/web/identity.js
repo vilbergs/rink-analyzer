@@ -15,6 +15,8 @@
   const partner = element('study-partner');
   const ranges = element('study-ranges');
   const alias = element('study-name');
+  const team = element('study-team');
+  const jersey = element('study-jersey');
   const match = element('identity-match');
   const identityStatus = element('identity-status');
   let review;
@@ -610,10 +612,15 @@
       if (offered.size && item.offers.clear) match.value = item.offers.clear;
       else if (!offered.size && Object.hasOwn(names,previous)) match.value = previous;
       alias.value = names[player] ?? item.players.get(item.studyId)?.name ?? '';
+      const details = item.identityState.player_details[player];
+      team.value = details?.team ?? '';
+      jersey.value = details?.jersey ?? '';
+      const teams = new Set(Object.values(item.identityState.player_details).map(data => data.team).filter(Boolean));
+      element('study-teams').replaceChildren(...Array.from(teams, name => new Option(name)));
     }
     item.target = target;
     const ready = Boolean(editable && !item.identitySaving && video.paused);
-    alias.disabled = !ready;
+    alias.disabled = team.disabled = jersey.disabled = !ready;
     match.disabled = !ready || match.options.length < 2;
     element('identity-label').disabled = !ready;
     element('identity-rename').disabled = !ready || !player;
@@ -683,18 +690,24 @@
   }
 
   match.addEventListener('change', () => { if (review?.records) repaint(review); });
+  function playerDetails() {
+    const details = {team:team.value.trim(),jersey:jersey.value.trim()};
+    const name = alias.value.trim() || (details.jersey && [details.team,'#'+details.jersey].filter(Boolean).join(' '));
+    return {name:[...name].slice(0,40).join(''),details};
+  }
+
   element('identity-label').addEventListener('click', () => {
     const item = review;
     const {frame} = studyTarget(item);
     if (!frame) return;
-    const name = alias.value.trim();
+    const {name,details} = playerDetails();
     if (!name) { alias.focus(); identityStatus.textContent = 'Enter a name or jersey number.'; return; }
-    saveIdentity(item,{action:'assign', frame, player:crypto.randomUUID(), name,
+    saveIdentity(item,{action:'assign', frame, player:crypto.randomUUID(), name, details,
       shown:item.offers?.candidates.map(c => c.player) ?? []});
   });
   element('identity-rename').addEventListener('click', () => {
     const {frame,player} = studyTarget(review);
-    if (frame && player) saveIdentity(review,{action:'rename',frame,player,name:alias.value.trim()});
+    if (frame && player) saveIdentity(review,{action:'rename',frame,player,...playerDetails()});
   });
   element('identity-link').addEventListener('click', () => {
     const item = review;
