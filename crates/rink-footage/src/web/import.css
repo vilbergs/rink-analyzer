@@ -82,7 +82,21 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 .transport input {min-width:0;flex:1;accent-color:var(--accent)}
 .portrait .monitor-head,.portrait .transport {flex-wrap:wrap;gap:8px;padding:10px 12px}
 .portrait .transport input {flex:1 1 3rem}
-.portrait .view-controls {border-top:1px solid var(--line)}
+.video-frame {position:relative;max-width:100%;min-width:0}
+.portrait .video-frame {width:100%}
+.view-controls {position:absolute;bottom:8px;right:8px;display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:7px;background:#101519e8;font-size:.75rem}
+.view-controls input {width:clamp(44px,7vw,80px);accent-color:var(--accent)}
+.view-controls output {min-width:4ch}
+.view-controls button {padding:3px 6px}
+#review-tools {padding:0 16px 10px}
+#review-tools>label,#play-form label {display:block;font-size:.78rem;color:var(--muted)}
+#review-tools>.select-row {max-width:26rem}
+#session .back {margin-bottom:5px}
+#session .page-head {margin-bottom:12px}
+#session .page-head>div {display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 12px}
+#session .page-head h1 {font-size:1.25rem;letter-spacing:-.025em}
+#session .page-head p,#session #youtube-source {margin:0}
+main:has(#session:not([hidden])) {padding-top:12px}
 #tracking-details {padding:10px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:.8rem}
 #tracking-details summary {cursor:pointer}
 #tracking-details p {margin-top:6px}

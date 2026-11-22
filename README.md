@@ -315,9 +315,9 @@ annotated MP4 with timestamped track data. Use **Review players** on the saved c
 the preview. IDs are local to each clip.
 
 Open a session from the footage library and select **Review players** on a tracked clip.
-Pinch over the video to zoom, then use two-finger scrolling to pan. The **Zoom** and
+Press Space in the video or frame slider to play or pause. Pinch over the video to zoom, then use two-finger scrolling to pan. The **Zoom** and
 **Pan** controls also work with a mouse or keyboard. Use **Fit** to reset the view.
-In **Player study**, choose a track by ID or pause and use **Pick on ice**. Confirm a
+Below the video in **Player study**, choose a track by ID or pause and use **Pick on ice**. Confirm a
 player label or use **Same player as…** to link the track to a confirmed player in this
 session. At an ID switch, move to the first frame of the switch before correcting the
 assignment. Use **Undo** to reverse the latest identity edit.

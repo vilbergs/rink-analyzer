@@ -28,17 +28,40 @@
     <section id="tracking-review" hidden aria-labelledby="tracking-title">
       <div class="review-layout"><div class="monitor">
         <div class="monitor-head"><h2 id="tracking-title"></h2><a id="tracking-data" download="tracks.ndjson">Track data ↓</a></div>
-        <div class="screen"><div id="tracking-viewport" tabindex="0" aria-label="Video view. In pan mode, use arrow keys to move the view.">
+        <div class="screen"><div class="video-frame"><div id="tracking-viewport" tabindex="0" aria-label="Video view. In pan mode, use arrow keys to move the view.">
           <div id="tracking-stage"><video id="tracking-video" playsinline preload="metadata" aria-label="Tracking footage"></video>
-            <canvas id="skater-overlay" aria-hidden="true"></canvas></div></div></div>
-        <div class="transport">
-          <button id="tracking-play" type="button" disabled>Play</button>
-          <label for="skater-frame">Frame</label><input id="skater-frame" type="range" min="0" step="1" value="0" disabled><output id="skater-time" for="skater-frame">0:00.0</output>
-        </div>
-        <div class="transport view-controls">
-          <label for="tracking-zoom">Zoom</label><input id="tracking-zoom" type="range" min="100" max="400" step="any" value="100" disabled><output id="tracking-scale" for="tracking-zoom">100%</output>
+            <canvas id="skater-overlay" aria-hidden="true"></canvas></div></div>
+        <div class="view-controls">
+          <input id="tracking-zoom" aria-label="Zoom" type="range" min="100" max="400" step="any" value="100" disabled><output id="tracking-scale" for="tracking-zoom">100%</output>
           <button id="tracking-pan" type="button" aria-pressed="false" disabled>Pan</button>
           <button id="tracking-reset" type="button" disabled>Fit</button>
+        </div>
+        </div></div>
+        <div class="transport">
+          <button id="tracking-play" aria-keyshortcuts="Space" title="Play or pause (Space)" type="button" disabled>Play</button>
+          <label for="skater-frame">Frame</label><input id="skater-frame" type="range" min="0" step="1" value="0" disabled><output id="skater-time" for="skater-frame">0:00.0</output>
+        </div>
+        <div id="review-tools" hidden>
+          <label for="study-player">Follow player</label><div class="select-row"><select id="study-player"></select><button type="button" id="pick-study" aria-pressed="false">Pick on ice</button></div>
+          <details id="play-review" hidden>
+            <summary>Label a play</summary>
+            <form id="play-form">
+              <label for="play-primary">Primary label</label><select id="play-primary" aria-describedby="play-primary-description" required></select>
+              <p id="play-primary-description"></p>
+              <label for="play-secondary">Secondary label (optional)</label><select id="play-secondary" aria-describedby="play-secondary-description"></select>
+              <p id="play-secondary-description"></p>
+              <div class="skater-actions">
+                <button type="button" id="play-start">Set start</button>
+                <button type="button" id="play-end">Set end</button>
+              </div>
+              <p id="play-range"></p>
+              <label for="play-attach"><input id="play-attach" type="checkbox"> Include the selected skater</label>
+              <label for="play-cue">Coaching cue (optional)</label><textarea id="play-cue" maxlength="600" rows="2" placeholder="What should the learner watch?"></textarea>
+              <div class="skater-actions"><button id="play-save">Save play at this frame</button><button id="play-cancel" type="button" hidden>Cancel edit</button></div>
+              <p id="play-status" role="status"></p>
+            </form>
+          </details>
+          <ul id="study-plays" aria-label="Labeled plays"></ul>
         </div>
         <details id="tracking-details" hidden>
           <summary>Tracking details</summary>
@@ -58,7 +81,6 @@
           <div id="skater-anchors" class="skater-actions" aria-label="Saved skater selections"></div>
         </section>
         <section id="player-study" hidden><h3>Player study</h3>
-          <label for="study-player">Follow player</label><div class="select-row"><select id="study-player"></select><button type="button" id="pick-study" aria-pressed="false">Pick on ice</button></div>
           <label for="study-name">Player label</label><input id="study-name" maxlength="40" placeholder="Name or jersey number" disabled>
           <details id="study-player-details">
             <summary>Team and jersey</summary>
@@ -91,25 +113,6 @@
             <button>Save moment</button>
           </form>
           <ul id="study-notes" aria-label="Study moments"></ul>
-          <details id="play-review" hidden>
-            <summary>Label a play</summary>
-            <form id="play-form">
-              <label for="play-primary">Primary label</label><select id="play-primary" aria-describedby="play-primary-description" required></select>
-              <p id="play-primary-description"></p>
-              <label for="play-secondary">Secondary label (optional)</label><select id="play-secondary" aria-describedby="play-secondary-description"></select>
-              <p id="play-secondary-description"></p>
-              <div class="skater-actions">
-                <button type="button" id="play-start">Set start</button>
-                <button type="button" id="play-end">Set end</button>
-              </div>
-              <p id="play-range"></p>
-              <label for="play-attach"><input id="play-attach" type="checkbox"> Include the selected skater</label>
-              <label for="play-cue">Coaching cue (optional)</label><textarea id="play-cue" maxlength="600" rows="2" placeholder="What should the learner watch?"></textarea>
-              <div class="skater-actions"><button id="play-save">Save play at this frame</button><button id="play-cancel" type="button" hidden>Cancel edit</button></div>
-              <p id="play-status" role="status"></p>
-            </form>
-          </details>
-          <ul id="study-plays" aria-label="Labeled plays"></ul>
           <p class="hint">Confirm on the first frame of an identity switch. Dashed boxes indicate predicted positions.</p>
         </section>
         <section id="coaching-step" hidden><h3>Coaching review</h3><p id="coaching-state" role="status"></p><a id="coaching-room" class="primary" hidden>Open Coaching Film Room ↗</a></section>

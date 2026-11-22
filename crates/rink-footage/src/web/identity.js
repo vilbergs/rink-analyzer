@@ -144,6 +144,15 @@
 
   function updatePlay() { play.textContent = video.paused || video.ended ? 'Play' : 'Pause'; }
   for (const event of ['play','pause','ended','emptied']) video.addEventListener(event,updatePlay);
+  document.addEventListener('keydown', event => {
+    if (event.key !== ' ' || event.defaultPrevented || event.isComposing || reviewPanel.hidden || play.disabled ||
+        event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target;
+    if (target !== document.body && !reviewPanel.contains(target)) return;
+    if (target.isContentEditable || target.closest('button, a, select, textarea, summary, input:not([type=range])')) return;
+    event.preventDefault();
+    if (!event.repeat) play.click();
+  });
   play.addEventListener('click', () => {
     if (video.paused) video.play().catch(() => {
       (element('player-study').hidden ? status : identityStatus).textContent = 'The clip could not play.';
@@ -165,6 +174,7 @@
   for (const event of ['loadedmetadata','resize','emptied']) video.addEventListener(event, updateOrientation);
 
   function showInspector(study) {
+    element('review-tools').hidden = !study;
     element('player-study').hidden = !study;
     element('self-panel').hidden = study;
     element('show-study').setAttribute('aria-pressed', String(study));
