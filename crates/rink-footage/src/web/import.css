@@ -156,7 +156,7 @@ progress {width:100%;accent-color:var(--accent)}
 #youtube-status:not(:empty),#youtube-progress:not(:empty) {margin-top:8px;color:var(--muted);font-size:.85rem}
 #youtube-source {display:inline-block;margin-top:4px;font-size:.85rem}
 
-#play-review {margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+#play-review {margin-top:8px;padding-top:6px;border-top:1px solid var(--line)}
 #play-review summary {cursor:pointer}
 #play-form p:empty {display:none}
 #study-plays {list-style:none;padding:0}
