@@ -18,6 +18,7 @@
   let lastStudy;
 
   const viewport = element('tracking-viewport');
+  const reviewPanel = element('tracking-review');
   const stage = element('tracking-stage');
   const zoom = element('tracking-zoom');
   const pan = element('tracking-pan');
@@ -145,6 +146,18 @@
     else video.pause();
   });
 
+  function updateOrientation() {
+    const {videoWidth, videoHeight} = video;
+    const portrait = videoWidth > 0 && videoWidth < videoHeight;
+    reviewPanel.classList.toggle('portrait', portrait);
+    if (portrait) {
+      // Match the player's 68vh height cap while keeping the original aspect ratio.
+      reviewPanel.style.setProperty('--portrait-width', (68 * videoWidth / videoHeight) + 'vh');
+    } else {
+      reviewPanel.style.removeProperty('--portrait-width');
+    }
+  }
+  for (const event of ['loadedmetadata','resize','emptied']) video.addEventListener(event, updateOrientation);
 
   function showInspector(study) {
     element('player-study').hidden = !study;

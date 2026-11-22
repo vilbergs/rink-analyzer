@@ -56,8 +56,13 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 #delete,#tracking-data {font-size:.8rem;color:var(--muted)}
 #tracking-review {margin-bottom:28px}
 .review-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(245px,300px);align-items:start;gap:16px}
+.portrait .review-layout {
+  grid-template-columns:minmax(0,min(calc(var(--portrait-width) + 2px),52%)) minmax(0,30rem);
+  justify-content:center;
+}
 .monitor,#skater-editor,dialog {background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
 .monitor {overflow:hidden}
+.portrait .monitor {width:calc(var(--portrait-width) + 2px);max-width:100%;justify-self:center}
 .monitor-head,.transport {padding:12px 16px}
 .monitor-head h2 {overflow-wrap:anywhere}
 #tracking-data {white-space:nowrap}
@@ -68,10 +73,16 @@ input[type=search] {width:min(45%,230px);font-size:.84rem;background:#171f24}
 #tracking-viewport.panning #skater-overlay {pointer-events:none}
 #tracking-stage {position:relative;width:fit-content;max-width:100%;line-height:0}
 #tracking-video {display:block;width:auto;height:auto;max-width:100%;max-height:68vh}
+.portrait .screen {min-height:0}
+.portrait #tracking-viewport,.portrait #tracking-stage,.portrait #tracking-video {width:100%}
+.portrait #tracking-video {max-height:none}
 #skater-overlay {position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #skater-overlay.picking {pointer-events:auto;cursor:crosshair}
 .transport {display:flex;gap:12px;align-items:center;color:var(--muted);font-size:.8rem}
 .transport input {min-width:0;flex:1;accent-color:var(--accent)}
+.portrait .monitor-head,.portrait .transport {flex-wrap:wrap;gap:8px;padding:10px 12px}
+.portrait .transport input {flex:1 1 3rem}
+.portrait .view-controls {border-top:1px solid var(--line)}
 output {font-variant-numeric:tabular-nums}
 #skater-editor section {padding:16px}
 #skater-editor section+section {border-top:1px solid var(--line)}
@@ -98,6 +109,7 @@ dialog::backdrop {background:#071015cf}
 #failures {color:#ffbcb7}
 progress {width:100%;accent-color:var(--accent)}
 @media(max-width:810px){.review-layout{grid-template-columns:minmax(0,1fr)}#skater-editor{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(235px,100%),1fr))}#skater-editor section+section{border-top:0}}
+@media(max-width:640px){.portrait .review-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:540px){.mast-inner{gap:20px}.page-head{gap:9px;align-items:start;flex-wrap:wrap}nav{gap:12px}#recent,#clips{gap:10px;grid-template-columns:repeat(auto-fill,minmax(min(100%,160px),1fr))}.card-info{padding:10px}.page-head h1{font-size:2rem}}
 #study-name {width:100%;background:#131b20;border:1px solid #45525b;padding:.5rem .85rem;border-radius:7px;font-size:.85rem}
 .inspector-nav {display:flex;padding:6px;gap:5px;border-bottom:1px solid var(--line)}
