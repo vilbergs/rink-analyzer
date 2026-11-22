@@ -10,7 +10,8 @@
 //!   frames/<video>/<frame>.jpg           sampled frames at source resolution
 //!   labels/<video>/<frame>.txt           draft boxes, YOLO format, in the model's class order
 //!   manifest.jsonl                       one line per labeled frame
-mod yolo;
+//!   cvat/<video>.zip                     draft boxes of a video's on-ice frames, for a CVAT task
+//!   reviewed/<video>/<frame>.txt         boxes a person corrected in CVAT, in classes.txt order
 
 use std::{
     collections::BTreeMap,
@@ -22,10 +23,12 @@ use std::{
 };
 
 use anyhow::{bail, ensure, Context, Result};
+use rink_footage::yolo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-const USAGE: &str = "Usage: rink-corpus <sync|sample|prelabel|status> [--key value ...] < sources.json";
+const USAGE: &str =
+    "Usage: rink-corpus <sync|sample|prelabel|status|cvat-export|cvat-review> [--key value ...] < input";
 const FORMAT: &str = "bv[height<=1080][ext=mp4][vcodec^=avc1]/b[height<=1080][ext=mp4]";
 const PEOPLE: [&str; 4] = ["player", "goalie", "goaltender", "referee"];
 
@@ -70,19 +73,30 @@ fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let command = args.next().context(USAGE)?;
     let options = parse_options(args)?;
-    let mut input = String::new();
+    // stdin holds the sources JSON, or for cvat-review the zip CVAT exported.
+    let mut input = Vec::new();
     if !io::stdin().is_terminal() {
-        io::stdin().read_to_string(&mut input)?;
+        io::stdin().read_to_end(&mut input)?;
     }
-    let sources: Sources = if input.trim().is_empty() { Sources::default() } else { serde_json::from_str(&input).context("reading sources JSON on stdin")? };
-    let root = env::var_os("RINK_CORPUS").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(env::var("HOME").unwrap_or_default()).join("rink-corpus"));
+    let sources = || -> Result<Sources> {
+        if input.trim_ascii().is_empty() {
+            Ok(Sources::default())
+        } else {
+            serde_json::from_slice(&input).context("reading sources JSON on stdin")
+        }
+    };
+    let root = env::var_os("RINK_CORPUS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env::var("HOME").unwrap_or_default()).join("rink-corpus"));
     fs::create_dir_all(&root)?;
     let corpus = Corpus { root, options };
     let summary = match command.as_str() {
-        "sync" => corpus.sync(&sources)?,
+        "sync" => corpus.sync(&sources()?)?,
         "sample" => corpus.sample()?,
         "prelabel" => corpus.prelabel()?,
-        "status" => corpus.status(&sources)?,
+        "status" => corpus.status(&sources()?)?,
+        "cvat-export" => corpus.cvat_export()?,
+        "cvat-review" => corpus.cvat_review(&input)?,
         _ => bail!(USAGE),
     };
     println!("{summary}");
@@ -92,9 +106,7 @@ fn main() -> Result<()> {
 fn parse_options(args: impl Iterator<Item = String>) -> Result<BTreeMap<String, String>> {
     let args: Vec<String> = args.collect();
     ensure!(args.len() % 2 == 0, USAGE);
-    args.chunks(2)
-        .map(|pair| Ok((pair[0].strip_prefix("--").context(USAGE)?.to_owned(), pair[1].clone())))
-        .collect()
+    args.chunks(2).map(|pair| Ok((pair[0].strip_prefix("--").context(USAGE)?.to_owned(), pair[1].clone()))).collect()
 }
 
 struct Corpus {
@@ -142,7 +154,9 @@ impl Corpus {
         }
         let fetched_datasets = self.fetch_all(&sources.datasets, "datasets", true)?;
         let fetched_models = self.fetch_all(&sources.models, "models", false)?;
-        Ok(json!({ "downloaded": downloaded, "failed": failed, "fetched_datasets": fetched_datasets, "fetched_models": fetched_models }))
+        Ok(
+            json!({ "downloaded": downloaded, "failed": failed, "fetched_datasets": fetched_datasets, "fetched_models": fetched_models }),
+        )
     }
 
     /// Fetch each download once. Datasets arrive as zips and are unpacked; models stay as `<name>.pt`.
@@ -150,7 +164,11 @@ impl Corpus {
         let mut fetched = Vec::new();
         for download in downloads {
             let Some(url) = &download.url else { continue };
-            let target = self.root.join(folder).join(if unpack { download.name.clone() } else { format!("{}.pt", download.name) });
+            let target = self.root.join(folder).join(if unpack {
+                download.name.clone()
+            } else {
+                format!("{}.pt", download.name)
+            });
             if target.exists() {
                 continue;
             }
@@ -191,7 +209,16 @@ impl Corpus {
             let status = Command::new("ffmpeg")
                 .args(["-v", "error", "-nostdin", "-i"])
                 .arg(&video)
-                .args(["-vf", &format!("select='lt(mod(n\\,{step})\\,{burst})'"), "-fps_mode", "passthrough", "-frame_pts", "1", "-q:v", "2"])
+                .args([
+                    "-vf",
+                    &format!("select='lt(mod(n\\,{step})\\,{burst})'"),
+                    "-fps_mode",
+                    "passthrough",
+                    "-frame_pts",
+                    "1",
+                    "-q:v",
+                    "2",
+                ])
                 .arg(partial.join("%08d.jpg"))
                 .status()?;
             ensure!(status.success(), "ffmpeg failed on {}", video.display());
@@ -204,7 +231,8 @@ impl Corpus {
     }
 
     fn prelabel(&self) -> Result<Value> {
-        let model_path = self.options.get("model").map(PathBuf::from).unwrap_or_else(|| self.root.join("models/hockeyai.pt"));
+        let model_path =
+            self.options.get("model").map(PathBuf::from).unwrap_or_else(|| self.root.join("models/hockeyai.pt"));
         let size: u32 = self.option("size", 1280)?;
         let confidence: f32 = self.option("confidence", 0.3)?;
         let min_people: usize = self.option("min-people", 2)?;
@@ -217,8 +245,17 @@ impl Corpus {
         let mut by_class: BTreeMap<&str, u32> = model.names.iter().map(|n| (n.as_str(), 0)).collect();
         let (mut labeled, mut off_ice) = (0, 0);
         for frame in files(&self.root.join("frames"), "jpg", 2)? {
-            let video = frame.parent().and_then(Path::file_name).expect("frame sits in a video folder").to_string_lossy().into_owned();
-            let label = self.root.join("labels").join(&video).join(frame.with_extension("txt").file_name().expect("frame has a name"));
+            let video = frame
+                .parent()
+                .and_then(Path::file_name)
+                .expect("frame sits in a video folder")
+                .to_string_lossy()
+                .into_owned();
+            let label = self
+                .root
+                .join("labels")
+                .join(&video)
+                .join(frame.with_extension("txt").file_name().expect("frame has a name"));
             if label.exists() {
                 continue;
             }
@@ -229,7 +266,14 @@ impl Corpus {
             let mut boxes = BTreeMap::new();
             for d in &found {
                 let [x0, y0, x1, y1] = d.xyxy;
-                text += &format!("{} {:.6} {:.6} {:.6} {:.6}\n", d.class, (x0 + x1) / 2.0 / width, (y0 + y1) / 2.0 / height, (x1 - x0) / width, (y1 - y0) / height);
+                text += &format!(
+                    "{} {:.6} {:.6} {:.6} {:.6}\n",
+                    d.class,
+                    (x0 + x1) / 2.0 / width,
+                    (y0 + y1) / 2.0 / height,
+                    (x1 - x0) / width,
+                    (y1 - y0) / height
+                );
                 *boxes.entry(model.names[d.class].clone()).or_insert(0) += 1;
                 *by_class.get_mut(model.names[d.class].as_str()).expect("class from model") += 1;
             }
@@ -237,7 +281,14 @@ impl Corpus {
             let on_ice = people as usize >= min_people;
             fs::create_dir_all(label.parent().expect("label has a folder"))?;
             fs::write(&label, text)?;
-            let entry = Entry { frame: relative(&self.root, &frame), labels: relative(&self.root, &label), video, on_ice, reviewed: false, boxes };
+            let entry = Entry {
+                frame: relative(&self.root, &frame),
+                labels: relative(&self.root, &label),
+                video,
+                on_ice,
+                reviewed: false,
+                boxes,
+            };
             writeln!(manifest, "{}", serde_json::to_string(&entry)?)?;
             labeled += 1;
             off_ice += usize::from(!on_ice);
@@ -247,23 +298,125 @@ impl Corpus {
         }
         // classes.txt makes the label folder readable by YOLO tooling and labeling apps.
         fs::create_dir_all(self.root.join("labels"))?;
-        fs::write(self.root.join("labels/classes.txt"),model.names.join("\n") + "\n")?;
+        fs::write(self.root.join("labels/classes.txt"), model.names.join("\n") + "\n")?;
         Ok(json!({ "labeled": labeled, "off_ice": off_ice, "boxes_by_class": by_class, "classes": model.names }))
     }
 
+    fn entries(&self) -> Result<Vec<Entry>> {
+        match fs::read_to_string(self.root.join("manifest.jsonl")) {
+            Ok(text) => Ok(text.lines().map(serde_json::from_str).collect::<Result<_, _>>()?),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn classes(&self) -> Result<Vec<String>> {
+        let text = fs::read_to_string(self.root.join("labels/classes.txt"))
+            .context("no labels/classes.txt; run prelabel first")?;
+        Ok(text.lines().map(str::to_owned).collect())
+    }
+
+    /// Pack each video's on-ice frames and draft boxes as a YOLO 1.1 zip, the format CVAT imports.
+    /// Frame paths are relative to frames/, which CVAT mounts as its shared folder.
+    fn cvat_export(&self) -> Result<Value> {
+        let classes = self.classes()?;
+        let only: Option<Vec<&str>> = self.options.get("videos").map(|v| v.split(',').collect());
+        let mut by_video: BTreeMap<String, Vec<Entry>> = BTreeMap::new();
+        for entry in self.entries()?.into_iter().filter(|e| e.on_ice) {
+            if only.as_ref().is_none_or(|only| only.contains(&entry.video.as_str())) {
+                by_video.entry(entry.video.clone()).or_default().push(entry);
+            }
+        }
+        let options = zip::write::SimpleFileOptions::default();
+        let mut videos = BTreeMap::new();
+        fs::create_dir_all(self.root.join("cvat"))?;
+        for (video, entries) in by_video {
+            let path = self.root.join("cvat").join(format!("{video}.zip"));
+            let mut zip = zip::ZipWriter::new(File::create(&path)?);
+            zip.start_file("obj.names", options)?;
+            zip.write_all((classes.join("\n") + "\n").as_bytes())?;
+            zip.start_file("obj.data", options)?;
+            write!(zip, "classes = {}\nnames = data/obj.names\ntrain = data/train.txt\n", classes.len())?;
+            let frames: Vec<String> =
+                entries.iter().map(|e| e.frame.strip_prefix("frames/").unwrap_or(&e.frame).to_owned()).collect();
+            zip.start_file("train.txt", options)?;
+            zip.write_all(frames.iter().map(|f| format!("data/obj_train_data/{f}\n")).collect::<String>().as_bytes())?;
+            for (entry, frame) in entries.iter().zip(&frames) {
+                zip.start_file(
+                    format!("obj_train_data/{}", Path::new(frame).with_extension("txt").display()),
+                    options,
+                )?;
+                zip.write_all(&fs::read(self.root.join(&entry.labels))?)?;
+            }
+            zip.finish()?;
+            videos.insert(video, json!({ "zip": relative(&self.root, &path), "frames": frames }));
+        }
+        Ok(json!({ "classes": classes, "videos": videos }))
+    }
+
+    /// Store the boxes from a CVAT YOLO 1.1 export (the zip on stdin) as reviewed labels, mapping
+    /// CVAT's class order onto classes.txt by name, and mark those frames reviewed in the manifest.
+    fn cvat_review(&self, zip: &[u8]) -> Result<Value> {
+        let classes = self.classes()?;
+        let mut archive = zip::ZipArchive::new(io::Cursor::new(zip)).context("reading the CVAT export zip on stdin")?;
+        let mut names = String::new();
+        archive.by_name("obj.names").context("export has no obj.names")?.read_to_string(&mut names)?;
+        let to_ours: Vec<usize> = names
+            .lines()
+            .map(|n| {
+                classes.iter().position(|c| c == n).with_context(|| format!("CVAT label {n} is not in classes.txt"))
+            })
+            .collect::<Result<_>>()?;
+        let mut reviewed = std::collections::BTreeSet::new();
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let Some(name) =
+                file.name()?.strip_prefix("obj_train_data/").filter(|n| n.ends_with(".txt")).map(str::to_owned)
+            else {
+                continue;
+            };
+            let mut text = String::new();
+            file.read_to_string(&mut text)?;
+            let mut out = String::new();
+            for line in text.lines().filter(|l| !l.trim().is_empty()) {
+                let (class, rest) = line.split_once(' ').with_context(|| format!("bad line in {name}: {line}"))?;
+                let class: usize = class.parse()?;
+                out += &format!(
+                    "{} {rest}\n",
+                    to_ours.get(class).with_context(|| format!("class {class} out of range in {name}"))?
+                );
+            }
+            let target = self.root.join("reviewed").join(&name);
+            fs::create_dir_all(target.parent().expect("reviewed label has a folder"))?;
+            fs::write(&target, out)?;
+            reviewed.insert(format!("frames/{}", Path::new(&name).with_extension("jpg").display()));
+        }
+        let mut entries = self.entries()?;
+        for entry in &mut entries {
+            entry.reviewed |= reviewed.contains(&entry.frame);
+        }
+        let partial = self.root.join("manifest.jsonl.part");
+        fs::write(&partial, entries.iter().map(|e| Ok(serde_json::to_string(e)? + "\n")).collect::<Result<String>>()?)?;
+        fs::rename(&partial, self.root.join("manifest.jsonl"))?;
+        Ok(json!({ "reviewed": reviewed.len(), "reviewed_total": entries.iter().filter(|e| e.reviewed).count() }))
+    }
+
     fn status(&self, sources: &Sources) -> Result<Value> {
-        let entries: Vec<Entry> = match fs::read_to_string(self.root.join("manifest.jsonl")) {
-            Ok(text) => text.lines().map(serde_json::from_str).collect::<Result<_, _>>()?,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Vec::new(),
-            Err(e) => return Err(e.into()),
-        };
+        let entries = self.entries()?;
         let mut seconds = 0.0;
-        for info in files(&self.root.join("raw/youtube"), "json", 2)?.into_iter().filter(|p| p.to_string_lossy().ends_with(".info.json")) {
+        for info in files(&self.root.join("raw/youtube"), "json", 2)?
+            .into_iter()
+            .filter(|p| p.to_string_lossy().ends_with(".info.json"))
+        {
             let info: Value = serde_json::from_str(&fs::read_to_string(info)?)?;
             seconds += info["duration"].as_f64().unwrap_or(0.0);
         }
         let datasets = match fs::read_dir(self.root.join("datasets")) {
-            Ok(dir) => dir.filter_map(|e| e.ok()).filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().into_owned()).collect(),
+            Ok(dir) => dir
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_dir())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect(),
             Err(_) => Vec::new(),
         };
         Ok(json!({
@@ -290,7 +443,9 @@ fn drop_still_bursts(folder: &Path, burst: usize, min_change: f64) -> Result<usi
     let mut kept = 0;
     for group in frames.chunks(burst) {
         let print = thumbprint(&group[0])?;
-        let changed = previous.as_ref().map_or(1.0, |p| p.iter().zip(&print).filter(|(a, b)| a != b).count() as f64 / print.len() as f64);
+        let changed = previous
+            .as_ref()
+            .map_or(1.0, |p| p.iter().zip(&print).filter(|(a, b)| a != b).count() as f64 / print.len() as f64);
         if changed < min_change {
             group.iter().try_for_each(fs::remove_file)?;
             continue;
@@ -341,7 +496,11 @@ fn files(dir: &Path, extension: &str, depth: usize) -> Result<Vec<PathBuf>> {
 }
 
 fn stems(dir: &Path, extension: &str) -> Result<std::collections::BTreeSet<String>> {
-    Ok(files(dir, extension, 1)?.iter().filter_map(|p| p.file_stem()).map(|s| s.to_string_lossy().into_owned()).collect())
+    Ok(files(dir, extension, 1)?
+        .iter()
+        .filter_map(|p| p.file_stem())
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect())
 }
 
 fn disk_usage(dir: &Path) -> Result<u64> {

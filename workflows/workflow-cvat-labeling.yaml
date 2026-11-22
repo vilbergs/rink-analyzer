@@ -1,0 +1,38 @@
+id: d5651ed7-35c3-4301-a840-05b7b93465ce
+name: cvat-labeling
+description: >-
+  Keep CVAT on the GPU worker in step with the corpus: serve it at cvat.vilberg.dev, start it, take the boxes of finished tasks
+  back as reviewed labels, then open a task for each video with draft boxes and no task yet. Rerun
+  it after the footage-corpus workflow or after finishing tasks in CVAT.
+version: 1
+jobs:
+  - name: label
+    description: Serve CVAT on the tailnet, start it, pull finished work, push new videos
+    steps:
+      - name: site
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/cvat"
+          behaviorName: cvat
+          methodName: site
+      - name: up
+        dependsOn: [{ step: site, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/cvat"
+          behaviorName: cvat
+          methodName: up
+      - name: pull
+        dependsOn: [{ step: up, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/cvat"
+          behaviorName: cvat
+          methodName: pull
+      - name: push
+        dependsOn: [{ step: pull, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/cvat"
+          behaviorName: cvat
+          methodName: push

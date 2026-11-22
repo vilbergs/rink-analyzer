@@ -73,7 +73,13 @@ impl Conv {
     }
 
     fn plain(w: &Weights, prefix: &str) -> Result<Self> {
-        Ok(Self { weight: w.get(&format!("{prefix}.weight"))?, bias: w.get(&format!("{prefix}.bias"))?, stride: 1, padding: 0, act: false })
+        Ok(Self {
+            weight: w.get(&format!("{prefix}.weight"))?,
+            bias: w.get(&format!("{prefix}.bias"))?,
+            stride: 1,
+            padding: 0,
+            act: false,
+        })
     }
 
     fn forward(&self, x: &Tensor) -> Result<Tensor> {
@@ -94,10 +100,20 @@ impl C2f {
     fn new(w: &Weights, prefix: &str, shortcut: bool) -> Result<Self> {
         let blocks = (0..)
             .take_while(|i| w.has(&format!("{prefix}.m.{i}.cv1.conv.weight")))
-            .map(|i| Ok((Conv::fused(w, &format!("{prefix}.m.{i}.cv1"), 1)?, Conv::fused(w, &format!("{prefix}.m.{i}.cv2"), 1)?)))
+            .map(|i| {
+                Ok((
+                    Conv::fused(w, &format!("{prefix}.m.{i}.cv1"), 1)?,
+                    Conv::fused(w, &format!("{prefix}.m.{i}.cv2"), 1)?,
+                ))
+            })
             .collect::<Result<Vec<_>>>()?;
         ensure!(!blocks.is_empty(), "{prefix} has no bottlenecks");
-        Ok(Self { cv1: Conv::fused(w, &format!("{prefix}.cv1"), 1)?, cv2: Conv::fused(w, &format!("{prefix}.cv2"), 1)?, blocks, shortcut })
+        Ok(Self {
+            cv1: Conv::fused(w, &format!("{prefix}.cv1"), 1)?,
+            cv2: Conv::fused(w, &format!("{prefix}.cv2"), 1)?,
+            blocks,
+            shortcut,
+        })
     }
 
     fn forward(&self, x: &Tensor) -> Result<Tensor> {
@@ -120,7 +136,9 @@ impl Sppf {
     fn forward(&self, x: &Tensor) -> Result<Tensor> {
         // A 5x5 stride-1 max pool with edge replication equals PyTorch's -inf padding:
         // every padded value repeats an edge value that is already inside the window.
-        let pool = |t: &Tensor| -> Result<Tensor> { Ok(t.pad_with_same(2, 2, 2)?.pad_with_same(3, 2, 2)?.max_pool2d_with_stride(5, 1)?) };
+        let pool = |t: &Tensor| -> Result<Tensor> {
+            Ok(t.pad_with_same(2, 2, 2)?.pad_with_same(3, 2, 2)?.max_pool2d_with_stride(5, 1)?)
+        };
         let a = self.cv1.forward(x)?;
         let b = pool(&a)?;
         let c = pool(&b)?;
@@ -149,13 +167,22 @@ impl Yolo {
             convs.insert(i, Conv::fused(w, &m(i), stride)?);
         }
         let mut c2fs = HashMap::new();
-        for (i, shortcut) in [(2, true), (4, true), (6, true), (8, true), (12, false), (15, false), (18, false), (21, false)] {
+        for (i, shortcut) in
+            [(2, true), (4, true), (6, true), (8, true), (12, false), (15, false), (18, false), (21, false)]
+        {
             c2fs.insert(i, C2f::new(w, &m(i), shortcut)?);
         }
-        let sppf = Sppf { cv1: Conv::fused(w, &format!("{}.cv1", m(9)), 1)?, cv2: Conv::fused(w, &format!("{}.cv2", m(9)), 1)? };
+        let sppf = Sppf {
+            cv1: Conv::fused(w, &format!("{}.cv1", m(9)), 1)?,
+            cv2: Conv::fused(w, &format!("{}.cv2", m(9)), 1)?,
+        };
         let head = |branch: &str, level: usize| -> Result<[Conv; 3]> {
             let p = format!("{}.{branch}.{level}", m(22));
-            Ok([Conv::fused(w, &format!("{p}.0"), 1)?, Conv::fused(w, &format!("{p}.1"), 1)?, Conv::plain(w, &format!("{p}.2"))?])
+            Ok([
+                Conv::fused(w, &format!("{p}.0"), 1)?,
+                Conv::fused(w, &format!("{p}.1"), 1)?,
+                Conv::plain(w, &format!("{p}.2"))?,
+            ])
         };
         let boxes = (0..3).map(|l| head("cv2", l)).collect::<Result<Vec<_>>>()?;
         let scores = (0..3).map(|l| head("cv3", l)).collect::<Result<Vec<_>>>()?;
@@ -171,7 +198,12 @@ impl Yolo {
         let (w, h) = ((width as f32 * ratio).round() as u32, (height as f32 * ratio).round() as u32);
         let (left, top) = ((size - w) / 2, (size - h) / 2);
         let mut canvas = RgbImage::from_pixel(size, size, image::Rgb([114, 114, 114]));
-        image::imageops::overlay(&mut canvas, &image::imageops::resize(image, w, h, FilterType::Triangle), left.into(), top.into());
+        image::imageops::overlay(
+            &mut canvas,
+            &image::imageops::resize(image, w, h, FilterType::Triangle),
+            left.into(),
+            top.into(),
+        );
         let input = Tensor::from_vec(canvas.into_raw(), (size as usize, size as usize, 3), &self.device)?
             .permute((2, 0, 1))?
             .unsqueeze(0)?
@@ -181,12 +213,22 @@ impl Yolo {
 
         let mut by_class: HashMap<usize, Vec<Detection>> = HashMap::new();
         for row in output {
-            let (class, score) = row[4..].iter().copied().enumerate().fold((0, f32::MIN), |best, (c, s)| if s > best.1 { (c, s) } else { best });
+            let (class, score) =
+                row[4..]
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .fold((0, f32::MIN), |best, (c, s)| if s > best.1 { (c, s) } else { best });
             if score < confidence(class) {
                 continue;
             }
             let unbox = |v: f32, offset: u32, limit: u32| ((v - offset as f32) / ratio).clamp(0.0, limit as f32);
-            let xyxy = [unbox(row[0], left, width), unbox(row[1], top, height), unbox(row[2], left, width), unbox(row[3], top, height)];
+            let xyxy = [
+                unbox(row[0], left, width),
+                unbox(row[1], top, height),
+                unbox(row[2], left, width),
+                unbox(row[3], top, height),
+            ];
             by_class.entry(class).or_default().push(Detection { class, score, xyxy });
         }
         let mut kept: Vec<Detection> = by_class.into_values().flat_map(|found| nms(found, 0.5)).collect();
@@ -213,11 +255,16 @@ impl Yolo {
         let mut levels = Vec::new();
         for (level, (feature, stride)) in [(o3, 8f64), (o4, 16.0), (o5, 32.0)].into_iter().enumerate() {
             let (rows, cols) = (feature.dim(2)?, feature.dim(3)?);
-            let run = |convs: &[Conv; 3]| -> Result<Tensor> { convs.iter().try_fold(feature.clone(), |t, c| c.forward(&t)) };
+            let run =
+                |convs: &[Conv; 3]| -> Result<Tensor> { convs.iter().try_fold(feature.clone(), |t, c| c.forward(&t)) };
             let dist = run(&self.boxes[level])?.reshape((1, 4, REG_MAX, rows * cols))?;
             let dist = softmax(&dist, 2)?.broadcast_mul(&bins)?.sum(2)?; // (1, 4, anchors): left, top, right, bottom
             let xs = Tensor::arange(0f32, cols as f32, &self.device)?.affine(1.0, 0.5)?.repeat(rows)?;
-            let ys = Tensor::arange(0f32, rows as f32, &self.device)?.affine(1.0, 0.5)?.reshape((rows, 1))?.repeat((1, cols))?.flatten_all()?;
+            let ys = Tensor::arange(0f32, rows as f32, &self.device)?
+                .affine(1.0, 0.5)?
+                .reshape((rows, 1))?
+                .repeat((1, cols))?
+                .flatten_all()?;
             let anchor = Tensor::stack(&[xs, ys], 0)?.unsqueeze(0)?; // (1, 2, anchors)
             let low = anchor.sub(&dist.narrow(1, 0, 2)?)?;
             let high = anchor.add(&dist.narrow(1, 2, 2)?)?;
@@ -257,8 +304,14 @@ fn iou(a: &[f32; 4], b: &[f32; 4]) -> f32 {
 
 /// Read every tensor plus `names` and the batch-norm epsilon out of the pickled module tree.
 fn read_checkpoint(path: &Path, device: Device) -> Result<(Weights, Vec<String>)> {
-    let mut zip = zip::ZipArchive::new(BufReader::new(File::open(path).with_context(|| format!("opening {}", path.display()))?))?;
-    let pickle = zip.file_names().filter_map(Result::ok).find(|n| n.ends_with("/data.pkl")).context("not a PyTorch checkpoint")?.into_owned();
+    let mut zip =
+        zip::ZipArchive::new(BufReader::new(File::open(path).with_context(|| format!("opening {}", path.display()))?))?;
+    let pickle = zip
+        .file_names()
+        .filter_map(Result::ok)
+        .find(|n| n.ends_with("/data.pkl"))
+        .context("not a PyTorch checkpoint")?
+        .into_owned();
     let data_dir = format!("{}/data", pickle.trim_end_matches("/data.pkl"));
     let mut bytes = Vec::new();
     zip.by_name(&pickle)?.read_to_end(&mut bytes)?;
@@ -325,7 +378,9 @@ impl Walk<'_> {
                 self.visit(callable, path, depth + 1);
                 self.visit(args, path, depth + 1);
             }
-            Object::Tuple(items) | Object::List(items) => items.iter().for_each(|item| self.visit(item, path, depth + 1)),
+            Object::Tuple(items) | Object::List(items) => {
+                items.iter().for_each(|item| self.visit(item, path, depth + 1))
+            }
             _ => {}
         }
     }
@@ -345,7 +400,7 @@ fn class_names(items: &[(Object, Object)]) -> Vec<String> {
 
 pub fn device() -> Result<Device> {
     let device = Device::cuda_if_available(0)?;
-    if cfg!(feature = "corpus-cuda") && !device.is_cuda() {
+    if cfg!(feature = "yolo-cuda") && !device.is_cuda() {
         bail!("built for CUDA but no CUDA device is available");
     }
     Ok(device)

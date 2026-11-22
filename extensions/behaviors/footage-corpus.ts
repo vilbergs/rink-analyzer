@@ -7,6 +7,7 @@
  */
 import { z } from "npm:zod@4";
 import { parse } from "jsr:@std/yaml@1.3.0";
+import { corpus as runCorpus, run, SSH } from "./corpus/worker.ts";
 
 const GlobalArgsSchema = z.object({
   host: z.string().default("vilberg@furulid").describe("SSH target on the tailnet; Tailscale SSH authenticates it"),
@@ -22,31 +23,11 @@ type Context = {
   writeResource: (specName: string, name: string, data: Record<string, unknown>) => Promise<{ name: string }>;
 };
 
-const BIN = "~/rink-corpus/bin/rink-corpus";
-// Tailscale SSH authenticates on the tailnet, so no key agent (1Password) gets asked.
-const SSH = ["-o", "BatchMode=yes", "-o", "IdentityAgent=none", "-o", "PubkeyAuthentication=no", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4"];
-
-async function run(cmd: string, args: string[], stdin?: string): Promise<string> {
-  const child = new Deno.Command(cmd, { args, stdin: stdin === undefined ? "null" : "piped", stdout: "piped", stderr: "piped" }).spawn();
-  if (stdin !== undefined) {
-    const writer = child.stdin.getWriter();
-    await writer.write(new TextEncoder().encode(stdin));
-    await writer.close();
-  }
-  const { code, stdout, stderr } = await child.output();
-  const err = new TextDecoder().decode(stderr).trim();
-  if (code !== 0) throw new Error(`${cmd} exited ${code}: ${err.slice(-2000)}`);
-  return new TextDecoder().decode(stdout);
-}
-
-/** Run one rink-corpus command on the worker and parse its JSON summary. */
+/** Run one rink-corpus command on the worker with the source list as JSON on stdin. */
 async function corpus(context: Context, command: string, options: Record<string, string | number | undefined>) {
   const { host, sources } = context.globalArgs;
   const path = sources.startsWith("/") ? sources : `${context.repoDir}/${sources}`;
-  const json = JSON.stringify(parse(await Deno.readTextFile(path)));
-  const flags = Object.entries(options).filter(([, v]) => v !== undefined).flatMap(([k, v]) => [`--${k}`, String(v)]);
-  const out = await run("ssh", [...SSH, host, BIN, command, ...flags], json);
-  return { ran_at: new Date().toISOString(), ...JSON.parse(out.trim().split("\n").at(-1)!) };
+  return await runCorpus(host, command, options, JSON.stringify(parse(await Deno.readTextFile(path))));
 }
 
 const Summary = z.object({ ran_at: z.iso.datetime() }).loose();

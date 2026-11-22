@@ -1,0 +1,9 @@
+type: '@vilbergs/cvat'
+typeVersion: 2026.11.22.1
+id: cc407e2f-c733-492c-8abb-4c0c4f9c75d8
+name: cvat
+version: 1
+tags: {}
+globalArguments:
+  password: '${{ vault.get(default, cvat-admin-password) }}'
+methods: {}
