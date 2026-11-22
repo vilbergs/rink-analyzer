@@ -1,0 +1,85 @@
+# What the footage-corpus workflow collects on the GPU worker (furulid).
+# Detector target: player, goaltender, referee, puck (plus HockeyAI's rink classes).
+#
+# Footage is for training our own detector only. Don't redistribute frames, clips or models
+# trained on YouTube footage; YouTube's terms don't allow bulk downloading.
+
+# Each entry is a channel, playlist or single video URL. `camera` records the kind of angle
+# so the training set can stay balanced: rec-corner (fixed high corner cam, LiveBarn style),
+# rec-center (fixed cam at center ice), rec-tracked and youth-tracked (a camera that follows
+# play), phone (handheld from the stands), broadcast.
+youtube:
+  # max_videos: new videos per sync run; the download archive skips ones already fetched.
+  # min_minutes: skips shorts and single-goal clips.
+  # title: case-insensitive regex for channels that mix games with other videos.
+  #
+  # Rec footage first: it looks like our own games, which broadcast does not.
+  - name: icehq-rec
+    url: https://www.youtube.com/channel/UCwVFCOPPHxbu4EP1hm5YmeA/videos
+    camera: rec-corner
+    max_videos: 5
+    min_minutes: 20
+    title: rec league
+    note: iceHQ Melbourne adult rec divisions. Fixed high corner camera with a score bug.
+  - name: adult-beginner-hockey
+    url: https://www.youtube.com/channel/UCJNAgSkjblxnTLkGILbaiBg/videos
+    camera: rec-center
+    max_videos: 5
+    min_minutes: 20
+    note: Adult beginner league games, ~40 min. Fixed camera from the stands.
+  - name: slapstick-beer-league
+    url: https://www.youtube.com/channel/UCdWWFkL6onDbY4RJbeB_Kxw/videos
+    camera: rec-tracked
+    max_videos: 3
+    min_minutes: 30
+    title: full game
+    note: Beer league full games. Low camera that follows play. Channel also posts vlogs.
+  - name: celly-youth
+    url: https://www.youtube.com/channel/UCsuJooLAyy-YU7h3AVVxdPg/videos
+    camera: youth-tracked
+    max_videos: 2
+    min_minutes: 20
+    note: U15-U18 games. Following camera. Smaller players; variety only.
+  # Broadcast: volume, and the same look HockeyAI was trained on.
+  - name: shl-highlights
+    url: https://www.youtube.com/@SHL/videos
+    camera: broadcast
+    max_videos: 3
+    min_minutes: 8
+    note: ~11 min game highlights at 1080p. Heavy on replays and close-ups.
+  - name: hockeyallsvenskan-highlights
+    url: https://www.youtube.com/@HockeyAllsvenskanPlay/videos
+    camera: broadcast
+    max_videos: 3
+    min_minutes: 3
+    title: highlights
+    note: ~4 min game highlights. Different arenas and crews from SHL.
+
+datasets:
+  - name: hockeyai
+    url: https://huggingface.co/datasets/SimulaMet-HOST/HockeyAI/resolve/main/HockeyAI_Dataset.zip
+    license: MIT
+    classes: [centerIce, faceoff, goal, goaltender, player, puck, referee]
+    note: About 2,100 SHL broadcast frames in YOLO format. Base set; our class list follows it.
+  # Roboflow sets need a Roboflow API key to download; fetch by hand into ~/rink-corpus/datasets/<name>.
+  - name: roboflow-hockey-pucks
+    page: https://universe.roboflow.com/eagle-eye/hockey-jgl1w
+    license: CC BY 4.0
+    classes: [puck]
+    note: About 1,959 puck images.
+  - name: roboflow-puck-eecs442
+    page: https://universe.roboflow.com/eecs-442-e9w8v/hockey-puck-detection-tgalg
+    license: CC BY 4.0
+    classes: [puck]
+    note: 211 puck images.
+  - name: roboflow-hockey-player
+    page: https://universe.roboflow.com/matews/hockey-player-es063
+    license: CC BY 4.0
+    classes: [player, referee, goalie, puck]
+
+# Detectors fetched to ~/rink-corpus/models/<name>.pt; prelabel reads hockeyai.pt.
+models:
+  - name: hockeyai
+    url: https://huggingface.co/SimulaMet-HOST/HockeyAI/resolve/main/HockeyAI_model_weight.pt
+    license: MIT on the model card; the checkpoint itself says AGPL-3.0 (Ultralytics). Personal training use only.
+    note: YOLOv8-medium, classes centriod, faceoff, goal, goalie, player, puck, referee.

@@ -1,0 +1,52 @@
+id: b6c64343-9083-4e62-9300-710adf4f0676
+name: footage-corpus
+description: >-
+  Grow the detector training corpus on the GPU worker (furulid): build rink-corpus there, fetch new
+  videos, datasets and models from corpus/sources.yaml, sample frames, draw draft boxes with the
+  HockeyAI model, and record what the corpus holds. Every step skips work already done, so reruns
+  only process what is new.
+version: 1
+jobs:
+  - name: build
+    description: Build rink-corpus with CUDA on the worker from this checkout
+    steps:
+      - name: build
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/footage-corpus"
+          behaviorName: footage-corpus
+          methodName: build
+  - name: collect
+    description: Download, sample and pre-label whatever is new
+    dependsOn: [{ job: build, condition: { type: succeeded } }]
+    steps:
+      - name: sync
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/footage-corpus"
+          behaviorName: footage-corpus
+          methodName: sync
+      - name: sample
+        dependsOn: [{ step: sync, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/footage-corpus"
+          behaviorName: footage-corpus
+          methodName: sample
+      - name: prelabel
+        dependsOn: [{ step: sample, condition: { type: succeeded } }]
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/footage-corpus"
+          behaviorName: footage-corpus
+          methodName: prelabel
+  - name: status
+    description: Count what the corpus holds after this run
+    dependsOn: [{ job: collect, condition: { type: succeeded } }]
+    steps:
+      - name: status
+        task:
+          type: behavior
+          behaviorType: "@vilbergs/footage-corpus"
+          behaviorName: footage-corpus
+          methodName: status

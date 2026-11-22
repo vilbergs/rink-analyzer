@@ -25,12 +25,16 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync"], optional = true }
 tokio-util = { version = "0.7", features = ["io"], optional = true }
 http-body-util = { version = "0.1", optional = true }
+candle-core = { version = "=0.11.1", optional = true }
+zip = { version = "9.8.1", default-features = false, features = ["deflate"], optional = true }
 
 [features]
 tracking-preview = ["dep:ab_glyph", "dep:rusty_h264-common", "dep:rusty_h264-encoder"]
 auto-tracking = ["tracking-preview", "dep:objc2", "dep:objc2-foundation", "dep:objc2-vision"]
 coaching-montage = ["tracking-preview", "dep:rink-core", "dep:tiny-skia"]
 web-import = ["dep:axum", "dep:tokio", "dep:tokio-util", "dep:http-body-util", "dep:url"]
+corpus = ["dep:candle-core", "dep:zip"]
+corpus-cuda = ["corpus", "candle-core/cuda"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }
@@ -41,6 +45,11 @@ objc2-vision = { version = "0.3", optional = true, default-features = false, fea
 name = "rink-track-preview"
 path = "src/annotate/main.rs"
 required-features = ["tracking-preview"]
+
+[[bin]]
+name = "rink-corpus"
+path = "src/corpus/main.rs"
+required-features = ["corpus"]
 
 [[bin]]
 name = "rink-footage-web"
