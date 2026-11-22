@@ -3,7 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 host="${RINK_WORKER_HOST:-furulid}"
-ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15)
+# Tailscale SSH authenticates on the tailnet, so no key agent gets asked.
+ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o IdentityAgent=none -o PubkeyAuthentication=no)
 
 ssh "${ssh_opts[@]}" "$host" 'mkdir -p "$HOME/.cache/rink-footage-build" "$HOME/.config/systemd/user"'
 rsync -azR -e "ssh ${ssh_opts[*]}" Cargo.toml Cargo.lock crates/ scripts/detect-yolox.py scripts/footage-worker.py   deploy/furulid/rink-footage-worker.service "$host:.cache/rink-footage-build/"
