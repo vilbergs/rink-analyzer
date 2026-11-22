@@ -598,8 +598,8 @@
     const player = editable ? assignmentAt(item,frame.source_ms,track.id)?.player : null;
     if (!sameFrame(item.offers?.frame,target)) item.offers = undefined;
     const candidates = item.offers?.candidates ?? [];
-    const key = JSON.stringify([item.studyId,target?.track_id,player,item.identityState.revision,
-      candidates.map(c => c.player)]);
+    const detailsKey = JSON.stringify([item.studyId, target?.track_id, player, item.identityState.revision]);
+    const key = JSON.stringify([detailsKey, item.offers?.clear, candidates.map(c => c.player)]);
     if (key !== item.controlKey) {
       item.controlKey = key;
       const names = item.identityState.players;
@@ -611,7 +611,10 @@
         ...manual.map(([id,name]) => new Option(name,id)));
       if (offered.size && item.offers.clear) match.value = item.offers.clear;
       else if (!offered.size && Object.hasOwn(names,previous)) match.value = previous;
-      alias.value = names[player] ?? item.players.get(item.studyId)?.name ?? '';
+    }
+    if (detailsKey !== item.detailsKey) {
+      item.detailsKey = detailsKey;
+      alias.value = item.identityState.players[player] ?? item.players.get(item.studyId)?.name ?? '';
       const details = item.identityState.player_details[player];
       team.value = details?.team ?? '';
       jersey.value = details?.jersey ?? '';
@@ -701,7 +704,18 @@
     const explicitName = alias.value.trim();
     const fallback = jerseyLabel(details);
     const previousFallback = jerseyLabel(item.identityState.player_details[player]);
-    const name = explicitName && explicitName !== previousFallback ? explicitName : fallback || explicitName;
+    const name = explicitName && explicitName !== previousFallback ? explicitName : fallback;
+    if (!/^[0-9]{0,2}$/.test(details.jersey)) {
+      element('study-player-details').open = true;
+      jersey.focus();
+      identityStatus.textContent = 'Use one or two digits for the jersey number, or leave it blank.';
+      return null;
+    }
+    if (!name) {
+      alias.focus();
+      identityStatus.textContent = 'Enter a name or jersey number.';
+      return null;
+    }
     return {name,details};
   }
 
@@ -709,14 +723,16 @@
     const item = review;
     const {frame} = studyTarget(item);
     if (!frame) return;
-    const {name,details} = playerDetails(item);
-    if (!name) { alias.focus(); identityStatus.textContent = 'Enter a name or jersey number.'; return; }
-    saveIdentity(item,{action:'assign', frame, player:crypto.randomUUID(), name, details,
+    const fields = playerDetails(item);
+    if (!fields) return;
+    saveIdentity(item,{action:'assign', frame, player:crypto.randomUUID(), ...fields,
       shown:item.offers?.candidates.map(c => c.player) ?? []});
   });
   element('identity-rename').addEventListener('click', () => {
     const {frame,player} = studyTarget(review);
-    if (frame && player) saveIdentity(review,{action:'rename',frame,player,...playerDetails(review,player)});
+    if (!frame || !player) return;
+    const fields = playerDetails(review,player);
+    if (fields) saveIdentity(review,{action:'rename',frame,player,...fields});
   });
   element('identity-link').addEventListener('click', () => {
     const item = review;
