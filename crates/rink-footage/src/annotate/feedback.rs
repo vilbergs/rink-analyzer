@@ -35,7 +35,7 @@ const USAGE: &str = "Usage: rink-track-preview --feedback <work-dir> <font.ttf>"
 const FPS: u32 = 15;
 const YOU: Rgb<u8> = Rgb([255, 214, 0]);
 /// Images sent to Claude across all clips; frames are 720 px wide, about 400 tokens each.
-const MAX_SAMPLES: usize = 90;
+const MAX_SAMPLES: usize = 120;
 const HOLD_SECONDS: u32 = 5;
 const INTRO_SECONDS: u32 = 4;
 
@@ -213,8 +213,8 @@ fn prompt(note: &str, clips: &[Clip]) -> Result<Vec<Part>> {
     }
     let ask = if note.is_empty() { String::new() } else { format!("What I want feedback on: {note}\n\n") };
     parts.push(Part::Text(format!(
-        "{ask}Pick the 3 to 6 moments most worth learning from, spread over the clips where it makes sense. \
-For each, give the clip number, a window of 4 to 12 seconds (start_s, end_s, in clip seconds), the second \
+        "{ask}Pick the 4 to 8 moments most worth learning from. Cover as many different clips as have something worth \
+learning, rather than several moments from one clip. For each, give the clip number, a window of 4 to 12 seconds (start_s, end_s, in clip seconds), the second \
 to freeze on (freeze_s, the key decision, inside the window), a title of at most 6 words, what I did \
 (observation) and what to try next time (suggestion), each one or two sentences. Then a two-sentence \
 summary of the main pattern across the clips."
@@ -411,8 +411,13 @@ fn render(
     font: &FontArc,
     output: &Path,
 ) -> Result<Vec<Moment>> {
+    // The film takes the shape most of its moments were filmed in; the others are letterboxed.
+    let mut shapes: BTreeMap<(u32, u32), usize> = BTreeMap::new();
+    for window in &windows {
+        *shapes.entry(image::image_dimensions(&clips[window.clip].frames[0].0)?).or_default() += 1;
+    }
+    let (width, height) = shapes.into_iter().max_by_key(|(_, n)| *n).map(|(shape, _)| shape).context("no moments")?;
     let opening = &clips[windows[0].clip].frames[0].0;
-    let (width, height) = image::image_dimensions(opening)?;
     let canvas = Canvas { width: width & !1, height: height & !1 };
     let mut reel = Reel { video: Video::new(File::create(output)?, canvas.width, canvas.height, FPS)?, frames: 0 };
 

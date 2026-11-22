@@ -1,7 +1,9 @@
-//! Feedback videos: the user picks clips they are marked in, and the GPU worker turns them into
-//! one video of a few moments with coaching cues. A request lives in the session folder at
+//! The session's film room: one feedback film compiled from every clip the user is marked in.
+//! The GPU worker picks the moments worth learning from and cuts them into one video with coaching
+//! cues. Each build lives in the session folder at
 //! `feedback/<id>/`: `request.json` holds the clips, the note and the worker's lease;
 //! `feedback.json` (the moments and cues) and `video.mp4` are the result, written in that order.
+//! Publishing a film removes the session's older builds, so a session has one film room.
 
 use std::{
     fs,
@@ -23,12 +25,11 @@ use uuid::Uuid;
 
 use super::{
     jobs::{self, now, receive, require_worker, stream},
-    problem, require_origin, storage_error, stored_bytes, stored_session, ApiError, App, MAX_STORED, MIB,
+    problem, require_origin, storage_error, stored_bytes, stored_session, ApiError, App, MAX_CLIPS, MAX_STORED, MIB,
 };
 
 const LEASE_SECONDS: u64 = 300;
 const MAX_ATTEMPTS: u32 = 2;
-const MAX_CLIPS: usize = 6;
 const MAX_NOTE: usize = 500;
 const MAX_VIDEO: usize = 256 * MIB;
 const MAX_FEEDBACK: usize = MIB;
@@ -208,13 +209,16 @@ async fn create(
     require_origin(&headers, &app)?;
     let note = new.note.trim().to_owned();
     if new.clips.is_empty() || new.clips.len() > MAX_CLIPS {
-        return Err(problem(StatusCode::BAD_REQUEST, format!("Pick between 1 and {MAX_CLIPS} clips.")));
+        return Err(problem(StatusCode::BAD_REQUEST, format!("A film room takes 1 to {MAX_CLIPS} clips.")));
     }
     if note.chars().count() > MAX_NOTE {
         return Err(problem(StatusCode::BAD_REQUEST, format!("Keep the note under {MAX_NOTE} characters.")));
     }
     let _edit = app.edit_lock.lock().await;
     let session = stored_session(&app.root, id)?;
+    if requests(&app.root, id)?.iter().any(|(dir, request)| matches!(state(dir, request), "queued" | "processing")) {
+        return Err(problem(StatusCode::CONFLICT, "The film room is already being built."));
+    }
     let mut clips = Vec::new();
     for clip_id in new.clips {
         if clips.contains(&clip_id) {
@@ -360,7 +364,15 @@ async fn upload_video(
     if !dir.join("feedback.json").is_file() {
         return Err(problem(StatusCode::CONFLICT, "Upload the feedback before the video."));
     }
-    finish(&app, id, request, &headers, temp, dir.join("video.mp4"), size).await
+    let published = finish(&app, id, request, &headers, temp, dir.join("video.mp4"), size).await?;
+    // One film room per session: the new film replaces every older finished build.
+    let _edit = app.edit_lock.lock().await;
+    for (old, build) in requests(&app.root, id)? {
+        if old != dir && matches!(state(&old, &build), "ready" | "failed") {
+            fs::remove_dir_all(&old).map_err(storage_error)?;
+        }
+    }
+    Ok(published)
 }
 
 async fn finish(

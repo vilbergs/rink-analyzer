@@ -2,8 +2,8 @@
   import "./footage.css";
   import { router } from "../router.svelte";
   import * as api from "./api";
-  import type { Moment, Room, Session, Tracking } from "./api";
-  import FeedbackPanel from "./FeedbackPanel.svelte";
+  import type { FeedbackRequest, Moment, Room, Session, Tracking } from "./api";
+  import FilmRoomPanel from "./FilmRoomPanel.svelte";
   import NotesPanel from "./NotesPanel.svelte";
   import PlayerList from "./PlayerList.svelte";
   import PlayPanel from "./PlayPanel.svelte";
@@ -21,11 +21,6 @@
     ready: "Ready",
     failed: "Tracking could not finish",
     disabled: "Tracking unavailable",
-  };
-  const COACHING: Partial<Record<Room["state"], string>> = {
-    review: "Your skater is saved. This clip still needs rink alignment and a coaching review.",
-    changed: "Your skater selection changed, so the coaching review needs rebuilding.",
-    identity_changed: "The track marked as you covers more than one named player. Correct it at the switch.",
   };
   const SHORTCUTS = [
     ["Space", "Play or pause"],
@@ -50,7 +45,9 @@
   let tab = $state<"browse" | "inspect">("browse");
   let stage = $state<Stage>();
   let notes = $state<NotesPanel>();
-  let feedback = $state<FeedbackPanel>();
+  let filmRoom = $state<FilmRoomPanel>();
+  /** The session's finished film room, if it has one. */
+  let film = $state.raw<FeedbackRequest>();
   let help = $state<HTMLDialogElement>();
   /** A note in another clip to jump to once that clip is open. */
   let pending: Moment | undefined;
@@ -112,7 +109,7 @@
     Review.open(session, clip)
       .then((opened) => {
         if (!live) return;
-        opened.onsaved = () => (refreshCoaching(), feedback?.refresh());
+        opened.onsaved = () => (refreshCoaching(), filmRoom?.refresh());
         opened.onopen = (other, moment) => {
           pending = moment;
           router.go(`/footage/${sessionId}/${other}`);
@@ -202,7 +199,8 @@
       <b>{title || "Session"}</b>
     </nav>
     <span class="status" role="status">{problem || review?.status}</span>
-    {#if room?.url}<a href={room.url}>Coaching Film Room</a>{/if}
+    {#if film}<a href="/footage/{sessionId}/room">Film room</a>{/if}
+    {#if room?.url}<a href={room.url}>Clip film room</a>{/if}
     {#if session?.source_url}<a href={session.source_url} target="_blank" rel="noreferrer">YouTube</a>{/if}
     <button class="tool quiet" onclick={() => help?.showModal()}>Shortcuts</button>
     <button class="tool quiet danger" disabled={!session} onclick={remove}>Delete session</button>
@@ -220,9 +218,8 @@
           </span>
         </a>
       {/each}
-      {#if room && COACHING[room.state]}<p>{COACHING[room.state]}</p>{/if}
     </section>
-    {#if session}<FeedbackPanel bind:this={feedback} {session} {states} />{/if}
+    {#if session}<FilmRoomPanel bind:this={filmRoom} bind:room={film} {session} {states} />{/if}
     {#if review}<PlayerList {review} />{/if}
   </aside>
 

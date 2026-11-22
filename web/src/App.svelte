@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FilmRoom from "./lib/footage/FilmRoom.svelte";
   import Library from "./lib/footage/Library.svelte";
   import LocalNotes from "./lib/footage/local/LocalNotes.svelte";
   import Workspace from "./lib/footage/Workspace.svelte";
@@ -39,7 +40,9 @@
 {:else if route.name === "topic"}
   <TopicPath id={route.id} {progress} />
 {:else if route.name === "footage"}
-  {#if route.session}
+  {#if route.session && route.clip === "room"}
+    <FilmRoom sessionId={route.session} />
+  {:else if route.session}
     <Workspace sessionId={route.session} clipId={route.clip} />
   {:else}
     <Library />

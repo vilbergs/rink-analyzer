@@ -379,12 +379,14 @@ and model under `~/.local/share/rink-detector`. Tracking calls no LLM.
 person detector) or `hockeyai`, the HockeyAI YOLOv8 checkpoint run by `rink-detect`, which tells
 players, goalies and referees apart. The deploy copies `hockeyai.pt` from `~/rink-corpus/models`.
 
-**Feedback videos.** In a session, tick the clips you're marked in and choose **Make feedback
-video**, with an optional note on what you want to know. The worker sends about one frame a second
-where you're in view, with you boxed, to Claude (`claude-opus-5-5`), which picks three to six
-moments and writes what you did and what to try. The worker checks the times against the clips and
-renders one video: each moment plays with you boxed, then freezes on its cue. It needs
-`ANTHROPIC_API_KEY` in the worker's env file, and each video costs a Claude API call. To render a
+**Film room.** Each session has one film room: a feedback film compiled from every clip you are
+marked in. Choose **Build film room** in the session's Film room panel, with an optional note on what
+you want to know, then open it from **Film room** in the top bar. The worker sends sampled frames
+where you're in view, with you boxed, to Claude (`claude-opus-5-5`), which picks four to eight
+moments across the clips and writes what you did and what to try. The worker checks the times against the clips and
+renders one video: each moment plays with you boxed, then freezes on its cue. It uses
+`ANTHROPIC_API_KEY` from the worker's env file, or without one the Claude Code CLI named by
+`RINK_FEEDBACK_CLAUDE`, on furulid's own Claude login. Rebuilding replaces the session's film. To render a
 saved answer again without calling the API, set `RINK_FEEDBACK_PLAN` to its JSON file when running
 `rink-track-preview --feedback <work-dir> <font>`.
 
