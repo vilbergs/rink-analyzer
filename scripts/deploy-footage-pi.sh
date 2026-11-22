@@ -18,7 +18,7 @@ sudo -n install -m 644 deploy/pi/rink-footage.service /etc/systemd/system/rink-f
 sudo -n systemctl daemon-reload
 sudo -n systemctl enable rink-footage.service
 sudo -n systemctl restart rink-footage.service
-curl --fail --silent --show-error --retry 6 --retry-connrefused --max-time 5 http://127.0.0.1:8794/footage/api/health
+curl --fail --silent --show-error --retry 6 --retry-connrefused --max-time 5 http://127.0.0.1:8794/api/footage/health
 printf '\n'
 
 backup=$(mktemp)

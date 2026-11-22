@@ -1,6 +1,6 @@
-/** The hosted footage service on the Pi. Every path is same-origin under /footage. */
+/** The hosted footage service on the Pi, same-origin under /api/footage. */
 
-const API = "/footage/api";
+const API = "/api/footage";
 
 export type Clip = { id: string; name: string; duration_ms: number; preview_ms: number };
 export type Session = { id: string; created_ms: number; clips: Clip[]; source_url?: string };

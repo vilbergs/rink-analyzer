@@ -267,9 +267,9 @@ to `curriculum/` and `web/public/plays` to `examples/`; both are served as stati
   wrong variant with the playhead kept. The result shows the cue and the graded steps below 2.
 - Progress (append-only attempts, studied lessons) lives in IndexedDB behind a `ProgressStore` interface.
 - `/footage` is the footage library and `/footage/<session>/<clip>` the review workspace; see
-  [Hosted footage sessions](#hosted-footage-sessions). They talk to the footage service under `/footage/api`.
+  [Hosted footage sessions](#hosted-footage-sessions). They talk to the footage service under `/api/footage`.
   For local work, run `rink-footage-web` with `RINK_FOOTAGE_ORIGIN=http://localhost:5173`; the dev server
-  proxies `/footage` to it.
+  proxies `/api` to it.
 - **Local video notes** (`/local-notes`) opens a local recording. Click **Mark moment** or press M to pause and type a timestamped note.
   Click a timestamp to pause on it, or choose **Play lead-in** to watch from five seconds earlier.
   **Undo** restores the most recently removed moment. Reopen the same file in this browser

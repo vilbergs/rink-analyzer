@@ -197,8 +197,8 @@ struct Suggestions {
 
 pub fn routes() -> Router<App> {
     Router::new()
-        .route("/footage/api/sessions/{id}/identity", get(read).post(write))
-        .route("/footage/api/sessions/{id}/identity/suggestions", post(suggestions))
+        .route("/api/footage/sessions/{id}/identity", get(read).post(write))
+        .route("/api/footage/sessions/{id}/identity/suggestions", post(suggestions))
         .layer(DefaultBodyLimit::max(8192))
 }
 

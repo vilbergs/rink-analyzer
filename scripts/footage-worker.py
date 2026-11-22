@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent
-API = os.environ["RINK_FOOTAGE_API"].rstrip("/") + "/footage/worker"
+API = os.environ["RINK_FOOTAGE_API"].rstrip("/") + "/api/footage/worker"
 TOKEN = os.environ["RINK_FOOTAGE_WORKER_TOKEN"]
 FPS = 15
 

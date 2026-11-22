@@ -38,9 +38,9 @@ struct Room {
 
 pub fn routes() -> Router<App> {
     Router::new()
-        .route("/footage/api/sessions/{id}/coaching", get(list))
-        .route("/footage/room/{id}/{clip}/", get(index))
-        .route("/footage/room/{id}/{clip}/{file}", get(asset))
+        .route("/api/footage/sessions/{id}/coaching", get(list))
+        .route("/api/footage/room/{id}/{clip}/", get(index))
+        .route("/api/footage/room/{id}/{clip}/{file}", get(asset))
 }
 
 fn folder(source: &FilePath) -> PathBuf {
@@ -80,7 +80,7 @@ async fn list(State(app): State<App>, Path(id): Path<Uuid>) -> Result<Json<BTree
     let mut rooms = BTreeMap::new();
     for clip in &session.clips {
         let state = state(&app, id, clip.id, &session.source_path(&app.root, clip))?;
-        let url = (state == "ready").then(|| format!("/footage/room/{}/{}/", id, clip.id));
+        let url = (state == "ready").then(|| format!("/api/footage/room/{}/{}/", id, clip.id));
         rooms.insert(clip.id, Room { state, url });
     }
     Ok(Json(rooms))
@@ -194,6 +194,6 @@ pub fn attach(args: &[OsString]) -> Result<()> {
     } else {
         fs::rename(stage.path(), target)?;
     }
-    println!("/footage/room/{id}/{clip_id}/");
+    println!("/api/footage/room/{id}/{clip_id}/");
     Ok(())
 }

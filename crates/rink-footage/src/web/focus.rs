@@ -50,8 +50,8 @@ pub(super) struct Track {
 
 pub fn routes() -> Router<App> {
     Router::new()
-        .route("/footage/api/sessions/{id}/focus", get(selections))
-        .route("/footage/api/sessions/{id}/clips/{clip}/focus", put(edit).layer(DefaultBodyLimit::max(1024)))
+        .route("/api/footage/sessions/{id}/focus", get(selections))
+        .route("/api/footage/sessions/{id}/clips/{clip}/focus", put(edit).layer(DefaultBodyLimit::max(1024)))
 }
 
 fn load(source: &FilePath) -> Result<Vec<Anchor>, ApiError> {

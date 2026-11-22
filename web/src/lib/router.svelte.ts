@@ -1,7 +1,7 @@
 /** Path routing over the History API: `/lesson/<id>`, `/footage/<session>/<clip>` and so on. */
 
 /** Same-origin paths the server answers itself: static content, and the footage service. */
-const SERVED = /^\/(?:assets|curriculum|plays)\/|^\/footage\/(?:api|room|worker)\//;
+const SERVED = /^\/(?:api|assets|curriculum|plays)\//;
 
 /** Addresses from before the app used paths: `/#/lesson/x`, and `/footage/?session=<id>`. */
 function current(): string {

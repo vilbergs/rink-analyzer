@@ -75,11 +75,11 @@ struct Claimed {
 
 pub fn routes() -> Router<App> {
     Router::new()
-        .route("/footage/api/youtube", post(enqueue).layer(DefaultBodyLimit::max(2048)))
-        .route("/footage/api/youtube/{id}", get(status))
-        .route("/footage/worker/youtube/claim", post(claim))
-        .route("/footage/worker/youtube/{id}/video", put(publish))
-        .route("/footage/worker/youtube/{id}/failure", post(fail))
+        .route("/api/footage/youtube", post(enqueue).layer(DefaultBodyLimit::max(2048)))
+        .route("/api/footage/youtube/{id}", get(status))
+        .route("/api/footage/worker/youtube/claim", post(claim))
+        .route("/api/footage/worker/youtube/{id}/video", put(publish))
+        .route("/api/footage/worker/youtube/{id}/failure", post(fail))
 }
 
 fn video_id(link: &str) -> Option<String> {

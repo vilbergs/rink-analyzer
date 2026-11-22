@@ -57,7 +57,7 @@ if (!data?.chapters?.length) {
 }
 
 function start({fps, rinkSize, chapters}) {
-  const hostedSession = location.pathname.match(/^\/footage\/room\/([\da-f-]{36})\//i);
+  const hostedSession = location.pathname.match(/^\/api\/footage\/room\/([\da-f-]{36})\//i);
   if (hostedSession) {
     const back = element('back-session');
     back.href = '/footage/' + hostedSession[1];

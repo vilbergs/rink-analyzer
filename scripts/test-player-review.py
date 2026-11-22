@@ -132,7 +132,7 @@ def main():
             ["npx", "vite", "--port", str(web_port), "--strictPort"], cwd=REPO / "web",
             env=dict(os.environ, RINK_FOOTAGE_DEV=f"http://127.0.0.1:{service_port}"))
         try:
-            wait_for(f"http://127.0.0.1:{service_port}/footage/api/health")
+            wait_for(f"http://127.0.0.1:{service_port}/api/footage/health")
             wait_for(origin)
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(channel="chrome")

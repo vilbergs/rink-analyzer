@@ -31,15 +31,15 @@ const MAX_DATA: usize = 32 * MIB;
 
 pub fn routes() -> Router<App> {
     Router::new()
-        .route("/footage/api/sessions/{id}/tracking", get(status))
-        .route("/footage/api/sessions/{id}/clips/{clip}/tracks.mp4", get(movie))
-        .route("/footage/api/sessions/{id}/clips/{clip}/tracks.ndjson", get(track_data))
-        .route("/footage/worker/claim", post(claim))
-        .route("/footage/worker/{id}/{clip}/heartbeat", post(heartbeat))
-        .route("/footage/worker/{id}/{clip}/source", get(source))
-        .route("/footage/worker/{id}/{clip}/result", put(result))
-        .route("/footage/worker/{id}/{clip}/data", put(upload_data))
-        .route("/footage/worker/{id}/{clip}/failure", post(failure))
+        .route("/api/footage/sessions/{id}/tracking", get(status))
+        .route("/api/footage/sessions/{id}/clips/{clip}/tracks.mp4", get(movie))
+        .route("/api/footage/sessions/{id}/clips/{clip}/tracks.ndjson", get(track_data))
+        .route("/api/footage/worker/claim", post(claim))
+        .route("/api/footage/worker/{id}/{clip}/heartbeat", post(heartbeat))
+        .route("/api/footage/worker/{id}/{clip}/source", get(source))
+        .route("/api/footage/worker/{id}/{clip}/result", put(result))
+        .route("/api/footage/worker/{id}/{clip}/data", put(upload_data))
+        .route("/api/footage/worker/{id}/{clip}/failure", post(failure))
 }
 
 #[derive(Serialize, Deserialize)]

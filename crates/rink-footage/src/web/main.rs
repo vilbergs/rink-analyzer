@@ -1,4 +1,4 @@
-//! The footage service: the API under /footage/api, the worker queue and exported film rooms.
+//! The footage service, all of it under /api/footage: sessions, the worker queue and exported film rooms.
 //! Its pages are part of the web app in `web/`, which the same site serves at /footage.
 
 mod coaching;
@@ -89,13 +89,13 @@ async fn main() -> Result<()> {
         worker_token: env::var("RINK_FOOTAGE_WORKER_TOKEN").ok().filter(|token| !token.is_empty()),
     };
     let routes = Router::new()
-        .route("/footage/api/health", get(|| async { "ok" }))
+        .route("/api/footage/health", get(|| async { "ok" }))
         .route(
-            "/footage/api/sessions",
+            "/api/footage/sessions",
             get(recent).merge(post(import).layer(DefaultBodyLimit::max(MAX_BATCH + 2 * MIB))),
         )
-        .route("/footage/api/sessions/{id}", get(details).delete(remove))
-        .route("/footage/api/sessions/{id}/clips/{clip_id}/preview", get(preview))
+        .route("/api/footage/sessions/{id}", get(details).delete(remove))
+        .route("/api/footage/sessions/{id}/clips/{clip_id}/preview", get(preview))
         .merge(jobs::routes())
         .merge(youtube::routes())
         .merge(focus::routes())
