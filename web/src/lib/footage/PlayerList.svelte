@@ -16,6 +16,12 @@
     return seen;
   });
 
+  /** A long clip has thousands of short tracks, so the list shows the ones on screen unless asked for all. */
+  let all = $state(false);
+  const tracks = $derived(
+    all ? review.roster.tracks : review.roster.tracks.filter((track) => inView.has(track.id) || track.id === review.selected),
+  );
+
   /** Select a skater, and go to where they next appear if they are not on screen. */
   function choose(event: MouseEvent, selection: Selection) {
     if (event.shiftKey && review.selected != null && selection !== review.selected) {
@@ -69,8 +75,13 @@
     <p>Nobody is named yet. Select a skater and name them in the panel on the right.</p>
   {/if}
 
-  <h3>Unnamed tracks <small>{review.roster.tracks.length}</small></h3>
-  {#each review.roster.tracks as track (track.id)}
+  <h3>
+    Unnamed {all ? "tracks" : "in view"}
+    <button class="all" aria-pressed={all} onclick={() => (all = !all)}>
+      {all ? "In view only" : `All ${review.roster.tracks.length}`}
+    </button>
+  </h3>
+  {#each tracks as track (track.id)}
     <button class="item" aria-pressed={review.selected === track.id} onclick={(event) => choose(event, track.id)}>
       <i class:on={inView.has(track.id)}></i>
       <span>{trackLabel(track.id)}{track.jersey ? " · " + track.jersey : ""}</span>
@@ -95,10 +106,20 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  h3 small {
-    margin-left: 4px;
-    color: var(--text-dim);
-    font-size: inherit;
+  h3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .all {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-soft);
+    font: inherit;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
   }
   p {
     margin: 0;
