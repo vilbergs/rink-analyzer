@@ -144,6 +144,10 @@ pub struct Tracks {
 }
 
 impl Tracks {
+    pub fn end_shot(&mut self) {
+        self.active.clear();
+    }
+
     pub fn advance(&mut self, mut detections: Vec<Detection>) {
         detections.sort_by(|a, b| a.bounds.x.total_cmp(&b.bounds.x));
         let mut assigned_detections = vec![false; detections.len()];
@@ -283,5 +287,19 @@ mod tests {
         tracker.advance(vec![detection(10.0, [1.0, 0.0, 0.0]), detection(29.0, [0.0, 1.0, 0.0])]);
         tracker.advance(vec![detection(19.0, [1.0, 0.0, 0.0])]);
         assert_eq!(tracker.visible().map(|track| track.id).collect::<Vec<_>>(), [1]);
+    }
+
+    #[test]
+    fn similar_skaters_on_opposite_sides_of_a_cut_keep_separate_ids() {
+        let mut tracker = Tracks::default();
+        let skater = detection(10.0, [1.0, 0.0, 0.0]);
+        tracker.advance(vec![skater]);
+        tracker.advance(vec![skater]);
+        assert_eq!(tracker.visible().next().unwrap().id, 1);
+        tracker.end_shot();
+        tracker.advance(vec![skater]);
+        assert_eq!(tracker.visible().count(), 0);
+        tracker.advance(vec![skater]);
+        assert_eq!(tracker.visible().next().unwrap().id, 2);
     }
 }

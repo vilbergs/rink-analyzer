@@ -6,6 +6,7 @@
   const status = element('skater-status');
   const trackingDetails = element('tracking-details');
   const trackCount = element('tracking-track-count');
+  const cutSelect = element('tracking-cut');
   const slider = element('skater-frame');
   const pick = element('pick-skater');
   const clear = element('clear-skater');
@@ -232,6 +233,7 @@
       if (!records.length) throw new Error('There are no tracked frames in this clip.');
       next.records = records;
       trackingDetails.hidden = false;
+      showCameraCuts(records);
       next.run = response.headers.get('x-rink-tracking-run');
       next.identityState = sessionIdentity;
       next.selections = selections;
@@ -251,6 +253,21 @@
   function anchors(item) {
     return item.selections?.[item.clip.id] ?? [];
   }
+
+  function showCameraCuts(records) {
+    const cuts = records.flatMap((frame,index) =>
+      index && frame.shot != null && frame.shot !== records[index-1].shot ?
+        [new Option(clock(frame.source_ms),String(index))] : []);
+    element('tracking-cut-controls').hidden = !cuts.length;
+    cutSelect.replaceChildren(new Option('Choose a cut',''),...cuts);
+  }
+  cutSelect.addEventListener('change', () => {
+    if (!review?.records || !cutSelect.value) return;
+    video.pause();
+    review.stopBefore = null;
+    seek(review,Number(cutSelect.value));
+    cutSelect.value = '';
+  });
 
   function initStudy(item) {
     item.players = new Map();

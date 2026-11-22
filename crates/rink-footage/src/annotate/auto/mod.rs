@@ -3,6 +3,7 @@ mod association;
 mod vision;
 
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     fs::{self, File},
     io::{BufRead, BufReader, BufWriter, Write},
@@ -38,14 +39,21 @@ pub fn vision_preview(args: &[OsString]) -> Result<()> {
             return Ok(());
         }
     }
-    track_preview(args, vision::detect, None)
+    track_preview(args, vision::detect, None, None)
 }
 
 pub fn detection_preview(args: &[OsString]) -> Result<()> {
     const COMMAND: &str = "Usage: rink-track-preview --detections";
+    let (args, cuts) = match args {
+        [args @ .., flag, path] if flag == "--shot-cuts" => {
+            let cuts: BTreeSet<u64> = serde_json::from_reader(File::open(path)?)?;
+            (args, Some(cuts))
+        }
+        _ => (args, None),
+    };
     if let [flag] = args {
         if flag == "--help" || flag == "-h" {
-            println!("{COMMAND} {RENDER_ARGS} <detections.ndjson> [tracks.ndjson]");
+            println!("{COMMAND} {RENDER_ARGS} <detections.ndjson> [tracks.ndjson] [--shot-cuts <cuts.json>]");
             return Ok(());
         }
     }
@@ -77,6 +85,7 @@ pub fn detection_preview(args: &[OsString]) -> Result<()> {
                 .collect())
         },
         tracks,
+        cuts,
     )
 }
 #[derive(Deserialize, Serialize)]
@@ -84,6 +93,8 @@ struct PreviewFrame {
     source_ms: u64,
     width: u32,
     height: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shot: Option<u32>,
     tracks: Vec<PreviewTrack>,
 }
 
@@ -121,9 +132,18 @@ fn track_preview(
     args: &[OsString],
     mut detect: impl FnMut(&Path, &RgbImage) -> Result<Vec<Bounds>>,
     mut track_file: Option<BufWriter<File>>,
+    mut cuts: Option<BTreeSet<u64>>,
 ) -> Result<()> {
     let mut tracks = Tracks::default();
+    let mut shot = cuts.as_ref().map(|_| 1);
     render(args, |time, path, frame, (width, height), is_last| {
+        if let Some(cuts) = &mut cuts {
+            if cuts.remove(&time) {
+                tracks.end_shot();
+                shot = shot.map(|shot| shot + 1);
+            }
+            ensure!(!is_last || cuts.is_empty(), "Some camera cuts do not align with the extracted frames");
+        }
         let detections = detect(path, frame)
             .with_context(|| format!("detect people in {}", path.display()))?
             .into_iter()
@@ -144,7 +164,7 @@ fn track_preview(
                 }
             })
             .collect();
-        let record = PreviewFrame { source_ms: time, width, height, tracks: visible };
+        let record = PreviewFrame { source_ms: time, width, height, shot, tracks: visible };
         if let Some(writer) = &mut track_file {
             serde_json::to_writer(&mut *writer, &record)?;
             writer.write_all(b"\n")?;

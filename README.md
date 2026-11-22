@@ -309,7 +309,7 @@ scripts/deploy-footage-pi.sh
 The Pi hosts uploads, the tracking queue, and the preview player. Every imported clip is queued
 for tracking when `RINK_FOOTAGE_WORKER_TOKEN` is configured. The import dialog also
 accepts a link to one public YouTube video up to 15 minutes and 200 MB. The worker
-uses `yt-dlp` to fetch a compatible MP4 and the saved session retains the YouTube link. Furulid claims work over the tailnet,
+uses `yt-dlp` to fetch a compatible MP4 and the saved session retains the YouTube link. The worker starts fresh skater tracks at detected camera cuts. Jump to those frames from **Tracking details**. Furulid claims work over the tailnet,
 does person detection on its GPU, and uses the Rust tracker and encoder to return a silent
 annotated MP4 with timestamped track data. Use **Review players** on the saved clip to play
 the preview. IDs are local to each clip.

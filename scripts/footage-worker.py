@@ -64,6 +64,25 @@ def extract_frames(source, frames):
         frame.rename(frames / f"{source.stem}-{time_ms:06d}.jpg")
 
 
+def detect_camera_cuts(frames, output):
+    frame_files = sorted(frames.glob("source-*.jpg"))
+    result = subprocess.run([
+        "ffmpeg", "-nostdin", "-v", "error", "-threads", "2", "-framerate", str(FPS),
+        "-pattern_type", "glob", "-i", str(frames / "source-*.jpg"), "-filter_threads", "2",
+        "-vf", "scale=160:160:force_original_aspect_ratio=decrease,scdet=threshold=12,"
+        "metadata=mode=print:key=lavfi.scd.time:file=-", "-f", "null", "-",
+    ], check=True, capture_output=True, text=True, timeout=2700)
+    cuts = []
+    for line in result.stdout.splitlines():
+        if line.startswith("frame:"):
+            # The selected frame's PTS is its index in the image input at FPS.
+            index = int(line.split()[1].removeprefix("pts:"))
+            if 0 < index < len(frame_files):
+                cuts.append(int(frame_files[index].stem.removeprefix("source-")))
+    output.write_text(json.dumps(cuts))
+    return len(cuts)
+
+
 def process(job):
     route = "/" + job["session"] + "/" + job["clip"]
     lease = job["lease"]
@@ -81,11 +100,16 @@ def process(job):
             with request(route + "/source", lease=lease) as transfer, source.open("wb") as target:
                 shutil.copyfileobj(transfer, target, length=1024 * 1024)
             extract_frames(source, frames)
+            shot_args = []
+            if job.get("split_shots"):
+                cuts = work / "cuts.json"
+                print(f"Detected {detect_camera_cuts(frames, cuts)} camera cuts for {job['clip']}", flush=True)
+                shot_args = ["--shot-cuts", cuts]
             with detections.open("wb") as boxes:
                 subprocess.run([sys.executable, ROOT / "detect-yolox.py", ROOT / "yolox_s.onnx", frames],
                                stdout=boxes, check=True, timeout=2700)
             subprocess.run([ROOT / "rink-track-preview", "--detections", frames, source.stem, str(FPS),
-                            os.environ["RINK_FOOTAGE_FONT"], output, detections, tracks], check=True, timeout=2700)
+                            os.environ["RINK_FOOTAGE_FONT"], output, detections, tracks, *shot_args], check=True, timeout=2700)
             with tracks.open("rb") as data, request(route + "/data", "PUT", lease, data, "application/x-ndjson"):
                 pass
             with output.open("rb") as video, request(route + "/result", "PUT", lease, video, "video/mp4"):

@@ -55,6 +55,7 @@ struct Claimed {
     session: Uuid,
     clip: Uuid,
     lease: Uuid,
+    split_shots: bool,
 }
 
 #[derive(Serialize)]
@@ -176,7 +177,13 @@ async fn claim(State(app): State<App>, headers: HeaderMap) -> Result<Response, A
                 failed: false,
             };
             save(&source, &lease)?;
-            return Ok(Json(Claimed { session: session.id, clip: clip.id, lease: lease.token }).into_response());
+            return Ok(Json(Claimed {
+                session: session.id,
+                clip: clip.id,
+                lease: lease.token,
+                split_shots: session.source_url.is_some(),
+            })
+            .into_response());
         }
     }
     Ok(StatusCode::NO_CONTENT.into_response())
