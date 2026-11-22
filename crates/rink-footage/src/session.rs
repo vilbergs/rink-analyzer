@@ -9,12 +9,12 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use tempfile::Builder;
 use uuid::Uuid;
 
-use crate::{extract, Selection};
+use crate::{Selection, extract};
 
 const VERSION: u32 = 1;
 const MANIFEST: &str = "session.json";
@@ -59,6 +59,8 @@ pub struct Session {
     pub id: Uuid,
     pub created_ms: u64,
     pub clips: Vec<Clip>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 impl Session {
@@ -99,6 +101,17 @@ pub fn import(root: &Path, paths: &[PathBuf], on_clip: impl FnMut(usize, &str)) 
 pub fn import_with_preview(
     root: &Path,
     paths: &[PathBuf],
+    on_clip: impl FnMut(usize, &str),
+    preview: impl FnMut(&Path, &Path) -> Result<(u64, u64)>,
+) -> Result<ImportResult> {
+    import_with_source(root, paths, Uuid::new_v4(), None, on_clip, preview)
+}
+
+pub fn import_with_source(
+    root: &Path,
+    paths: &[PathBuf],
+    id: Uuid,
+    source_url: Option<String>,
     mut on_clip: impl FnMut(usize, &str),
     mut preview: impl FnMut(&Path, &Path) -> Result<(u64, u64)>,
 ) -> Result<ImportResult> {
@@ -106,7 +119,8 @@ pub fn import_with_preview(
     let stage = Builder::new().prefix(".import-").tempdir_in(root)?;
     let mut session = Session {
         version: VERSION,
-        id: Uuid::new_v4(),
+        id,
+        source_url,
         created_ms: u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis())?,
         clips: Vec::new(),
     };

@@ -132,3 +132,9 @@ progress {width:100%;accent-color:var(--accent)}
 #identity-reference {margin:.6rem 0}
 #identity-reference-frame {display:block;width:100%;height:auto;background:#15202a}
 #identity-status:empty {display:none}
+
+#youtube-import {border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+#youtube-import label {display:block;font-size:.85rem;margin-bottom:5px}
+#youtube-link {width:100%;min-width:0;background:#131b20;border:1px solid #45525b;padding:.5rem;border-radius:7px}
+#youtube-status:not(:empty),#youtube-progress:not(:empty) {margin-top:8px;color:var(--muted);font-size:.85rem}
+#youtube-source {display:inline-block;margin-top:4px;font-size:.85rem}

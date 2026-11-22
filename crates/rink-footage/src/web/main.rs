@@ -5,6 +5,7 @@ mod compatible;
 mod focus;
 mod identity;
 mod jobs;
+mod youtube;
 
 use std::{
     env, fs,
@@ -109,6 +110,7 @@ async fn main() -> Result<()> {
         .route("/footage/api/sessions/{id}", get(details).delete(remove))
         .route("/footage/api/sessions/{id}/clips/{clip_id}/preview", get(preview))
         .merge(jobs::routes())
+        .merge(youtube::routes())
         .merge(focus::routes())
         .merge(identity::routes())
         .merge(coaching::routes())

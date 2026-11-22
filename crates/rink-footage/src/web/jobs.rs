@@ -63,7 +63,7 @@ struct ClipStatus {
     tracking: &'static str,
 }
 
-fn now() -> u64 {
+pub(super) fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
@@ -102,7 +102,7 @@ fn save(source: &FilePath, lease: &Lease) -> Result<(), ApiError> {
     Ok(())
 }
 
-fn require_worker(app: &App, headers: &HeaderMap) -> Result<(), ApiError> {
+pub(super) fn require_worker(app: &App, headers: &HeaderMap) -> Result<(), ApiError> {
     let presented = headers
         .get(header::AUTHORIZATION)
         .and_then(|token| token.to_str().ok())
@@ -285,7 +285,11 @@ async fn result(
     publish(&app, &headers, &source, temp, result_path(&source), size).await
 }
 
-async fn receive(app: &App, mut body: Body, limit: usize) -> Result<(tempfile::NamedTempFile, File, usize), ApiError> {
+pub(super) async fn receive(
+    app: &App,
+    mut body: Body,
+    limit: usize,
+) -> Result<(tempfile::NamedTempFile, File, usize), ApiError> {
     let temp = tempfile::NamedTempFile::new_in(&app.root).map_err(storage_error)?;
     let mut file = File::from_std(temp.reopen().map_err(storage_error)?);
     let mut size = 0;

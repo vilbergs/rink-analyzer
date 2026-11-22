@@ -99,6 +99,9 @@ function showSession(session) {
   element('session-title').textContent = new Intl.DateTimeFormat(undefined, {month:'long',day:'numeric'}).format(session.created_ms) + ' session';
   element('session-detail').textContent =
     session.clips.length + (session.clips.length === 1 ? ' clip · ' : ' clips · ') + date(session.created_ms);
+  const source = element('youtube-source');
+  source.hidden = !session.source_url;
+  if (session.source_url) source.href = session.source_url;
   element('clips').replaceChildren(...session.clips.map(clip => {
     const card = document.createElement('article');
     card.className = 'clip';
@@ -325,6 +328,86 @@ element('import').addEventListener('submit', async event => {
     element('close-import').disabled = false;
     input.disabled = false;
     submit.disabled = files.length === 0;
+  }
+});
+
+const youtubeForm = element('youtube-import');
+const youtubeSubmit = element('youtube-submit');
+const youtubeProgress = element('youtube-progress');
+let youtubeRequest;
+try { youtubeRequest = localStorage.getItem('rink.youtube-import'); } catch {}
+
+function pendingYoutube(id) {
+  youtubeRequest = id;
+  youtubeSubmit.disabled = Boolean(id);
+  try {
+    if (id) localStorage.setItem('rink.youtube-import', id);
+    else localStorage.removeItem('rink.youtube-import');
+  } catch {}
+}
+
+async function youtubeJson(path, options) {
+  const response = await fetch('/footage/api/youtube' + path, options);
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(result.error ?? 'Could not connect to the video importer.');
+    error.status = response.status;
+    throw error;
+  }
+  return result;
+}
+
+async function watchYoutube(id) {
+  if (youtubeRequest !== id) return;
+  try {
+    const job = await youtubeJson('/' + id);
+    if (youtubeRequest !== id) return;
+    if (job.state === 'ready') {
+      pendingYoutube(null);
+      loadRecent();
+      youtubeProgress.replaceChildren('YouTube video saved. ', write('a', 'Open session'));
+      youtubeProgress.querySelector('a').href = '?session=' + id;
+      return;
+    }
+    if (job.state === 'failed') {
+      pendingYoutube(null);
+      youtubeProgress.textContent = job.error;
+      return;
+    }
+    youtubeProgress.textContent = job.state === 'fetching' ? 'Fetching the YouTube video…' : 'YouTube video queued…';
+  } catch (error) {
+    if (error.status === 404) {
+      pendingYoutube(null);
+      youtubeProgress.textContent = error.message;
+      return;
+    }
+    youtubeProgress.textContent = 'Checking the YouTube import…';
+  }
+  setTimeout(() => watchYoutube(id), 4000);
+}
+
+if (youtubeRequest) {
+  pendingYoutube(youtubeRequest);
+  watchYoutube(youtubeRequest);
+}
+youtubeForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (youtubeSubmit.disabled || busy) return;
+  const field = element('youtube-link');
+  const feedback = element('youtube-status');
+  feedback.textContent = '';
+  youtubeSubmit.disabled = true;
+  try {
+    const job = await youtubeJson('', {
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:field.value}),
+    });
+    pendingYoutube(job.id);
+    field.value = '';
+    dialog.close();
+    await watchYoutube(job.id);
+  } catch (error) {
+    feedback.textContent = error.message;
+    youtubeSubmit.disabled = false;
   }
 });
 

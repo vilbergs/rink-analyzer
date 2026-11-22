@@ -10,7 +10,9 @@ import sys
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
 import time
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent
 API = os.environ["RINK_FOOTAGE_API"].rstrip("/") + "/footage/worker"
@@ -18,13 +20,17 @@ TOKEN = os.environ["RINK_FOOTAGE_WORKER_TOKEN"]
 FPS = 15
 
 
-def request(route, method="GET", lease=None, body=None, mime="application/octet-stream"):
+def request(route, method="GET", lease=None, body=None, mime="application/octet-stream", title=None, failure=None):
     headers = {"Authorization": f"Bearer {TOKEN}"}
     if lease:
         headers["X-Rink-Lease"] = lease
     if body:
         headers["Content-Length"] = str(os.fstat(body.fileno()).st_size)
         headers["Content-Type"] = mime
+    if failure:
+        headers["X-Rink-Import-Failure"] = failure
+    if title:
+        headers["X-Rink-Title"] = quote(title[:100], safe="")
     return urlopen(Request(API + route, data=body, headers=headers, method=method), timeout=90)
 
 
@@ -94,6 +100,39 @@ def process(job):
         thread.join()
 
 
+def import_youtube(job):
+    route = "/youtube/" + job["id"]
+    lease = job["lease"]
+    url = "https://www.youtube.com/watch?v=" + job["video"]
+    try:
+        with TemporaryDirectory(prefix="rink-youtube-") as folder:
+            video = Path(folder) / "video.mp4"
+            result = subprocess.run([
+                "yt-dlp", "--ignore-config", "--no-playlist", "--quiet", "--no-warnings",
+                "--socket-timeout", "15", "--retries", "2",
+                "--match-filters", "!is_live & duration <= 900",
+                "--max-filesize", "200M", "--format", "bv[height<=720][ext=mp4][vcodec^=avc1]/b[height<=720][ext=mp4][vcodec^=avc1]",
+                "--print", "after_move:%(title)j",
+                "--output", str(video), "--", url,
+            ], capture_output=True, text=True, check=True, timeout=210)
+            if not video.is_file() or not result.stdout.strip():
+                raise ValueError("Expected a public YouTube video up to 15 minutes and 200 MB")
+            title = json.loads(result.stdout.strip())
+            with video.open("rb") as body, request(route + "/video", "PUT", lease, body, "video/mp4", title):
+                pass
+        print(f"Imported YouTube video {job['video']}", flush=True)
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        reason = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else str(error)
+        print(f"YouTube import failed for {job['video']}: {reason}", file=sys.stderr, flush=True)
+        failure = None
+        if isinstance(error, HTTPError):
+            failure = {413: "size", 507: "storage"}.get(error.code)
+        elif isinstance(error, ValueError):
+            failure = "size"
+        with request(route + "/failure", "POST", lease, failure=failure):
+            pass
+
+
 def main():
     while True:
         try:
@@ -101,6 +140,11 @@ def main():
                 job = json.load(response) if response.status == 200 else None
             if job:
                 process(job)
+                continue
+            with request("/youtube/claim", "POST") as response:
+                youtube = json.load(response) if response.status == 200 else None
+            if youtube:
+                import_youtube(youtube)
                 continue
         except (OSError, ValueError) as error:
             print(f"Worker request failed: {error}", file=sys.stderr, flush=True)

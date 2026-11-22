@@ -14,6 +14,7 @@
   <nav aria-label="Workspace"><a href="/footage/" aria-current="page">Footage</a><a href="/#/local-notes">Local notes</a></nav>
 </div></header>
 <main>
+  <p id="youtube-progress" role="status"></p>
   <section id="library" aria-labelledby="library-title">
     <div class="page-head"><div><h1 id="library-title">Footage library</h1><p id="library-summary">Your recorded sessions</p></div>
       <button class="primary" id="new-session" type="button"><b aria-hidden="true">+</b> Import footage</button></div>
@@ -22,7 +23,7 @@
   </section>
   <section id="session" aria-labelledby="session-title" hidden>
     <a class="back" href="/footage/">← Footage library</a>
-    <div class="page-head"><div><h1 id="session-title">Session</h1><p id="session-detail"></p></div>
+    <div class="page-head"><div><h1 id="session-title">Session</h1><p id="session-detail"></p><a id="youtube-source" hidden>Watch on YouTube ↗</a></div>
       <button id="delete" type="button">Delete session</button></div>
     <section id="tracking-review" hidden aria-labelledby="tracking-title">
       <div class="review-layout"><div class="monitor">
@@ -104,5 +105,14 @@
         <progress id="progress" max="100" hidden aria-label="Upload progress"></progress>
         <p id="status" role="status"></p>
         <ul id="failures" hidden></ul>
-      </form></dialog>
+      </form>
+      <form id="youtube-import">
+        <label for="youtube-link">Or import a YouTube video</label>
+        <div class="select-row">
+          <input id="youtube-link" type="url" required placeholder="https://www.youtube.com/watch?v=…">
+          <button type="submit" id="youtube-submit">Import link</button>
+        </div>
+        <p id="youtube-status" role="status"></p>
+      </form>
+</dialog>
 </body></html>
