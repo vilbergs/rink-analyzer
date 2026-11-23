@@ -384,7 +384,8 @@ marked in. Choose **Build film room** in the session's Film room panel, with an 
 you want to know, then open it from **Film room** in the top bar. The worker sends sampled frames
 where you're in view, with you boxed, to Claude (`claude-opus-5-5`), which picks four to eight
 moments across the clips and writes what you did and what to try. The worker checks the times against the clips and
-renders one video: each moment plays with you boxed, then freezes on its cue. It uses
+cuts each moment from your original upload, at up to 1080p and 30 fps, with you boxed and a short
+hold on its key frame. The film carries no text: the cues sit beside it on the film room page. It uses
 `ANTHROPIC_API_KEY` from the worker's env file, or without one the Claude Code CLI named by
 `RINK_FEEDBACK_CLAUDE`, on furulid's own Claude login. Rebuilding replaces the session's film. To render a
 saved answer again without calling the API, set `RINK_FEEDBACK_PLAN` to its JSON file when running

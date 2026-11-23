@@ -164,7 +164,6 @@ def make_feedback(job):
                 fetch(f"{session}/clips/{clip['id']}/tracks.ndjson", clip_dir / "tracks.ndjson")
                 (clip_dir / "focus.json").write_text(json.dumps(marks.get(clip["id"], [])))
                 extract_frames(source, clip_dir / "frames")
-                source.unlink()
             (work / "job.json").write_text(json.dumps({"note": job["note"], "clips": job["clips"]}))
             # The Rust step asks Claude for the moments and renders the video.
             subprocess.run([ROOT / "rink-track-preview", "--feedback", work, os.environ["RINK_FOOTAGE_FONT"]],

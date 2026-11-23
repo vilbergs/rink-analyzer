@@ -1,11 +1,14 @@
-//! One feedback video from a few clips the user is marked in.
+//! A session's film room: one feedback film from the clips the user is marked in.
 //!
 //! `rink-track-preview --feedback <work-dir> <font.ttf>` reads, for each clip in `job.json`,
-//! `<clip>/frames/*.jpg` (15 fps, named by source time), `<clip>/tracks.ndjson` and
-//! `<clip>/focus.json` (the "this is me" anchors). It shows Claude sampled frames with the user
-//! boxed, gets back a few moments with cues, checks them against the clips, and writes
-//! `out/feedback.json` and `out/video.mp4`. Claude is reached through the API with
-//! `ANTHROPIC_API_KEY`, or through the Claude Code CLI at `RINK_FEEDBACK_CLAUDE`;
+//! `<clip>/source.mp4` (the upload), `<clip>/frames/*.jpg` (the 15 fps tracking frames, named by
+//! source time), `<clip>/tracks.ndjson` and `<clip>/focus.json` (the "this is me" anchors). It shows
+//! Claude sampled frames with the user boxed, gets back a few moments with cues, and checks them
+//! against the clips. The film carries annotations only: each moment is cut from the upload at up to
+//! 1920 px and 30 fps, with the user boxed, and holds on its key frame. The cues go to
+//! `out/feedback.json` for the page beside the film, and the film to `out/video.mp4`. Claude is
+//! reached through the API with `ANTHROPIC_API_KEY`, or through the Claude Code CLI at
+//! `RINK_FEEDBACK_CLAUDE`;
 //! `RINK_FEEDBACK_PLAN` names a saved answer to render instead.
 use std::{
     collections::BTreeMap,
@@ -14,30 +17,28 @@ use std::{
     fs::{self, File},
     io::{BufRead, BufReader, Cursor, Write},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, ChildStdin, Command, Stdio},
     time::Duration,
 };
 
-use ab_glyph::{Font, FontArc, PxScale, ScaleFont};
+use ab_glyph::FontArc;
 use anyhow::{bail, ensure, Context, Result};
 use base64::Engine;
-use image::{imageops::FilterType, Rgb, RgbImage};
+use image::{Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::{
-    overlay::{bar, rect_label, text, WHITE},
-    tracker::Point,
-    video::Video,
-};
+use crate::{overlay::rect_label, tracker::Point};
 
 const USAGE: &str = "Usage: rink-track-preview --feedback <work-dir> <font.ttf>";
 const FPS: u32 = 15;
 const YOU: Rgb<u8> = Rgb([255, 214, 0]);
 /// Images sent to Claude across all clips; frames are 720 px wide, about 400 tokens each.
 const MAX_SAMPLES: usize = 120;
-const HOLD_SECONDS: u32 = 5;
-const INTRO_SECONDS: u32 = 4;
+/// The film: long edge in pixels, frame rate, and how long it holds on each moment's key frame.
+const LONG_EDGE: u32 = 1920;
+const FILM_FPS: u32 = 30;
+const HOLD_SECONDS: u32 = 2;
 
 const SYSTEM: &str = "You are an ice hockey coach reviewing an adult recreational player's game footage, \
 filmed on a phone from the stands. The player you are coaching is boxed in yellow in every image. \
@@ -80,6 +81,10 @@ struct Anchor {
 
 struct Clip {
     name: String,
+    /// The original upload, cut for the film at full quality.
+    source: PathBuf,
+    /// Width and height of the tracking frames, which the track boxes are measured in.
+    tracked: (u32, u32),
     /// Frame path and source time, in time order.
     frames: Vec<(PathBuf, u64)>,
     you: BTreeMap<u64, [f32; 4]>,
@@ -136,7 +141,7 @@ pub fn run(args: &[OsString]) -> Result<()> {
     let moments = check(&plan, &clips)?;
     let out = work.join("out");
     fs::create_dir_all(&out)?;
-    let moments = render(&plan, moments, &job, &clips, &font, &out.join("video.mp4"))?;
+    let moments = render(moments, &plan, &job, &clips, &font, &work, &out.join("video.mp4"))?;
     let feedback = json!({ "summary": plan.summary, "moments": moments });
     fs::write(out.join("feedback.json"), serde_json::to_vec_pretty(&feedback)?)?;
     println!("Feedback video with {} moments", feedback["moments"].as_array().map_or(0, Vec::len));
@@ -170,7 +175,10 @@ fn load(dir: &Path, name: &str) -> Result<Clip> {
         }
     }
     let duration_ms = frames.last().map_or(0, |(_, ms)| *ms);
-    Ok(Clip { name: name.to_owned(), frames, you, duration_ms })
+    let source = dir.join("source.mp4");
+    ensure!(source.is_file(), "{name} has no source video");
+    let tracked = image::image_dimensions(&frames[0].0)?;
+    Ok(Clip { name: name.to_owned(), source, tracked, frames, you, duration_ms })
 }
 
 /// Evenly spaced frames where the user is in view, at most `MAX_SAMPLES` across all clips.
@@ -378,81 +386,111 @@ fn check(plan: &Plan, clips: &[Clip]) -> Result<Vec<Window>> {
     Ok(kept)
 }
 
-/// Frames scaled and centered onto the output size, with the transform for track boxes.
+/// The film's frame size: the shape most moments were filmed in, at up to `LONG_EDGE` pixels.
 struct Canvas {
     width: u32,
     height: u32,
 }
 
 impl Canvas {
-    fn fit(&self, path: &Path) -> Result<(RgbImage, impl Fn([f32; 4]) -> [f32; 4])> {
-        let image = image::open(path)?.to_rgb8();
-        let scale = (self.width as f32 / image.width() as f32).min(self.height as f32 / image.height() as f32);
-        let (w, h) = ((image.width() as f32 * scale) as u32, (image.height() as f32 * scale) as u32);
-        let (dx, dy) = ((self.width - w) / 2, (self.height - h) / 2);
-        let map = move |[x0, y0, x1, y1]: [f32; 4]| {
-            let (dx, dy) = (dx as f32, dy as f32);
-            [x0 * scale + dx, y0 * scale + dy, x1 * scale + dx, y1 * scale + dy]
-        };
-        if (w, h) == (self.width, self.height) {
-            return Ok((image, map));
+    fn new(windows: &[Window], clips: &[Clip]) -> Result<Self> {
+        let mut shapes: BTreeMap<(u32, u32), usize> = BTreeMap::new();
+        for window in windows {
+            *shapes.entry(clips[window.clip].tracked).or_default() += 1;
         }
+        let (w, h) = shapes.into_iter().max_by_key(|(_, n)| *n).map(|(shape, _)| shape).context("no moments")?;
+        let scale = LONG_EDGE as f32 / w.max(h) as f32;
+        Ok(Self { width: (w as f32 * scale) as u32 & !1, height: (h as f32 * scale) as u32 & !1 })
+    }
+
+    /// Center a frame that already fits inside the canvas.
+    fn place(&self, frame: &RgbImage) -> (RgbImage, (f32, f32)) {
+        if frame.dimensions() == (self.width, self.height) {
+            return (frame.clone(), (0.0, 0.0));
+        }
+        let (dx, dy) = ((self.width - frame.width()) / 2, (self.height - frame.height()) / 2);
         let mut canvas = RgbImage::new(self.width, self.height);
-        let resized = image::imageops::resize(&image, w, h, FilterType::Triangle);
-        image::imageops::replace(&mut canvas, &resized, i64::from(dx), i64::from(dy));
-        Ok((canvas, map))
+        image::imageops::replace(&mut canvas, frame, i64::from(dx), i64::from(dy));
+        (canvas, (dx as f32, dy as f32))
+    }
+}
+
+/// Where the user is at `ms`, moved smoothly between the 15 fps tracked frames.
+fn you_at(clip: &Clip, ms: f64) -> Option<[f32; 4]> {
+    let before = clip.you.range(..=ms as u64).next_back();
+    let after = clip.you.range(ms.ceil() as u64..).next();
+    match (before, after) {
+        (Some((&t0, a)), Some((&t1, b))) if t1 - t0 <= 200 => {
+            let f = if t1 == t0 { 0.0 } else { ((ms - t0 as f64) / (t1 - t0) as f64) as f32 };
+            Some(std::array::from_fn(|i| a[i] + (b[i] - a[i]) * f))
+        }
+        (Some((&t, a)), _) | (_, Some((&t, a))) if (t as f64 - ms).abs() <= 100.0 => Some(*a),
+        _ => None,
     }
 }
 
 fn render(
-    plan: &Plan,
     windows: Vec<Window>,
+    plan: &Plan,
     job: &Job,
     clips: &[Clip],
     font: &FontArc,
+    work: &Path,
     output: &Path,
 ) -> Result<Vec<Moment>> {
-    // The film takes the shape most of its moments were filmed in; the others are letterboxed.
-    let mut shapes: BTreeMap<(u32, u32), usize> = BTreeMap::new();
-    for window in &windows {
-        *shapes.entry(image::image_dimensions(&clips[window.clip].frames[0].0)?).or_default() += 1;
-    }
-    let (width, height) = shapes.into_iter().max_by_key(|(_, n)| *n).map(|(shape, _)| shape).context("no moments")?;
-    let opening = &clips[windows[0].clip].frames[0].0;
-    let canvas = Canvas { width: width & !1, height: height & !1 };
-    let mut reel = Reel { video: Video::new(File::create(output)?, canvas.width, canvas.height, FPS)?, frames: 0 };
-
-    // Intro: the summary over the opening frame.
-    let (mut intro, _) = canvas.fit(opening)?;
-    bar(&mut intro, 0, canvas.height);
-    text(&mut intro, font, "Feedback", Point(24, 48), 30.0, YOU);
-    paragraph(&mut intro, font, &plan.summary, Point(24, 90), canvas.width - 48, 22.0, WHITE);
-    reel.write(&intro, INTRO_SECONDS * FPS)?;
-
-    let total = windows.len();
+    let canvas = Canvas::new(&windows, clips)?;
+    let mut reel = Reel::start(output, &canvas)?;
+    let cut = work.join("cut");
     let mut out = Vec::new();
-    for (n, window) in windows.into_iter().enumerate() {
+    for window in windows {
         let clip = &clips[window.clip];
         let m = &plan.moments[window.planned];
-        let video_ms = reel.frames * 1000 / u64::from(FPS);
+        let video_ms = reel.frames * 1000 / u64::from(FILM_FPS);
+        // Cut the moment from the original clip, scaled to fit the canvas at 30 fps.
+        if cut.exists() {
+            fs::remove_dir_all(&cut)?;
+        }
+        fs::create_dir_all(&cut)?;
+        let status = Command::new("ffmpeg")
+            .args(["-v", "error", "-nostdin", "-ss", &format!("{:.3}", window.start as f64 / 1000.0), "-i"])
+            .arg(&clip.source)
+            .args(["-t", &format!("{:.3}", (window.end - window.start) as f64 / 1000.0)])
+            .args([
+                "-vf",
+                &format!(
+                    "fps={FILM_FPS},scale={}:{}:force_original_aspect_ratio=decrease:force_divisible_by=2",
+                    canvas.width, canvas.height
+                ),
+            ])
+            .args(["-q:v", "2"])
+            .arg(cut.join("%06d.jpg"))
+            .status()
+            .context("running ffmpeg to cut a moment")?;
+        ensure!(status.success(), "ffmpeg could not cut {} at {} ms", clip.name, window.start);
+        let mut frames: Vec<PathBuf> = fs::read_dir(&cut)?.filter_map(|e| e.ok().map(|e| e.path())).collect();
+        frames.sort();
         let mut frozen = false;
-        for (path, ms) in clip.frames.iter().filter(|(_, ms)| (window.start..=window.end).contains(ms)) {
-            let (mut image, map) = canvas.fit(path)?;
-            let you = clip.you.get(ms).map(|&xyxy| map(xyxy));
-            if let Some(xyxy) = you {
-                outline(&mut image, xyxy, YOU, 3, Some(font));
+        let mut last = None;
+        for (k, path) in frames.iter().enumerate() {
+            let ms = window.start as f64 + k as f64 * 1000.0 / f64::from(FILM_FPS);
+            let frame = image::open(path)?.to_rgb8();
+            // Track boxes are in the tracking frames' pixels; this frame is the same picture, larger.
+            let scale = frame.width() as f32 / clip.tracked.0 as f32;
+            let (mut image, (dx, dy)) = canvas.place(&frame);
+            if let Some([x0, y0, x1, y1]) = you_at(clip, ms) {
+                let xyxy = [x0 * scale + dx, y0 * scale + dy, x1 * scale + dx, y1 * scale + dy];
+                outline(&mut image, xyxy, YOU, (canvas.width / 400).max(3) as i32, Some(font));
             }
-            bar(&mut image, 0, 40);
-            let header = format!("{}/{total} · {} · {}", n + 1, m.title, clip.name);
-            text(&mut image, font, &header, Point(14, 28), 20.0, WHITE);
             reel.write(&image, 1)?;
-            if !frozen && *ms >= window.freeze {
+            if !frozen && ms >= window.freeze as f64 {
                 frozen = true;
-                // The cue goes in the half of the frame away from the player.
-                let you_low = you.is_some_and(|[_, y0, _, y1]| (y0 + y1) / 2.0 > canvas.height as f32 / 2.0);
-                caption(&mut image, font, m, you_low);
-                reel.write(&image, HOLD_SECONDS * FPS)?;
+                reel.write(&image, HOLD_SECONDS * FILM_FPS)?;
             }
+            last = Some(image);
+        }
+        // A key frame at the very end of the window falls between frames; hold the last one.
+        if let (false, Some(image)) = (frozen, &last) {
+            reel.write(image, HOLD_SECONDS * FILM_FPS)?;
         }
         out.push(Moment {
             clip: job.clips[window.clip].id.clone(),
@@ -466,63 +504,56 @@ fn render(
             video_ms,
         });
     }
-    reel.video.finish()?;
+    reel.finish()?;
     Ok(out)
 }
 
-/// The output video and how many frames it holds, for each moment's start time.
+/// The film, encoded by ffmpeg from raw frames, and how many frames it holds so far.
 struct Reel {
-    video: Video,
+    child: Child,
+    input: Option<ChildStdin>,
     frames: u64,
 }
 
 impl Reel {
+    fn start(output: &Path, canvas: &Canvas) -> Result<Self> {
+        let mut child = Command::new("ffmpeg")
+            .args(["-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24"])
+            .args(["-s", &format!("{}x{}", canvas.width, canvas.height), "-r", &FILM_FPS.to_string(), "-i", "-"])
+            .args([
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "20",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+            ])
+            .arg(output)
+            .stdin(Stdio::piped())
+            .spawn()
+            .context("starting ffmpeg to encode the film")?;
+        let input = child.stdin.take();
+        Ok(Self { child, input, frames: 0 })
+    }
+
     fn write(&mut self, image: &RgbImage, repetitions: u32) -> Result<()> {
-        self.video.frame(image, repetitions)?;
+        let input = self.input.as_mut().context("the encoder is closed")?;
+        for _ in 0..repetitions {
+            input.write_all(image.as_raw()).context("ffmpeg stopped taking frames")?;
+        }
         self.frames += u64::from(repetitions);
         Ok(())
     }
-}
 
-fn caption(image: &mut RgbImage, font: &FontArc, m: &PlannedMoment, at_top: bool) {
-    let (width, height) = image.dimensions();
-    let (top, bottom) = if at_top { (40, height * 9 / 20 + 40) } else { (height * 11 / 20, height) };
-    bar(image, top, bottom);
-    text(image, font, &m.title, Point(20, top as i32 + 32), 24.0, YOU);
-    let y = paragraph(image, font, &m.observation, Point(20, top as i32 + 62), width - 40, 18.0, WHITE);
-    paragraph(image, font, &format!("Try: {}", m.suggestion), Point(20, y + 8), width - 40, 18.0, YOU);
-}
-
-/// Draw text wrapped to `width` from the baseline at `at`; returns the baseline after the last line.
-fn paragraph(
-    image: &mut RgbImage,
-    font: &FontArc,
-    value: &str,
-    at: Point,
-    width: u32,
-    size: f32,
-    color: Rgb<u8>,
-) -> i32 {
-    let scaled = font.as_scaled(PxScale::from(size));
-    let measure = |s: &str| s.chars().map(|c| scaled.h_advance(scaled.glyph_id(c))).sum::<f32>();
-    let mut lines = Vec::new();
-    let mut line = String::new();
-    for word in value.split_whitespace() {
-        let candidate = if line.is_empty() { word.to_owned() } else { format!("{line} {word}") };
-        if measure(&candidate) > width as f32 && !line.is_empty() {
-            lines.push(std::mem::replace(&mut line, word.to_owned()));
-        } else {
-            line = candidate;
-        }
+    fn finish(mut self) -> Result<()> {
+        drop(self.input.take());
+        ensure!(self.child.wait()?.success(), "ffmpeg could not encode the film");
+        Ok(())
     }
-    if !line.is_empty() {
-        lines.push(line);
-    }
-    let step = (size * 1.35) as i32;
-    for (i, line) in lines.iter().enumerate() {
-        text(image, font, line, Point(at.0, at.1 + i as i32 * step), size, color);
-    }
-    at.1 + (lines.len() as i32 - 1).max(0) * step + step
 }
 
 fn outline(image: &mut RgbImage, [x0, y0, x1, y1]: [f32; 4], color: Rgb<u8>, width: i32, font: Option<&FontArc>) {

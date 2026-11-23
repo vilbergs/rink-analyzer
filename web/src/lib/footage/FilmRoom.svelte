@@ -68,6 +68,14 @@
           controls
           playsinline
         ></video>
+        {#if moments[Math.max(current, 0)]}
+          {@const moment = moments[Math.max(current, 0)]}
+          <div class="cue" aria-live="polite">
+            <b>{Math.max(current, 0) + 1}. {moment.title}</b>
+            <span>{moment.observation}</span>
+            <span class="try">Try: {moment.suggestion}</span>
+          </div>
+        {/if}
         <div class="timeline" aria-label="Moments">
           {#each moments as moment, i (i)}
             <button style={span(i)} class:on={i === current} title={moment.title} onclick={() => seek(moment.video_ms)}>
@@ -131,7 +139,7 @@
   }
   .film {
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto auto;
     gap: 10px;
     min-width: 0;
     min-height: 0;
@@ -143,6 +151,24 @@
     height: 100%;
     min-height: 0;
     object-fit: contain;
+  }
+  .cue {
+    display: grid;
+    gap: 4px;
+    max-width: 900px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--panel);
+    line-height: 1.45;
+  }
+  .cue b {
+    font-size: 15px;
+  }
+  .cue span {
+    color: var(--text-soft);
+  }
+  .cue .try {
+    color: var(--accent-soft);
   }
   .timeline {
     position: relative;
